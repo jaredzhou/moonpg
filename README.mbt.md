@@ -50,7 +50,7 @@ let p_id : Int = 42
 let p_email : String? = None
 conn.execute(
   "UPDATE users SET email = $1 WHERE id = $2",
-  params=[&p_email, &p_id],
+  params=[p_email, p_id],
 ) |> ignore
 
 conn.close()
