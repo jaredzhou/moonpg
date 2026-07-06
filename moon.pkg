@@ -1,0 +1,19 @@
+import {
+  "jaredzhou/moonpg/ffi",
+  "moonbitlang/core/encoding/utf8",
+  "moonbitlang/core/string",
+  "moonbitlang/core/env",
+  "moonbitlang/core/test",
+}
+
+
+supported_targets = "+native"
+
+options(
+  link: {
+    "native": {
+      "cc-link-flags": "-lpq",
+      "stub-cc-flags": "-I/usr/include/postgresql",
+    },
+  },
+)

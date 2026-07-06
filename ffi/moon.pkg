@@ -1,0 +1,16 @@
+import {
+  "moonbitlang/core/encoding/utf8",
+  "moonbitlang/core/buffer",
+}
+
+supported_targets = "+native"
+
+options(
+  "native-stub": [ "libpq_c.c" ],
+  link: {
+    "native": {
+      "cc-link-flags": "-lpq",
+      "stub-cc-flags": "-I/usr/include/postgresql",
+    },
+  },
+)
