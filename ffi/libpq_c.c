@@ -45,14 +45,12 @@ void moonpg_close(void *conn_ptr) {
 
 // --- Error handling ---
 
-moonbit_string_t moonpg_error_message(void *conn_ptr) {
+moonbit_bytes_t moonpg_error_message_bytes(void *conn_ptr) {
   moonpg_Connection *mc = (moonpg_Connection *)conn_ptr;
   const char *err = PQerrorMessage(mc->conn);
   int len = strlen(err);
-  moonbit_string_t result = moonbit_make_string_raw(len);
-  for (int i = 0; i < len; i++) {
-    result[i] = (uint16_t)(unsigned char)err[i];
-  }
+  uint8_t *result = moonbit_make_bytes_raw(len);
+  memcpy(result, err, len);
   return result;
 }
 
@@ -94,14 +92,12 @@ uint8_t *moonpg_getvalue_bytes(void *result_ptr, int32_t row, int32_t col) {
   return result;
 }
 
-moonbit_string_t moonpg_fname(void *result_ptr, int32_t col) {
+moonbit_bytes_t moonpg_fname_bytes(void *result_ptr, int32_t col) {
   moonpg_Result *mr = (moonpg_Result *)result_ptr;
   const char *name = PQfname(mr->result, col);
   int len = strlen(name);
-  moonbit_string_t result = moonbit_make_string_raw(len);
-  for (int i = 0; i < len; i++) {
-    result[i] = (uint16_t)(unsigned char)name[i];
-  }
+  uint8_t *result = moonbit_make_bytes_raw(len);
+  memcpy(result, name, len);
   return result;
 }
 
@@ -134,16 +130,14 @@ int32_t moonpg_result_is_null(void *result_ptr) {
 
 // --- Environment ---
 
-moonbit_string_t moonpg_get_env(const char *name) {
+moonbit_bytes_t moonpg_get_env_bytes(const char *name) {
   const char *val = getenv(name);
   if (val == NULL) {
-    return moonbit_make_string(0, 0);
+    return moonbit_make_bytes(0, 0);
   }
   int len = strlen(val);
-  moonbit_string_t result = moonbit_make_string_raw(len);
-  for (int i = 0; i < len; i++) {
-    result[i] = (uint16_t)(unsigned char)val[i];
-  }
+  uint8_t *result = moonbit_make_bytes_raw(len);
+  memcpy(result, val, len);
   return result;
 }
 

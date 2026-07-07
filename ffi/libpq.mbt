@@ -19,10 +19,17 @@ pub(all) enum Value {
 }
 
 ///|
-/// Raw value read from a result cell. The text/binary content is held as a
-/// `Bytes` (PG returns text-mode results as UTF-8 bytes by default).
+/// Raw value read from a result cell.
+///
+/// * `Null` — the cell is SQL NULL.
+/// * `String(s)` — the cell's text-format content, already decoded from the
+///   connection's text-mode encoding (UTF-8 on a default UTF-8 cluster).
+///   This is what `Row::get` produces today.
+/// * `Bytes(b)` — reserved for future binary-format support. The current
+///   `FromValue` impls raise on this variant.
 pub(all) enum RawValue {
   Null
+  String(String)
   Bytes(Bytes)
 }
 
@@ -160,7 +167,19 @@ pub extern "C" fn moonpg_close(conn : Connection) -> Unit = "moonpg_close"
 
 ///|
 #borrow(conn)
-pub extern "C" fn moonpg_error_message(conn : Connection) -> String = "moonpg_error_message"
+pub extern "C" fn moonpg_error_message_bytes(conn : Connection) -> Bytes = "moonpg_error_message_bytes"
+
+///|
+/// Returns the last libpq error message, decoded from UTF-8 to a MoonBit
+/// `String`. Falls back to unchecked conversion if the bytes aren't valid
+/// UTF-8 (e.g. on a server with a non-UTF-8 client encoding) so callers
+/// still get something to inspect.
+pub fn error_message_string(conn : Connection) -> String {
+  let b = moonpg_error_message_bytes(conn)
+  try @utf8.decode(b) catch {
+    _ => b.to_unchecked_string()
+  }
+}
 
 ///|
 #borrow(result)
@@ -189,8 +208,30 @@ pub extern "C" fn moonpg_getvalue_bytes(
 ) -> Bytes = "moonpg_getvalue_bytes"
 
 ///|
+/// Returns the text-format cell value at `(row, col)`, decoded from UTF-8
+/// to a MoonBit `String`. Falls back to unchecked conversion on invalid
+/// UTF-8. Caller should check `moonpg_getisnull` first; an empty string is
+/// returned for a NULL cell.
+pub fn getvalue_string(result : Result, row : Int, col : Int) -> String {
+  let b = moonpg_getvalue_bytes(result, row, col)
+  try @utf8.decode(b) catch {
+    _ => b.to_unchecked_string()
+  }
+}
+
+///|
 #borrow(result)
-pub extern "C" fn moonpg_fname(result : Result, col : Int) -> String = "moonpg_fname"
+pub extern "C" fn moonpg_fname_bytes(result : Result, col : Int) -> Bytes = "moonpg_fname_bytes"
+
+///|
+/// Returns the column name at `col`, decoded from UTF-8 to a MoonBit
+/// `String`. Falls back to unchecked conversion on invalid UTF-8.
+pub fn fname_string(result : Result, col : Int) -> String {
+  let b = moonpg_fname_bytes(result, col)
+  try @utf8.decode(b) catch {
+    _ => b.to_unchecked_string()
+  }
+}
 
 ///|
 #borrow(result)
@@ -218,7 +259,18 @@ pub extern "C" fn moonpg_result_is_null(result : Result) -> Int = "moonpg_result
 
 ///|
 #borrow(name)
-pub extern "C" fn moonpg_get_env(name : Bytes) -> String = "moonpg_get_env"
+pub extern "C" fn moonpg_get_env_bytes(name : Bytes) -> Bytes = "moonpg_get_env_bytes"
+
+///|
+/// Reads the environment variable `name` and decodes its value from UTF-8
+/// to a MoonBit `String`. Returns an empty string if the variable is unset.
+/// Falls back to unchecked conversion on invalid UTF-8.
+pub fn get_env_string(name : Bytes) -> String {
+  let b = moonpg_get_env_bytes(name)
+  try @utf8.decode(b) catch {
+    _ => b.to_unchecked_string()
+  }
+}
 
 ///|
 #borrow(conn)

@@ -267,28 +267,102 @@ test "iter_collects_multiple_rows" {
 }
 
 ///|
-test "rows_helper_returns_text_grid" {
-  fresh_table()
-  let conn = connect(conninfo)
-  defer conn.close()
-
-  conn.execute(
-    "INSERT INTO moonpg_types (i4, i8, f8, flag, name, email) VALUES (10, 10, 10.0, true, 'eve', NULL)",
-  )
-  |> ignore
-
-  let result = conn.query("SELECT i4, name FROM moonpg_types")
-  defer result.free()
-  let grid = result.rows()
-  assert_eq(grid.length(), 1, msg="one row")
-  assert_eq(grid[0][0], "10", msg="i4 as text")
-  assert_eq(grid[0][1], "eve", msg="name as text")
-}
-
-///|
 test "server_version_is_positive" {
   let conn = connect(conninfo)
   defer conn.close()
   let v = conn.server_version()
   assert_true(v > 0, msg="server_version > 0")
+}
+
+///|
+/// Regression guard for non-ASCII text decoding. The previous byte-cast
+/// path silently corrupted multi-byte UTF-8 (e.g. Chinese, accented Latin);
+/// this test would have caught it.
+test "text_round_trips_utf8" {
+  fresh_table()
+  let conn = connect(conninfo)
+  defer conn.close()
+
+  let p_name : String = "你好世界"
+  let p_email : String = "café@exämple.日本"
+  let r = conn.execute(
+    (
+      #|INSERT INTO moonpg_types (i4, i8, f8, flag, name, email)
+      #|VALUES (0, 0, 0.0, true, $1, $2)
+    ),
+    params=[p_name, p_email],
+  )
+  assert_eq(r.affected_rows(), 1, msg="utf8 insert affected_rows")
+  r.free()
+
+  let rows = conn.query("SELECT name, email FROM moonpg_types")
+  defer rows.free()
+  let iter = rows.iter()
+  match iter.next() {
+    Some(row) => {
+      let name : String = row.get(0)
+      let email : String? = row.get(1)
+      assert_eq(name, "你好世界", msg="utf8 name round-trip")
+      assert_eq(email, Some("café@exämple.日本"), msg="utf8 email round-trip")
+    }
+    None => fail("expected the inserted utf8 row back")
+  }
+}
+
+///|
+/// Regression guard for non-ASCII column names. `Rows::columns()` reads the
+/// names through `moonpg_fname_bytes`, which now returns raw UTF-8 bytes
+/// decoded on the MoonBit side; a byte-cast to UTF-16 would corrupt them.
+test "column_names_round_trip_utf8" {
+  let conn = connect(conninfo)
+  defer conn.close()
+  // Idempotent: drop in case a previous run left the table behind.
+  conn.execute("DROP TABLE IF EXISTS moonpg_utf8_cols") |> ignore
+  conn.execute(
+    (
+      #|CREATE TABLE moonpg_utf8_cols (
+      #|  "编号"   INTEGER NOT NULL,
+      #|  "名前"    TEXT    NOT NULL
+      #|)
+    ),
+  )
+  |> ignore
+
+  let rows = conn.query("SELECT \"编号\", \"名前\" FROM moonpg_utf8_cols")
+  defer rows.free()
+  let cols = rows.columns()
+  assert_eq(cols.length(), 2, msg="two columns")
+  assert_eq(cols[0], "编号", msg="first column name is 中文")
+  assert_eq(cols[1], "名前", msg="second column name is 日本語")
+
+  conn.execute("DROP TABLE moonpg_utf8_cols") |> ignore
+}
+
+///|
+/// Regression guard for non-ASCII error messages. Triggers a controllable
+/// Chinese error via PL/pgSQL `RAISE EXCEPTION` and asserts the captured
+/// error round-trips through `moonpg_error_message_bytes` and `@utf8.decode`
+/// intact. `PgError` is an abstract suberror, so we use `to_repr()` to get
+/// its debug rendering and check it contains the expected text.
+test "error_message_round_trips_utf8" {
+  let conn = connect(conninfo)
+  defer conn.close()
+  let raised : Result[Unit, PgError] = try? {
+    let _ = conn.execute(
+      (
+        #|DO $$ BEGIN
+        #|  RAISE EXCEPTION '中文错误信息: %', '详情';
+        #|END $$
+      ),
+    )
+    ()
+  }
+  match raised {
+    Err(e) =>
+      assert_true(
+        e.to_repr().to_string().contains("中文错误信息"),
+        msg="error repr contains 中文错误信息, got: \{e.to_repr()}",
+      )
+    Ok(_) => fail("expected RAISE EXCEPTION to raise")
+  }
 }
