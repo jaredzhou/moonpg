@@ -94,7 +94,7 @@ pub fn Value::to_binary(self : Value) -> Bytes? {
     }
     Int(v) => Some(encode_i32(v))
     Int64(v) => Some(encode_i64(v))
-    Float(v) => Some(b"float")
+    Float(_) => None
     String(v) => Some(encode_string(v))
     Bytes(v) => Some(v)
   }
@@ -188,14 +188,6 @@ pub extern "C" fn moonpg_ntuples(result : Result) -> Int = "moonpg_ntuples"
 ///|
 #borrow(result)
 pub extern "C" fn moonpg_nfields(result : Result) -> Int = "moonpg_nfields"
-
-///|
-#borrow(result)
-pub extern "C" fn moonpg_getvalue(
-  result : Result,
-  row : Int,
-  col : Int,
-) -> String = "moonpg_getvalue"
 
 ///|
 /// Returns the raw bytes of the cell. Caller should check

@@ -66,20 +66,6 @@ int32_t moonpg_nfields(void *result_ptr) {
   return PQnfields(mr->result);
 }
 
-moonbit_string_t moonpg_getvalue(void *result_ptr, int32_t row, int32_t col) {
-  moonpg_Result *mr = (moonpg_Result *)result_ptr;
-  if (PQgetisnull(mr->result, row, col)) {
-    return moonbit_make_string(0, 0);
-  }
-  const char *val = PQgetvalue(mr->result, row, col);
-  int len = PQgetlength(mr->result, row, col);
-  moonbit_string_t result = moonbit_make_string_raw(len);
-  for (int i = 0; i < len; i++) {
-    result[i] = (uint16_t)(unsigned char)val[i];
-  }
-  return result;
-}
-
 uint8_t *moonpg_getvalue_bytes(void *result_ptr, int32_t row, int32_t col) {
   moonpg_Result *mr = (moonpg_Result *)result_ptr;
   if (PQgetisnull(mr->result, row, col)) {

@@ -167,8 +167,7 @@ pub struct Connection {
 }
 
 ///|
-/// Query result rows (for SELECT). Use `rows.iter()` to iterate, or
-/// `rows.rows()` to materialize all rows at once.
+/// Query result rows (for SELECT). Use `rows.iter()` to iterate.
 pub struct Rows {
   res : @ffi.Result
 }
@@ -265,11 +264,6 @@ pub fn[T : FromValue] Row::get_by_name(self : Row, name : String) -> T raise PgE
   raise PgError::QueryError("column '\{name}' not found")
 }
 
-///|
-/// Return the column names of this row's result set.
-pub fn Row::columns(self : Row) -> Array[String] {
-  self.col_names
-}
 ///|
 /// Execution result (for INSERT/UPDATE/DELETE/DDL).
 pub struct ExecResult {
