@@ -2,6 +2,7 @@
 suberror PgError {
   ConnectionError(String)
   QueryError(String)
+  NoRows
 } derive(Debug)
 
 ///|
@@ -375,7 +376,9 @@ pub fn Connection::query(
 /// Execute a SQL query that is expected to return exactly one row. Returns
 /// the first materialized `Row` snapshot. If multiple rows match, only the
 /// first is returned (no error). If the result is empty, raises
-/// `PgError::QueryError("no rows returned")`.
+/// `PgError::NoRows` — a sentinel error analogous to Go's
+/// `database/sql.ErrNoRows` so callers can distinguish "no result" from
+/// "query failed".
 ///
 /// The underlying `Rows` is freed before this returns, so the returned
 /// `Row` is self-contained and does not need to be freed.
@@ -394,7 +397,7 @@ pub fn Connection::query_one(
   defer rows.free()
   match rows.iter().next() {
     Some(row) => row
-    None => raise PgError::QueryError("no rows returned")
+    None => raise NoRows
   }
 }
 

@@ -303,7 +303,7 @@ test "query_one_raises_when_no_match" {
   match raised {
     Err(e) =>
       assert_true(
-        e.to_repr().to_string().contains("no rows"),
+        e.to_repr().to_string().contains("NoRows"),
         msg="error repr, got: \{e.to_repr()}",
       )
     Ok(_) => fail("expected query_one on empty table to raise")
