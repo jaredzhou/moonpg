@@ -173,18 +173,24 @@ pub struct Rows {
 }
 
 ///|
-/// A single row from a query result. Get values by column index
-/// (`row.get[Int](0)`) or by column name (`row.get_by_name[String]("title")`).
-/// Both methods return `None` when the column is SQL NULL.
+/// A single row from a query result. `Row` is a snapshot: its column values
+/// are copied out of the libpq result at iteration time, so the returned
+/// `Row` is self-contained and does not need to be freed (MoonBit is GC'd).
+/// The underlying `Rows` must still be freed after iteration completes.
+///
+/// Get values by column index (`row.get[Int](0)`) or by column name
+/// (`row.get_by_name[String]("title")`). The basic `FromValue` impls raise
+/// on SQL NULL; use `Option[T]` for nullable columns.
 pub struct Row {
-  res : @ffi.Result
-  row_index : Int
+  values : Array[@ffi.RawValue]
   col_names : Array[String]
 }
 ///|
-/// Iterate over the rows of a query result. Returns the standard
-/// `Iter[Row]`, so it works directly with a `for` loop and with all iterator
-/// combinators (`map`, `filter`, `fold`, `to_array`, ...).
+/// Iterate over the rows of a query result. Each `next()` call materializes
+/// one row's values out of the libpq result into a self-contained `Row`
+/// snapshot. Returns the standard `Iter[Row]`, so it works directly with a
+/// `for` loop and with all iterator combinators (`map`, `filter`, `fold`,
+/// `to_array`, ...).
 ///
 /// ```
 /// let rows = conn.query("SELECT id, name FROM users")!
@@ -198,12 +204,24 @@ pub struct Row {
 pub fn Rows::iter(self : Rows) -> Iter[Row] {
   let total = @ffi.moonpg_ntuples(self.res)
   let col_names = self.columns()
+  let n_cols = col_names.length()
   let res = self.res
   let mut index = 0
   Iter::new(
     fn() -> Row? {
       if index < total {
-        let row = Row::{ res, row_index: index, col_names }
+        // Snapshot one row: read every column's text into a RawValue.
+        let values : Array[@ffi.RawValue] = []
+        for col = 0; col < n_cols; col = col + 1 {
+          if @ffi.moonpg_getisnull(res, index, col) > 0 {
+            values.push(@ffi.RawValue::Null)
+          } else {
+            values.push(
+              @ffi.RawValue::String(@ffi.getvalue_string(res, index, col)),
+            )
+          }
+        }
+        let row = Row::{ values, col_names }
         index += 1
         Some(row)
       } else {
@@ -233,8 +251,8 @@ pub fn Rows::free(self : Rows) -> Unit {
 }
 
 ///|
-/// Read the value at column `col` (zero-based index) as `T`. The `RawValue` is
-/// fed to `T::from_value`, which decodes the cell and decides what to do with
+/// Read the value at column `col` (zero-based index) as `T`. The snapshot
+/// `RawValue` is fed to `T::from_value`, which decides what to do with
 /// `NULL`:
 ///
 /// * For `Int`, `Int64`, `Double`, `Bool`, `String` — raises on `NULL`.
@@ -243,12 +261,7 @@ pub fn Rows::free(self : Rows) -> Unit {
 ///
 /// Raises `PgError::QueryError` if `T::from_value` fails to parse the value.
 pub fn[T : FromValue] Row::get(self : Row, col : Int) -> T raise PgError {
-  let rv = if @ffi.moonpg_getisnull(self.res, self.row_index, col) > 0 {
-    @ffi.RawValue::Null
-  } else {
-    @ffi.RawValue::String(@ffi.getvalue_string(self.res, self.row_index, col))
-  }
-  T::from_value(rv)
+  T::from_value(self.values[col])
 }
 
 ///|
@@ -262,6 +275,12 @@ pub fn[T : FromValue] Row::get_by_name(self : Row, name : String) -> T raise PgE
     }
   }
   raise PgError::QueryError("column '\{name}' not found")
+}
+
+///|
+/// Return the column names of this row's result set.
+pub fn Row::columns(self : Row) -> Array[String] {
+  self.col_names
 }
 
 ///|
@@ -350,6 +369,34 @@ pub fn Connection::query(
       Rows::{ res: inner }
     }
   }
+}
+
+///|
+/// Execute a SQL query that is expected to return at most one row. Returns
+/// the first materialized `Row` snapshot, or `None` if the result is empty.
+/// If multiple rows match, only the first is returned (no error).
+///
+/// The underlying `Rows` is freed before this returns, so the returned
+/// `Row` is self-contained and does not need to be freed.
+///
+/// ```
+/// let row = conn.query_one("SELECT name FROM users WHERE id = $1", params=[id])!
+/// match row {
+///   Some(r) => {
+///     let name : String = r.get(0)
+///     ignore(name)
+///   }
+///   None => ()
+/// }
+/// ```
+pub fn Connection::query_one(
+  self : Connection,
+  sql : String,
+  params? : Array[&ToValue],
+) -> Row? raise PgError {
+  let rows = self.query(sql, params?)
+  defer rows.free()
+  rows.iter().next()
 }
 
 ///|

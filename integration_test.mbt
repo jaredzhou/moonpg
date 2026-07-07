@@ -267,6 +267,75 @@ test "iter_collects_multiple_rows" {
 }
 
 ///|
+test "query_one_returns_single_row" {
+  fresh_table()
+  let conn = connect(conninfo)
+  defer conn.close()
+
+  conn.execute(
+    "INSERT INTO moonpg_types (i4, i8, f8, flag, name, email) VALUES (7, 7, 7.0, true, 'solo', NULL)",
+  )
+  |> ignore
+
+  let row = conn.query_one(
+    "SELECT i4, name FROM moonpg_types WHERE name = $1",
+    params=["solo"],
+  )
+  match row {
+    Some(r) => {
+      let i4 : Int = r.get(0)
+      let name : String = r.get(1)
+      assert_eq(i4, 7, msg="query_one i4")
+      assert_eq(name, "solo", msg="query_one name")
+    }
+    None => fail("expected a row back from query_one")
+  }
+}
+
+///|
+test "query_one_returns_none_when_no_match" {
+  fresh_table()
+  let conn = connect(conninfo)
+  defer conn.close()
+  // No INSERTs — table is empty after fresh_table().
+  let row = conn.query_one(
+    "SELECT i4 FROM moonpg_types WHERE name = $1",
+    params=["ghost"],
+  )
+  match row {
+    Some(_) => fail("expected None from query_one on empty table")
+    None => ()
+  }
+}
+
+///|
+test "query_one_returns_first_when_multiple_match" {
+  fresh_table()
+  let conn = connect(conninfo)
+  defer conn.close()
+
+  conn.execute(
+    "INSERT INTO moonpg_types (i4, i8, f8, flag, name, email) VALUES (1, 1, 1.0, true, 'first', NULL)",
+  )
+  |> ignore
+  conn.execute(
+    "INSERT INTO moonpg_types (i4, i8, f8, flag, name, email) VALUES (2, 2, 2.0, false, 'second', NULL)",
+  )
+  |> ignore
+
+  let row = conn.query_one(
+    "SELECT name FROM moonpg_types ORDER BY i4",
+  )
+  match row {
+    Some(r) => {
+      let name : String = r.get(0)
+      assert_eq(name, "first", msg="query_one returns first row by ORDER BY")
+    }
+    None => fail("expected a row back from query_one")
+  }
+}
+
+///|
 test "server_version_is_positive" {
   let conn = connect(conninfo)
   defer conn.close()
