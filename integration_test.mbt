@@ -281,30 +281,32 @@ test "query_one_returns_single_row" {
     "SELECT i4, name FROM moonpg_types WHERE name = $1",
     params=["solo"],
   )
-  match row {
-    Some(r) => {
-      let i4 : Int = r.get(0)
-      let name : String = r.get(1)
-      assert_eq(i4, 7, msg="query_one i4")
-      assert_eq(name, "solo", msg="query_one name")
-    }
-    None => fail("expected a row back from query_one")
-  }
+  let i4 : Int = row.get(0)
+  let name : String = row.get(1)
+  assert_eq(i4, 7, msg="query_one i4")
+  assert_eq(name, "solo", msg="query_one name")
 }
 
 ///|
-test "query_one_returns_none_when_no_match" {
+test "query_one_raises_when_no_match" {
   fresh_table()
   let conn = connect(conninfo)
   defer conn.close()
   // No INSERTs — table is empty after fresh_table().
-  let row = conn.query_one(
-    "SELECT i4 FROM moonpg_types WHERE name = $1",
-    params=["ghost"],
-  )
-  match row {
-    Some(_) => fail("expected None from query_one on empty table")
-    None => ()
+  let raised : Result[Unit, PgError] = try? {
+    let _ = conn.query_one(
+      "SELECT i4 FROM moonpg_types WHERE name = $1",
+      params=["ghost"],
+    )
+    ()
+  }
+  match raised {
+    Err(e) =>
+      assert_true(
+        e.to_repr().to_string().contains("no rows"),
+        msg="error repr, got: \{e.to_repr()}",
+      )
+    Ok(_) => fail("expected query_one on empty table to raise")
   }
 }
 
@@ -326,13 +328,8 @@ test "query_one_returns_first_when_multiple_match" {
   let row = conn.query_one(
     "SELECT name FROM moonpg_types ORDER BY i4",
   )
-  match row {
-    Some(r) => {
-      let name : String = r.get(0)
-      assert_eq(name, "first", msg="query_one returns first row by ORDER BY")
-    }
-    None => fail("expected a row back from query_one")
-  }
+  let name : String = row.get(0)
+  assert_eq(name, "first", msg="query_one returns first row by ORDER BY")
 }
 
 ///|

@@ -372,31 +372,30 @@ pub fn Connection::query(
 }
 
 ///|
-/// Execute a SQL query that is expected to return at most one row. Returns
-/// the first materialized `Row` snapshot, or `None` if the result is empty.
-/// If multiple rows match, only the first is returned (no error).
+/// Execute a SQL query that is expected to return exactly one row. Returns
+/// the first materialized `Row` snapshot. If multiple rows match, only the
+/// first is returned (no error). If the result is empty, raises
+/// `PgError::QueryError("no rows returned")`.
 ///
 /// The underlying `Rows` is freed before this returns, so the returned
 /// `Row` is self-contained and does not need to be freed.
 ///
 /// ```
 /// let row = conn.query_one("SELECT name FROM users WHERE id = $1", params=[id])!
-/// match row {
-///   Some(r) => {
-///     let name : String = r.get(0)
-///     ignore(name)
-///   }
-///   None => ()
-/// }
+/// let name : String = row.get(0)
+/// ignore(name)
 /// ```
 pub fn Connection::query_one(
   self : Connection,
   sql : String,
   params? : Array[&ToValue],
-) -> Row? raise PgError {
+) -> Row raise PgError {
   let rows = self.query(sql, params?)
   defer rows.free()
-  rows.iter().next()
+  match rows.iter().next() {
+    Some(row) => row
+    None => raise PgError::QueryError("no rows returned")
+  }
 }
 
 ///|
