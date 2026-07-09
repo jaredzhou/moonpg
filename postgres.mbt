@@ -63,7 +63,11 @@ pub fn Rows::iter(self : Rows) -> Iter[Row] {
             values.push(RawValue::Null)
           } else {
             let fmt_int = @ffi.moonpg_fformat(res, col)
-            let format = if fmt_int == 0 { Format::Text } else { Format::Binary }
+            let format = if fmt_int == 0 {
+              Format::Text
+            } else {
+              Format::Binary
+            }
             let bytes = @ffi.moonpg_getvalue_bytes(res, index, col)
             values.push(RawValue::Bytes(format, bytes))
           }
@@ -86,7 +90,7 @@ pub fn Rows::columns(self : Rows) -> Array[String] {
   let cols = Array::make(n_cols, "")
   for i = 0; i < n_cols; i = i + 1 {
     let b = @ffi.moonpg_fname_bytes(self.res, i)
-    let name = try @utf8.decode(b) catch { _ => b.to_unchecked_string() }
+    let name = @utf8.decode(b) catch { _ => b.to_unchecked_string() }
     ignore(cols.set(i, name))
   }
   cols
@@ -118,7 +122,10 @@ pub fn[T : FromValue] Row::get(self : Row, col : Int) -> T raise PgError {
 /// Read the value of column `name` as `T`. See `Row::get` for the decoding
 /// rules. Raises `PgError::QueryError` if the column does not exist or if
 /// `T::from_value` fails to parse the value.
-pub fn[T : FromValue] Row::get_by_name(self : Row, name : String) -> T raise PgError {
+pub fn[T : FromValue] Row::get_by_name(
+  self : Row,
+  name : String,
+) -> T raise PgError {
   for i = 0; i < self.col_names.length(); i = i + 1 {
     if self.col_names[i] == name {
       return self.get(i)
@@ -182,7 +189,9 @@ pub fn Connection::close(self : Connection) -> Unit {
 /// still get something to inspect.
 fn error_message_string(conn : @ffi.Connection) -> String {
   let b = @ffi.moonpg_error_message_bytes(conn)
-  try @utf8.decode(b) catch { _ => b.to_unchecked_string() }
+  @utf8.decode(b) catch {
+    _ => b.to_unchecked_string()
+  }
 }
 
 ///|
@@ -305,5 +314,7 @@ pub fn Connection::server_version(self : Connection) -> Int {
 /// Read an environment variable (useful for defaults like PGHOST, PGPORT).
 pub fn get_env(name : String) -> String {
   let b = @ffi.moonpg_get_env_bytes(@utf8.encode(name))
-  try @utf8.decode(b) catch { _ => b.to_unchecked_string() }
+  @utf8.decode(b) catch {
+    _ => b.to_unchecked_string()
+  }
 }

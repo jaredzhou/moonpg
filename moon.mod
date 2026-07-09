@@ -11,7 +11,7 @@ repository = "https://github.com/jaredzhou/moonpg"
 
 license = "Apache-2.0"
 
-keywords = ["postgres", "postgresql", "libpq", "database"]
+keywords = [ "postgres", "postgresql", "libpq", "database" ]
 
 preferred_target = "native"
 

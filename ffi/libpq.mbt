@@ -40,7 +40,6 @@ pub extern "C" fn moonpg_getvalue_bytes(
   col : Int,
 ) -> Bytes = "moonpg_getvalue_bytes"
 
-
 ///|
 #borrow(result)
 pub extern "C" fn moonpg_fname_bytes(result : Result, col : Int) -> Bytes = "moonpg_fname_bytes"

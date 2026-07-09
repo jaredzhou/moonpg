@@ -33,7 +33,7 @@ moon add jaredzhou/moonpg
 
 ## Quick start
 
-```moonbit
+```moonbit nocheck
 let conn = @moonpg.connect("postgres://user:pw@localhost:5432/db")
 
 // Plain SQL — PQexec
@@ -61,13 +61,15 @@ conn.close()
 `Row::get[T : FromValue](col)` and `Row::get_by_name[T : FromValue](name)`
 return the cell value decoded to `T`. The basic impls raise on `NULL`:
 
-```moonbit
-let id : Int = row.get(0)            // raises on NULL
+```moonbit nocheck
+///|
+let id : Int = row.get(0) // raises on NULL
 ```
 
 For nullable columns, use `Option[T]`:
 
-```moonbit
+```moonbit nocheck
+///|
 let email : String? = row.get_by_name("email")
 ```
 

@@ -58,7 +58,9 @@ test "execute_ddl_and_dml_with_params" {
   r1.free()
 
   // Verify the values round-tripped by reading them back through `FromValue`.
-  let rows = conn.query("SELECT i4, i8, f8, flag, name, email FROM moonpg_types")
+  let rows = conn.query(
+    "SELECT i4, i8, f8, flag, name, email FROM moonpg_types",
+  )
   defer rows.free()
   let iter = rows.iter()
   match iter.next() {
@@ -82,10 +84,9 @@ test "execute_ddl_and_dml_with_params" {
 
   // Update with a Bool param.
   let p_flag_false : Bool = false
-  let r2 = conn.execute(
-    "UPDATE moonpg_types SET flag = $1",
-    params=[p_flag_false],
-  )
+  let r2 = conn.execute("UPDATE moonpg_types SET flag = $1", params=[
+    p_flag_false,
+  ])
   assert_eq(r2.affected_rows(), 1, msg="update affected_rows")
   r2.free()
 
@@ -104,10 +105,9 @@ test "execute_ddl_and_dml_with_params" {
 
   // Delete with a String param.
   let p_who : String = "alice"
-  let r3 = conn.execute(
-    "DELETE FROM moonpg_types WHERE name = $1",
-    params=[p_who],
-  )
+  let r3 = conn.execute("DELETE FROM moonpg_types WHERE name = $1", params=[
+    p_who,
+  ])
   assert_eq(r3.affected_rows(), 1, msg="delete affected_rows")
   r3.free()
 }
@@ -211,15 +211,15 @@ test "null_raises_for_basic_types" {
   match iter.next() {
     Some(row) => {
       // Asking for `String` on a NULL column must raise.
-      try (row.get(0):String) |> ignore catch {
+      try (row.get(0) : String) |> ignore catch {
         err => println("expected NULL to raise, got: \{to_repr(err)}")
       }
       // `Option[String]` should give None.
       let email : String? = row.get(0)
       match email {
-    Some(s) => fail("expected None, got Some(\{s})")
-    None => ()
-  }
+        Some(s) => fail("expected None, got Some(\{s})")
+        None => ()
+      }
     }
     None => fail("expected a row")
   }
@@ -238,14 +238,13 @@ test "unknown_column_raises" {
   defer rows.free()
   let iter = rows.iter()
   match iter.next() {
-    Some(row) => {
+    Some(row) =>
       try {
         let v : Int = row.get_by_name("nope")
         fail("expected missing column to raise, got: \{v}")
       } catch {
         _ => ()
       }
-    }
     None => fail("expected a row")
   }
 }
@@ -307,10 +306,9 @@ test "query_one_raises_when_no_match" {
   defer conn.close()
   // No INSERTs — table is empty after fresh_table().
   try {
-    let _ = conn.query_one(
-      "SELECT i4 FROM moonpg_types WHERE name = $1",
-      params=["ghost"],
-    )
+    let _ = conn.query_one("SELECT i4 FROM moonpg_types WHERE name = $1", params=[
+      "ghost",
+    ])
     fail("expected query_one on empty table to raise")
   } catch {
     e =>
@@ -336,9 +334,7 @@ test "query_one_returns_first_when_multiple_match" {
   )
   |> ignore
 
-  let row = conn.query_one(
-    "SELECT name FROM moonpg_types ORDER BY i4",
-  )
+  let row = conn.query_one("SELECT name FROM moonpg_types ORDER BY i4")
   let name : String = row.get(0)
   assert_eq(name, "first", msg="query_one returns first row by ORDER BY")
 }

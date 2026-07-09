@@ -43,13 +43,14 @@ pub(all) enum RawValue {
 pub fn RawValue::to_value(self : RawValue) -> Value {
   match self {
     Null => Value::Null
-    Bytes(f, b) => match f {
-      Format::Text => {
-        let s = try @utf8.decode(b) catch { _ => b.to_unchecked_string() }
-        Value::String(s)
+    Bytes(f, b) =>
+      match f {
+        Format::Text => {
+          let s = @utf8.decode(b) catch { _ => b.to_unchecked_string() }
+          Value::String(s)
+        }
+        Format::Binary => Value::Bytes(b)
       }
-      Format::Binary => Value::Bytes(b)
-    }
   }
 }
 
@@ -101,26 +102,30 @@ fn encode_i64(v : Int64) -> Bytes {
 pub fn Value::to_raw(self : Value, format : Format) -> Bytes? {
   match self {
     Null => None
-    Bool(v) => match format {
-      Text => Some(encode_string(if v { "t" } else { "f" }))
-      Binary => {
-        let buf : @buffer.Buffer = Buffer()
-        buf.write_byte(if v { 1 } else { 0 })
-        Some(buf.to_bytes())
+    Bool(v) =>
+      match format {
+        Text => Some(encode_string(if v { "t" } else { "f" }))
+        Binary => {
+          let buf : @buffer.Buffer = Buffer()
+          buf.write_byte(if v { 1 } else { 0 })
+          Some(buf.to_bytes())
+        }
       }
-    }
-    Int(v) => match format {
-      Text => Some(encode_string(v.to_string()))
-      Binary => Some(encode_i32(v))
-    }
-    Int64(v) => match format {
-      Text => Some(encode_string(v.to_string()))
-      Binary => Some(encode_i64(v))
-    }
-    Float(v) => match format {
-      Text => Some(encode_string(v.to_string()))
-      Binary => None
-    }
+    Int(v) =>
+      match format {
+        Text => Some(encode_string(v.to_string()))
+        Binary => Some(encode_i32(v))
+      }
+    Int64(v) =>
+      match format {
+        Text => Some(encode_string(v.to_string()))
+        Binary => Some(encode_i64(v))
+      }
+    Float(v) =>
+      match format {
+        Text => Some(encode_string(v.to_string()))
+        Binary => None
+      }
     String(v) => Some(encode_string(v))
     Bytes(v) => Some(v)
   }
@@ -158,37 +163,37 @@ pub(open) trait ToValue {
 }
 
 ///|
-pub impl ToValue for Int with to_value(self) {
+pub impl ToValue for Int with fn to_value(self) {
   Value::Int(self)
 }
 
 ///|
-pub impl ToValue for Int64 with to_value(self) {
+pub impl ToValue for Int64 with fn to_value(self) {
   Value::Int64(self)
 }
 
 ///|
-pub impl ToValue for Double with to_value(self) {
+pub impl ToValue for Double with fn to_value(self) {
   Value::Float(self)
 }
 
 ///|
-pub impl ToValue for String with to_value(self) {
+pub impl ToValue for String with fn to_value(self) {
   Value::String(self)
 }
 
 ///|
-pub impl ToValue for Bool with to_value(self) {
+pub impl ToValue for Bool with fn to_value(self) {
   Value::Bool(self)
 }
 
 ///|
-pub impl ToValue for Bytes with to_value(self) {
+pub impl ToValue for Bytes with fn to_value(self) {
   Value::Bytes(self)
 }
 
 ///|
-pub impl[T : ToValue] ToValue for Option[T] with to_value(self) {
+pub impl[T : ToValue] ToValue for T? with fn to_value(self) {
   match self {
     None => Value::Null
     Some(v) => v.to_value()
@@ -220,19 +225,15 @@ pub fn[T] raise_null(label : String) -> T raise PgError {
 
 ///|
 pub fn[T] raise_binary() -> T raise PgError {
-  raise PgError::QueryError(
-    "binary-format cell values are not supported yet",
-  )
+  raise PgError::QueryError("binary-format cell values are not supported yet")
 }
 
 ///|
-pub impl FromValue for Int with from_value(v : Value) raise PgError {
+pub impl FromValue for Int with fn from_value(v : Value) raise PgError {
   match v {
     Null => raise_null("Int")
     String(s) =>
-      try {
-        @string.parse_int(s)
-      } catch {
+      @string.parse_int(s) catch {
         _ => raise PgError::QueryError("cannot convert '\{s}' to Int")
       }
     Bytes(_) => raise_binary()
@@ -241,13 +242,11 @@ pub impl FromValue for Int with from_value(v : Value) raise PgError {
 }
 
 ///|
-pub impl FromValue for Int64 with from_value(v : Value) raise PgError {
+pub impl FromValue for Int64 with fn from_value(v : Value) raise PgError {
   match v {
     Null => raise_null("Int64")
     String(s) =>
-      try {
-        @string.parse_int64(s)
-      } catch {
+      @string.parse_int64(s) catch {
         _ => raise PgError::QueryError("cannot convert '\{s}' to Int64")
       }
     Bytes(_) => raise_binary()
@@ -256,13 +255,11 @@ pub impl FromValue for Int64 with from_value(v : Value) raise PgError {
 }
 
 ///|
-pub impl FromValue for Double with from_value(v : Value) raise PgError {
+pub impl FromValue for Double with fn from_value(v : Value) raise PgError {
   match v {
     Null => raise_null("Double")
     String(s) =>
-      try {
-        @string.parse_double(s)
-      } catch {
+      @string.parse_double(s) catch {
         _ => raise PgError::QueryError("cannot convert '\{s}' to Double")
       }
     Bytes(_) => raise_binary()
@@ -271,13 +268,11 @@ pub impl FromValue for Double with from_value(v : Value) raise PgError {
 }
 
 ///|
-pub impl FromValue for Bool with from_value(v : Value) raise PgError {
+pub impl FromValue for Bool with fn from_value(v : Value) raise PgError {
   match v {
     Null => raise_null("Bool")
     String(s) =>
-      try {
-        @string.parse_bool(s)
-      } catch {
+      @string.parse_bool(s) catch {
         _ => raise PgError::QueryError("cannot convert '\{s}' to Bool")
       }
     Bytes(_) => raise_binary()
@@ -286,7 +281,7 @@ pub impl FromValue for Bool with from_value(v : Value) raise PgError {
 }
 
 ///|
-pub impl FromValue for String with from_value(v : Value) raise PgError {
+pub impl FromValue for String with fn from_value(v : Value) raise PgError {
   match v {
     Null => raise_null("String")
     String(s) => s
@@ -298,7 +293,7 @@ pub impl FromValue for String with from_value(v : Value) raise PgError {
 ///|
 /// Nullable variant of `FromValue`: `SQL NULL` decodes to `None`, any other
 /// value is delegated to `T::from_value` (which itself may raise).
-pub impl[T : FromValue] FromValue for T? with from_value(v : Value) raise PgError {
+pub impl[T : FromValue] FromValue for T? with fn from_value(v : Value) raise PgError {
   match v {
     Null => None
     String(s) => Some(T::from_value(Value::String(s)))
