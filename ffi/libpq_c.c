@@ -92,6 +92,11 @@ int32_t moonpg_getisnull(void *result_ptr, int32_t row, int32_t col) {
   return PQgetisnull(mr->result, row, col);
 }
 
+int32_t moonpg_fformat(void *result_ptr, int32_t col) {
+  moonpg_Result *mr = (moonpg_Result *)result_ptr;
+  return PQfformat(mr->result, col);
+}
+
 int64_t moonpg_cmdtuples(void *result_ptr) {
   moonpg_Result *mr = (moonpg_Result *)result_ptr;
   char *val = PQcmdTuples(mr->result);

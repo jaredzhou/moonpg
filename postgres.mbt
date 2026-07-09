@@ -6,162 +6,6 @@ suberror PgError {
 } derive(Debug)
 
 ///|
-pub type Value = @ffi.Value
-
-pub type Format = @ffi.Format
-///|
-/// Types that can be used as SQL parameters.
-pub(open) trait ToValue {
-  fn to_value(Self) -> Value
-}
-
-///|
-pub impl ToValue for Int with to_value(self) {
-  Value::Int(self)
-}
-
-
-///|
-pub impl ToValue for Int64 with to_value(self) {
-  Value::Int64(self)
-}
-
-///|
-pub impl ToValue for Double with to_value(self) {
-  Value::Float(self)
-}
-
-///|
-pub impl ToValue for String with to_value(self) {
-  Value::String(self)
-}
-
-///|
-pub impl ToValue for Bool with to_value(self) {
-  Value::Bool(self)
-}
-
-///|
-pub impl ToValue for Bytes with to_value(self) {
-  Value::Bytes(self)
-}
-
-///|
-pub impl[T : ToValue] ToValue for Option[T] with to_value(self) {
-  match self {
-    None => Value::Null
-    Some(v) => v.to_value()
-  }
-}
-
-///|
-/// Types that can be decoded from a PostgreSQL cell value.
-///
-/// The basic implementations (`Int`, `Int64`, `Double`, `Bool`, `String`)
-/// parse the text-mode `String` carried by `RawValue::String` (already
-/// UTF-8 → UTF-16 decoded by the FFI layer) and raise `PgError::QueryError`
-/// when the cell is SQL NULL — for nullable columns, use the `Option[T]`
-/// impl instead, which handles `Null` automatically.
-///
-/// `RawValue::Bytes` (reserved for future binary-format support) currently
-/// raises on every basic impl. Use `@ffi.moonpg_getvalue_bytes` directly if
-/// you need the raw bytes.
-pub(open) trait FromValue {
-  fn from_value(@ffi.RawValue) -> Self raise PgError
-}
-
-///|
-pub fn[T]  raise_null(label : String) -> T raise PgError {
-  raise PgError::QueryError(
-    "cannot decode NULL as \{label}; use Option[\{label}] for nullable columns",
-  )
-}
-
-///|
-pub fn[T] raise_binary() -> T raise PgError {
-  raise PgError::QueryError(
-    "binary-format cell values are not supported yet",
-  )
-}
-
-///|
-pub impl FromValue for Int with from_value(rv : @ffi.RawValue) raise PgError {
-  match rv {
-    Null => raise_null("Int")
-    String(s) =>
-      try {
-        @string.parse_int(s)
-      } catch {
-        _ => raise PgError::QueryError("cannot convert '\{s}' to Int")
-      }
-    Bytes(_) => raise_binary()
-  }
-}
-
-///|
-pub impl FromValue for Int64 with from_value(rv : @ffi.RawValue) raise PgError {
-  match rv {
-    Null => raise_null("Int64")
-    String(s) =>
-      try {
-        @string.parse_int64(s)
-      } catch {
-        _ => raise PgError::QueryError("cannot convert '\{s}' to Int64")
-      }
-    Bytes(_) => raise_binary()
-  }
-}
-
-///|
-pub impl FromValue for Double with from_value(rv : @ffi.RawValue) raise PgError {
-  match rv {
-    Null => raise_null("Double")
-    String(s) =>
-      try {
-        @string.parse_double(s)
-      } catch {
-        _ => raise PgError::QueryError("cannot convert '\{s}' to Double")
-      }
-    Bytes(_) => raise_binary()
-  }
-}
-
-///|
-pub impl FromValue for Bool with from_value(rv : @ffi.RawValue) raise PgError {
-  match rv {
-    Null => raise_null("Bool")
-    String(s) =>
-      try {
-        @string.parse_bool(s)
-      } catch {
-        _ => raise PgError::QueryError("cannot convert '\{s}' to Bool")
-      }
-    Bytes(_) => raise_binary()
-  }
-}
-
-///|
-pub impl FromValue for String with from_value(rv : @ffi.RawValue) raise PgError {
-  match rv {
-    Null => raise_null("String")
-    String(s) => s
-    Bytes(_) => raise_binary()
-  }
-}
-
-///|
-/// Nullable variant of `FromValue`: `SQL NULL` decodes to `None`, any other
-/// value is delegated to `T::from_value` (which itself may raise).
-pub impl[T : FromValue] FromValue for T? with from_value(rv : @ffi.RawValue) raise PgError {
-  match rv {
-    Null => None
-    String(s) => Some(T::from_value(@ffi.RawValue::String(s)))
-    Bytes(_) => raise_binary()
-  }
-}
-
-
-///|
 /// Wraps a libpq PGconn connection handle.
 pub struct Connection {
   conn : @ffi.Connection
@@ -183,9 +27,10 @@ pub struct Rows {
 /// (`row.get_by_name[String]("title")`). The basic `FromValue` impls raise
 /// on SQL NULL; use `Option[T]` for nullable columns.
 pub struct Row {
-  values : Array[@ffi.RawValue]
+  values : Array[RawValue]
   col_names : Array[String]
 }
+
 ///|
 /// Iterate over the rows of a query result. Each `next()` call materializes
 /// one row's values out of the libpq result into a self-contained `Row`
@@ -211,15 +56,16 @@ pub fn Rows::iter(self : Rows) -> Iter[Row] {
   Iter::new(
     fn() -> Row? {
       if index < total {
-        // Snapshot one row: read every column's text into a RawValue.
-        let values : Array[@ffi.RawValue] = []
+        // Snapshot one row: read every column into a RawValue.
+        let values : Array[RawValue] = []
         for col = 0; col < n_cols; col = col + 1 {
           if @ffi.moonpg_getisnull(res, index, col) > 0 {
-            values.push(@ffi.RawValue::Null)
+            values.push(RawValue::Null)
           } else {
-            values.push(
-              @ffi.RawValue::String(@ffi.getvalue_string(res, index, col)),
-            )
+            let fmt_int = @ffi.moonpg_fformat(res, col)
+            let format = if fmt_int == 0 { Format::Text } else { Format::Binary }
+            let bytes = @ffi.moonpg_getvalue_bytes(res, index, col)
+            values.push(RawValue::Bytes(format, bytes))
           }
         }
         let row = Row::{ values, col_names }
@@ -239,7 +85,8 @@ pub fn Rows::columns(self : Rows) -> Array[String] {
   let n_cols = @ffi.moonpg_nfields(self.res)
   let cols = Array::make(n_cols, "")
   for i = 0; i < n_cols; i = i + 1 {
-    let name = @ffi.fname_string(self.res, i)
+    let b = @ffi.moonpg_fname_bytes(self.res, i)
+    let name = try @utf8.decode(b) catch { _ => b.to_unchecked_string() }
     ignore(cols.set(i, name))
   }
   cols
@@ -252,17 +99,19 @@ pub fn Rows::free(self : Rows) -> Unit {
 }
 
 ///|
-/// Read the value at column `col` (zero-based index) as `T`. The snapshot
-/// `RawValue` is fed to `T::from_value`, which decides what to do with
-/// `NULL`:
+/// Read the value at column `col` (zero-based index) as `T`.
+/// The stored `RawValue` is converted to `Value` via `to_value()`,
+/// then `T::from_value` decodes it into the target type.
 ///
 /// * For `Int`, `Int64`, `Double`, `Bool`, `String` — raises on `NULL`.
-/// * For `Option[T : FromValue]` — returns `None` on `NULL`, otherwise decodes
-///   the cell through `T::from_value`.
+/// * For `Option[T : FromValue]` — returns `None` on `NULL`, otherwise
+///   decodes the cell through `T::from_value`.
 ///
 /// Raises `PgError::QueryError` if `T::from_value` fails to parse the value.
 pub fn[T : FromValue] Row::get(self : Row, col : Int) -> T raise PgError {
-  T::from_value(self.values[col])
+  let raw = self.values[col]
+  let val = raw.to_value()
+  T::from_value(val)
 }
 
 ///|
@@ -301,16 +150,9 @@ pub fn ExecResult::affected_rows(self : ExecResult) -> Int {
 pub fn ExecResult::free(self : ExecResult) -> Unit {
   @ffi.moonpg_free_result(self.res)
 }
+
 ///|
 /// Open a new connection to a PostgreSQL server.
-
-
-
-///|
-/// Close the database connection.
-pub fn Connection::close(self : Connection) -> Unit {
-  @ffi.moonpg_close(self.conn)
-}
 ///
 /// `conninfo` is a libpq-style connection string, e.g.
 /// `"host=localhost port=5432 dbname=mydb user=postgres"`.
@@ -319,7 +161,7 @@ pub fn connect(conninfo : String) -> Connection raise PgError {
   if @ffi.moonpg_conn_is_null(inner) > 0 {
     raise PgError::ConnectionError("connection returned null")
   }
-  let err = @ffi.error_message_string(inner)
+  let err = error_message_string(inner)
   if err.length() > 0 {
     @ffi.moonpg_close(inner)
     raise PgError::ConnectionError(err)
@@ -328,12 +170,28 @@ pub fn connect(conninfo : String) -> Connection raise PgError {
 }
 
 ///|
-fn build_params(params : Array[&ToValue]) -> @ffi.EncodedParams {
+/// Close the database connection.
+pub fn Connection::close(self : Connection) -> Unit {
+  @ffi.moonpg_close(self.conn)
+}
+
+///|
+/// Returns the last libpq error message, decoded from UTF-8 to a MoonBit
+/// `String`. Falls back to unchecked conversion if the bytes aren't valid
+/// UTF-8 (e.g. on a server with a non-UTF-8 client encoding) so callers
+/// still get something to inspect.
+fn error_message_string(conn : @ffi.Connection) -> String {
+  let b = @ffi.moonpg_error_message_bytes(conn)
+  try @utf8.decode(b) catch { _ => b.to_unchecked_string() }
+}
+
+///|
+fn build_params(params : Array[&ToValue]) -> EncodedParams {
   let values : Array[Value] = []
   for v in params {
     values.push(v.to_value())
   }
-  @ffi.encode_params(values)
+  encode_params(values)
 }
 
 ///|
@@ -349,7 +207,7 @@ pub fn Connection::query(
     None => {
       let inner = @ffi.moonpg_query(self.conn, @utf8.encode(sql))
       if @ffi.moonpg_result_is_null(inner) > 0 {
-        raise PgError::QueryError(@ffi.error_message_string(self.conn))
+        raise PgError::QueryError(error_message_string(self.conn))
       }
       Rows::{ res: inner }
     }
@@ -365,7 +223,7 @@ pub fn Connection::query(
         p.nulls,
       )
       if @ffi.moonpg_result_is_null(inner) > 0 {
-        raise PgError::QueryError(@ffi.error_message_string(self.conn))
+        raise PgError::QueryError(error_message_string(self.conn))
       }
       Rows::{ res: inner }
     }
@@ -414,7 +272,7 @@ pub fn Connection::execute(
     None => {
       let inner = @ffi.moonpg_execute(self.conn, @utf8.encode(sql))
       if @ffi.moonpg_result_is_null(inner) > 0 {
-        raise PgError::QueryError(@ffi.error_message_string(self.conn))
+        raise PgError::QueryError(error_message_string(self.conn))
       }
       ExecResult::{ res: inner }
     }
@@ -430,7 +288,7 @@ pub fn Connection::execute(
         p.nulls,
       )
       if @ffi.moonpg_result_is_null(inner) > 0 {
-        raise PgError::QueryError(@ffi.error_message_string(self.conn))
+        raise PgError::QueryError(error_message_string(self.conn))
       }
       ExecResult::{ res: inner }
     }
@@ -446,5 +304,6 @@ pub fn Connection::server_version(self : Connection) -> Int {
 ///|
 /// Read an environment variable (useful for defaults like PGHOST, PGPORT).
 pub fn get_env(name : String) -> String {
-  @ffi.get_env_string(@utf8.encode(name))
+  let b = @ffi.moonpg_get_env_bytes(@utf8.encode(name))
+  try @utf8.decode(b) catch { _ => b.to_unchecked_string() }
 }

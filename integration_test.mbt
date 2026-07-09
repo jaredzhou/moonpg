@@ -72,7 +72,10 @@ test "execute_ddl_and_dml_with_params" {
       assert_eq(row.get_by_name("flag"), true, msg="flag round-trip")
       assert_eq(row.get_by_name("name"), "alice", msg="name round-trip")
       let email : String? = row.get_by_name("email")
-      assert_eq(email, Some("alice@example.com"), msg="email round-trip")
+      match email {
+        Some(s) => assert_eq(s, "alice@example.com")
+        None => fail("expected Some, got None")
+      }
     }
     None => fail("expected the inserted row back")
   }
@@ -151,7 +154,10 @@ test "query_iterates_all_basic_types" {
   assert_true((f8 - 2.71828).abs() < 1.0e-9, msg="f8 close to 2.71828")
   assert_eq(flag, true, msg="flag")
   assert_eq(name, "bob", msg="name")
-  assert_eq(email, None, msg="email is NULL")
+  match email {
+    Some(s) => fail("expected None, got Some(\{s})")
+    None => ()
+  }
   assert_true(id > 0, msg="id > 0")
 }
 
@@ -179,7 +185,10 @@ test "get_by_name" {
       assert_eq(row.get_by_name("flag"), false, msg="flag by name")
       assert_eq(row.get_by_name("name"), "carol", msg="name by name")
       let email : String? = row.get_by_name("email")
-      assert_eq(email, Some("c@x.io"), msg="email by name")
+      match email {
+        Some(s) => assert_eq(s, "c@x.io")
+        None => fail("expected Some, got None")
+      }
     }
     None => fail("expected exactly one row")
   }
@@ -203,11 +212,14 @@ test "null_raises_for_basic_types" {
     Some(row) => {
       // Asking for `String` on a NULL column must raise.
       try (row.get(0):String) |> ignore catch {
-        err => println("expected NULL to raise, got: \{err.to_repr()}")
+        err => println("expected NULL to raise, got: \{to_repr(err)}")
       }
       // `Option[String]` should give None.
       let email : String? = row.get(0)
-      assert_eq(email, None, msg="Option[String] on NULL")
+      match email {
+    Some(s) => fail("expected None, got Some(\{s})")
+    None => ()
+  }
     }
     None => fail("expected a row")
   }
@@ -227,13 +239,11 @@ test "unknown_column_raises" {
   let iter = rows.iter()
   match iter.next() {
     Some(row) => {
-      let raised : Result[Int, PgError] = try? {
+      try {
         let v : Int = row.get_by_name("nope")
-        v
-      }
-      match raised {
-        Err(_) => ()
-        Ok(v) => fail("expected missing column to raise, got: \{v}")
+        fail("expected missing column to raise, got: \{v}")
+      } catch {
+        _ => ()
       }
     }
     None => fail("expected a row")
@@ -263,7 +273,10 @@ test "iter_collects_multiple_rows" {
     let s : String = row.get_by_name("name")
     names.push(s)
   }
-  assert_eq(names, ["one", "two", "three"])
+  assert_eq(names.length(), 3)
+  assert_eq(names[0], "one")
+  assert_eq(names[1], "two")
+  assert_eq(names[2], "three")
 }
 
 ///|
@@ -293,20 +306,18 @@ test "query_one_raises_when_no_match" {
   let conn = connect(conninfo)
   defer conn.close()
   // No INSERTs — table is empty after fresh_table().
-  let raised : Result[Unit, PgError] = try? {
+  try {
     let _ = conn.query_one(
       "SELECT i4 FROM moonpg_types WHERE name = $1",
       params=["ghost"],
     )
-    ()
-  }
-  match raised {
-    Err(e) =>
+    fail("expected query_one on empty table to raise")
+  } catch {
+    e =>
       assert_true(
-        e.to_repr().to_string().contains("NoRows"),
-        msg="error repr, got: \{e.to_repr()}",
+        to_repr(e).to_string().contains("NoRows"),
+        msg="error repr, got: \{to_repr(e)}",
       )
-    Ok(_) => fail("expected query_one on empty table to raise")
   }
 }
 
@@ -369,7 +380,10 @@ test "text_round_trips_utf8" {
       let name : String = row.get(0)
       let email : String? = row.get(1)
       assert_eq(name, "你好世界", msg="utf8 name round-trip")
-      assert_eq(email, Some("café@exämple.日本"), msg="utf8 email round-trip")
+      match email {
+        Some(s) => assert_eq(s, "café@exämple.日本")
+        None => fail("expected Some, got None")
+      }
     }
     None => fail("expected the inserted utf8 row back")
   }
@@ -413,7 +427,7 @@ test "column_names_round_trip_utf8" {
 test "error_message_round_trips_utf8" {
   let conn = connect(conninfo)
   defer conn.close()
-  let raised : Result[Unit, PgError] = try? {
+  try {
     let _ = conn.execute(
       (
         #|DO $$ BEGIN
@@ -421,14 +435,12 @@ test "error_message_round_trips_utf8" {
         #|END $$
       ),
     )
-    ()
-  }
-  match raised {
-    Err(e) =>
+    fail("expected RAISE EXCEPTION to raise")
+  } catch {
+    e =>
       assert_true(
-        e.to_repr().to_string().contains("中文错误信息"),
-        msg="error repr contains 中文错误信息, got: \{e.to_repr()}",
+        to_repr(e).to_string().contains("中文错误信息"),
+        msg="error repr contains 中文错误信息, got: \{to_repr(e)}",
       )
-    Ok(_) => fail("expected RAISE EXCEPTION to raise")
   }
 }

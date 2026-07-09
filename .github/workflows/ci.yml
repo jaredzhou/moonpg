@@ -1,0 +1,65 @@
+# MoonPG CI — install toolchain, then run check / fmt / info / test on every push and PR.
+# Modeled after the MoonBase CI template.
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:latest
+        env:
+          POSTGRES_PASSWORD: 111111
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    env:
+      MOONPG_CONNINFO: "postgres://postgres:111111@localhost:5432/postgres"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install MoonBit
+        run: |
+          curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash
+          echo "$HOME/.moon/bin" >> $GITHUB_PATH
+
+      - name: Update dependencies
+        run: |
+          moon version --all
+          moon update
+
+      # Type-check the workspace.
+      - name: Check
+        run: moon check --deny-warn
+
+      # Format check — no-op if `moon fmt` would produce no diff.
+      - name: Format check
+        run: moon fmt --check
+
+      # Regenerate .mbti interfaces and fail on drift (signals API change).
+      - name: Interface check
+        run: |
+          moon info
+          git diff --exit-code
+
+      # Build + run all tests (unit + integration) against the service container.
+      - name: Test
+        run: moon test --target native
