@@ -275,7 +275,7 @@ async test "tx_beginner_trait" {
   tx_setup(tbl)
   let c = connect(tx_test_conninfo)
   defer c.close()
-  let tx : DbTx = TxBeginner::begin_tx(c)
+  let tx : &Tx = TxBeginner::begin_tx(c)
   tx.execute("INSERT INTO \{tbl} (val, note) VALUES (1, 'trait')") |> ignore
   tx.commit()
 

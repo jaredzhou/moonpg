@@ -348,33 +348,36 @@ pub impl Tx for PoolDbTx with fn rollback(self : PoolDbTx) -> Unit raise PgError
 }
 
 // ---------------------------------------------------------------------------
-// PoolConn::begin_tx
+// PoolConn::begin_tx (TxBeginner)
 // ---------------------------------------------------------------------------
 
 ///|
 /// Begin a transaction on this pooled connection.
 /// Caller must call `pc.release()` after `tx.commit()` / `tx.rollback()`.
-pub async fn PoolConn::begin_tx(self : PoolConn) -> DbTx raise PgError {
+pub impl TxBeginner for PoolConn with fn begin_tx(self : PoolConn) -> &Tx raise PgError {
   self.conn.execute("BEGIN") |> ignore
-  DbTx::{ conn: self.conn, pool: None }
+  DbTx::{ conn: self.conn }
 }
 
 // ---------------------------------------------------------------------------
-// Pool::begin_tx
+// Pool::begin_tx (TxBeginner)
 // ---------------------------------------------------------------------------
 
 ///|
 /// Acquire a connection from the pool and begin a transaction.
 /// Connection is returned to the pool on `commit()` or `rollback()`.
-pub async fn Pool::begin_tx(self : Pool) -> PoolDbTx raise PgError {
+pub impl TxBeginner for Pool with fn begin_tx(self : Pool) -> &Tx raise PgError {
   let pc = self.acquire()
-  let tx = pc.begin_tx() catch {
+  try {
+    pc.conn.execute("BEGIN") |> ignore
+  } catch {
     e => {
       pc.close()
       raise e
     }
   }
-  PoolDbTx::{ inner: tx, pc }
+  let inner = DbTx::{ conn: pc.conn }
+  PoolDbTx::{ inner, pc }
 }
 
 // ---------------------------------------------------------------------------

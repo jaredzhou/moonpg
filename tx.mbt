@@ -9,21 +9,19 @@ pub(open) trait Tx: QueryExecutor {
 ///|
 /// Types that can start a transaction.
 pub(open) trait TxBeginner {
-  async fn begin_tx(Self) -> DbTx raise PgError
+  async fn begin_tx(Self) -> &Tx raise PgError
 }
 
 ///|
-/// Concrete transaction wrapping a Connection and optional pool
-/// (for returning the connection on commit/rollback).
+/// Concrete transaction wrapping a Connection.
 pub(all) struct DbTx {
   conn : Connection
-  pool : Pool?
 }
 
 ///|
-pub impl TxBeginner for Connection with fn begin_tx(self : Connection) -> DbTx raise PgError {
+pub impl TxBeginner for Connection with fn begin_tx(self : Connection) -> &Tx raise PgError {
   Connection::execute(self, "BEGIN") |> ignore
-  DbTx::{ conn: self, pool: None }
+  DbTx::{ conn: self }
 }
 
 ///|
@@ -81,7 +79,7 @@ pub impl Tx for DbTx with fn rollback(self : DbTx) -> Unit raise PgError {
 /// ```
 pub async fn[T, B : TxBeginner] begin_func(
   beginner : B,
-  f : async (DbTx) -> T,
+  f : async (&Tx) -> T,
 ) -> T raise PgError {
   let tx = beginner.begin_tx()
   try {
