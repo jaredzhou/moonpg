@@ -206,7 +206,7 @@ async test "begin_func_success" {
   tx_setup(tbl)
   let c = connect(tx_test_conninfo)
   defer c.close()
-  let result = begin_func(c.begin_tx(), async fn(tx) {
+  let result = begin_func(c,async fn(tx) {
     tx.execute("INSERT INTO \{tbl} (val, note) VALUES (5, 'func_ok')") |> ignore
     42
   })
@@ -225,7 +225,7 @@ async test "begin_func_error_rolls_back" {
   let c = connect(tx_test_conninfo)
   defer c.close()
   try {
-    let _ = begin_func(c.begin_tx(), async fn(_tx) {
+    let _ = begin_func(c,async fn(_tx) {
       fail("intentional failure")
       0
     })
@@ -248,7 +248,7 @@ async test "begin_func_error_with_insert_then_fail" {
   let c = connect(tx_test_conninfo)
   defer c.close()
   try {
-    let _ = begin_func(c.begin_tx(), async fn(tx) {
+    let _ = begin_func(c,async fn(tx) {
       tx.execute("INSERT INTO \{tbl} (val, note) VALUES (999, 'should_rollback')") |> ignore
       fail("mid-tx failure")
       0

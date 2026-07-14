@@ -62,21 +62,29 @@ let pool = Pool::new(PoolConfig::new(
   min_idle=2,
 ))
 
-// Implicit acquire / release
+// Implicit acquire — rows.close() returns conn to pool
 let rows = pool.query("SELECT 1")
-rows.close()  // returns conn to pool
+while rows.has_next() {
+  let row = rows.get_row()
+  // ...
+}
+rows.close()
 
 let row = pool.query_one("SELECT 42")
 pool.execute("INSERT INTO t (x) VALUES ($1)", params=[1]) |> ignore
 
-pool.close()
+// Explicit acquire — caller controls release
+let pc = pool.acquire()
+let r = pc.execute("INSERT INTO t (x) VALUES ($1)", params=[99])
+r.close()
+pc.release()
 ```
 
 ### Transactions
 
 ```moonbit nocheck
 // Auto-commit / rollback
-let result = begin_func(conn.begin_tx(), async fn(tx) {
+let result = begin_func(conn, async fn(tx) {
   tx.execute("INSERT INTO users (name) VALUES ($1)", params=["alice"]) |> ignore
   tx.query_one("SELECT id FROM users WHERE name = $1", params=["alice"])
     .get(0)

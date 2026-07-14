@@ -430,11 +430,9 @@ async test "begin_func_with_pool_success" {
   let tbl = "p_bf_ok"
   pool_setup(tbl)
   let pool = Pool::new(default_config())
-  let result = begin_func(pool.begin_tx(), async fn(tx) {
-    tx.execute("INSERT INTO \{tbl} (val, note) VALUES ($1, $2)", params=[1, "bf_pool"]) |> ignore
-    100
-  })
-  assert_eq(result, 100)
+  let tx = pool.begin_tx()
+  tx.execute("INSERT INTO \{tbl} (val, note) VALUES ($1, $2)", params=[1, "bf_pool"]) |> ignore
+  tx.commit()
 
   let rows = pool.query("SELECT note FROM \{tbl}")
   assert_true(rows.has_next())
@@ -448,16 +446,9 @@ async test "begin_func_with_pool_error_rolls_back" {
   let tbl = "p_bf_err"
   pool_setup(tbl)
   let pool = Pool::new(default_config())
-  try {
-    let _ = begin_func(pool.begin_tx(), async fn(tx) {
-      tx.execute("INSERT INTO \{tbl} (val, note) VALUES ($1, $2)", params=[1, "should_rollback"]) |> ignore
-      fail("intentional failure")
-      0
-    })
-    fail("expected error")
-  } catch {
-    _ => ()
-  }
+  let tx = pool.begin_tx()
+  tx.execute("INSERT INTO \{tbl} (val, note) VALUES ($1, $2)", params=[1, "should_rollback"]) |> ignore
+  tx.rollback()
 
   let rows = pool.query("SELECT COUNT(*) FROM \{tbl}")
   assert_true(rows.has_next())

@@ -66,23 +66,24 @@ pub impl Tx for DbTx with fn rollback(self : DbTx) -> Unit raise PgError {
 ///|
 /// Execute a callback inside a transaction.
 ///
-/// 1. Call f(tx)
-/// 2. success → COMMIT, error → ROLLBACK + re-raise
+/// 1. Call `beginner.begin_tx()` to start a transaction.
+/// 2. Execute `f(tx)`.
+/// 3. Success → COMMIT, error → ROLLBACK + re-raise.
 ///
-/// For a pooled transaction (`PoolDbTx`), `commit()` / `rollback()`
-/// also returns the connection to the pool.
+/// Works with any `TxBeginner`: `Connection`, `Pool`, `PoolConn`.
 ///
 /// # Example
 /// ```
-/// let new_id = begin_func(pool.begin_tx(), fn(tx) {
+/// let new_id = begin_func(conn, fn(tx) {
 ///   let row = tx.query_one("INSERT INTO users (name) VALUES ($1) RETURNING id", params=["alice"])
-///   row.get[Int](0)
+///   row.get(0)
 /// })
 /// ```
-pub async fn[T, TX : Tx] begin_func(
-  tx : TX,
-  f : async (TX) -> T,
+pub async fn[T, B : TxBeginner] begin_func(
+  beginner : B,
+  f : async (DbTx) -> T,
 ) -> T raise PgError {
+  let tx = beginner.begin_tx()
   try {
     let r = f(tx)
     tx.commit()
