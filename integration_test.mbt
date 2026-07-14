@@ -2,39 +2,51 @@
 // Integration tests against a live PostgreSQL instance.
 //
 // Connection string (override with env var MOONPG_CONNINFO if needed):
-//   postgres://postgres:111111@localhost:5432/postgres
+//   postgres://moonpg_plain:111111@localhost:5432/moonpg_test
 //
 // Run with:
 //   moon test --target native
 
 ///|
 let conninfo : String = @env.get_env_var("MOONPG_CONNINFO").unwrap_or(
-  "postgres://postgres:111111@localhost:5432/postgres",
+  "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
 )
 
 ///|
-fn fresh_table() -> Unit raise PgError {
-  let conn = connect(conninfo)
-  defer conn.close()
-  conn.execute("DROP TABLE IF EXISTS moonpg_types") |> ignore
-  conn.execute(
-    (
-      #|CREATE TABLE moonpg_types (
-      #|  id    SERIAL PRIMARY KEY,
-      #|  i4    INTEGER       NOT NULL,
-      #|  i8    BIGINT        NOT NULL,
-      #|  f8    DOUBLE PRECISION NOT NULL,
-      #|  flag  BOOLEAN       NOT NULL,
-      #|  name  TEXT          NOT NULL,
-      #|  email TEXT
-      #|)
-    ),
-  )
-  |> ignore
+async test "debug_fresh_table_then_insert" {
+  fresh_table()
+  let c = connect(conninfo)
+  defer c.close()
+  let r = c.execute("INSERT INTO moonpg_types (i4, i8, f8, flag, name, email) VALUES ($1, $2, $3, $4, $5, $6)", params=[42, 0L, 0.0, true, "alice", "a@b.com"])
+  assert_eq(r.affected_rows(), 1)
+  r.close()
+  let rows = c.query("SELECT name FROM moonpg_types")
+  assert_true(rows.has_next())
+  let row = rows.get_row()
+  let name : String = row.get(0)
+  assert_eq(name, "alice")
+  rows.close()
 }
 
 ///|
-test "execute_ddl_and_dml_with_params" {
+async fn fresh_table() -> Unit raise PgError {
+  let c = connect(conninfo)
+  defer c.close()
+  let ddl = #|CREATE TABLE IF NOT EXISTS moonpg_types (
+    #|  id    SERIAL PRIMARY KEY,
+    #|  i4    INTEGER       NOT NULL,
+    #|  i8    BIGINT        NOT NULL,
+    #|  f8    DOUBLE PRECISION NOT NULL,
+    #|  flag  BOOLEAN       NOT NULL,
+    #|  name  TEXT          NOT NULL,
+    #|  email TEXT
+    #|)
+  c.execute(ddl) |> ignore
+  c.execute("TRUNCATE TABLE moonpg_types") |> ignore
+}
+
+///|
+async test "execute_ddl_and_dml_with_params" {
   fresh_table()
   let conn = connect(conninfo)
   defer conn.close()
@@ -55,32 +67,31 @@ test "execute_ddl_and_dml_with_params" {
     params=[p_i4, p_i8, p_f8, p_flag, p_name, p_email],
   )
   assert_eq(r1.affected_rows(), 1, msg="insert affected_rows")
-  r1.free()
+  r1.close()
 
   // Verify the values round-tripped by reading them back through `FromValue`.
   let rows = conn.query(
     "SELECT i4, i8, f8, flag, name, email FROM moonpg_types",
   )
-  defer rows.free()
-  let iter = rows.iter()
-  match iter.next() {
-    Some(row) => {
-      assert_eq(row.get_by_name("i4"), 42, msg="i4 round-trip")
-      assert_eq(row.get_by_name("i8"), 9_000_000_000L, msg="i8 round-trip")
-      assert_true(
-        (row.get_by_name("f8") : Double) - 3.14 < 1.0e-9,
-        msg="f8 round-trip close to 3.14",
-      )
-      assert_eq(row.get_by_name("flag"), true, msg="flag round-trip")
-      assert_eq(row.get_by_name("name"), "alice", msg="name round-trip")
-      let email : String? = row.get_by_name("email")
-      match email {
-        Some(s) => assert_eq(s, "alice@example.com")
-        None => fail("expected Some, got None")
-      }
+  if rows.has_next() {
+    let row = rows.get_row()
+    assert_eq(row.get_by_name("i4"), 42, msg="i4 round-trip")
+    assert_eq(row.get_by_name("i8"), 9_000_000_000L, msg="i8 round-trip")
+    assert_true(
+      (row.get_by_name("f8") : Double) - 3.14 < 1.0e-9,
+      msg="f8 round-trip close to 3.14",
+    )
+    assert_eq(row.get_by_name("flag"), true, msg="flag round-trip")
+    assert_eq(row.get_by_name("name"), "alice", msg="name round-trip")
+    let email : String? = row.get_by_name("email")
+    match email {
+      Some(s) => assert_eq(s, "alice@example.com")
+      None => fail("expected Some, got None")
     }
-    None => fail("expected the inserted row back")
+  } else {
+    fail("expected the inserted row back")
   }
+  rows.close()
 
   // Update with a Bool param.
   let p_flag_false : Bool = false
@@ -88,7 +99,7 @@ test "execute_ddl_and_dml_with_params" {
     p_flag_false,
   ])
   assert_eq(r2.affected_rows(), 1, msg="update affected_rows")
-  r2.free()
+  r2.close()
 
   // Insert a second row with a NULL email — exercises `ToValue for Option[T]`
   // where `None` encodes as `Value::Null`.
@@ -101,7 +112,7 @@ test "execute_ddl_and_dml_with_params" {
     params=[p_email_none],
   )
   assert_eq(r2b.affected_rows(), 1, msg="insert with NULL email")
-  r2b.free()
+  r2b.close()
 
   // Delete with a String param.
   let p_who : String = "alice"
@@ -109,11 +120,11 @@ test "execute_ddl_and_dml_with_params" {
     p_who,
   ])
   assert_eq(r3.affected_rows(), 1, msg="delete affected_rows")
-  r3.free()
+  r3.close()
 }
 
 ///|
-test "query_iterates_all_basic_types" {
+async test "query_iterates_all_basic_types" {
   fresh_table()
   let conn = connect(conninfo)
   defer conn.close()
@@ -126,10 +137,10 @@ test "query_iterates_all_basic_types" {
   let rows = conn.query(
     "SELECT id, i4, i8, f8, flag, name, email FROM moonpg_types",
   )
-  defer rows.free()
 
   let collected : Array[(Int, Int, Int64, Double, Bool, String, String?)] = []
-  for row in rows.iter() {
+  while rows.has_next() {
+    let row = rows.get_row()
     let id : Int = row.get(0)
     let i4 : Int = row.get(1)
     let i8 : Int64 = row.get(2)
@@ -139,6 +150,7 @@ test "query_iterates_all_basic_types" {
     let email : String? = row.get(6)
     collected.push((id, i4, i8, f8, flag, name, email))
   }
+  rows.close()
 
   assert_eq(collected.length(), 1, msg="row count")
   let entry = collected[0]
@@ -162,7 +174,7 @@ test "query_iterates_all_basic_types" {
 }
 
 ///|
-test "get_by_name" {
+async test "get_by_name" {
   fresh_table()
   let conn = connect(conninfo)
   defer conn.close()
@@ -175,27 +187,26 @@ test "get_by_name" {
   let rows = conn.query(
     "SELECT i4, i8, f8, flag, name, email FROM moonpg_types",
   )
-  defer rows.free()
 
-  let iter = rows.iter()
-  match iter.next() {
-    Some(row) => {
-      assert_eq(row.get_by_name("i4"), -1, msg="i4 by name")
-      assert_eq(row.get_by_name("i8"), -9223372036854775808L, msg="i8 by name")
-      assert_eq(row.get_by_name("flag"), false, msg="flag by name")
-      assert_eq(row.get_by_name("name"), "carol", msg="name by name")
-      let email : String? = row.get_by_name("email")
-      match email {
-        Some(s) => assert_eq(s, "c@x.io")
-        None => fail("expected Some, got None")
-      }
+  if rows.has_next() {
+    let row = rows.get_row()
+    assert_eq(row.get_by_name("i4"), -1, msg="i4 by name")
+    assert_eq(row.get_by_name("i8"), -9223372036854775808L, msg="i8 by name")
+    assert_eq(row.get_by_name("flag"), false, msg="flag by name")
+    assert_eq(row.get_by_name("name"), "carol", msg="name by name")
+    let email : String? = row.get_by_name("email")
+    match email {
+      Some(s) => assert_eq(s, "c@x.io")
+      None => fail("expected Some, got None")
     }
-    None => fail("expected exactly one row")
+  } else {
+    fail("expected exactly one row")
   }
+  rows.close()
 }
 
 ///|
-test "null_raises_for_basic_types" {
+async test "null_raises_for_basic_types" {
   fresh_table()
   let conn = connect(conninfo)
   defer conn.close()
@@ -206,27 +217,27 @@ test "null_raises_for_basic_types" {
   |> ignore
 
   let rows = conn.query("SELECT email FROM moonpg_types")
-  defer rows.free()
-  let iter = rows.iter()
-  match iter.next() {
-    Some(row) => {
-      // Asking for `String` on a NULL column must raise.
-      try (row.get(0) : String) |> ignore catch {
-        err => println("expected NULL to raise, got: \{to_repr(err)}")
-      }
-      // `Option[String]` should give None.
-      let email : String? = row.get(0)
-      match email {
-        Some(s) => fail("expected None, got Some(\{s})")
-        None => ()
-      }
+
+  if rows.has_next() {
+    let row = rows.get_row()
+    // Asking for `String` on a NULL column must raise.
+    try (row.get(0) : String) |> ignore catch {
+      err => println("expected NULL to raise, got: \{to_repr(err)}")
     }
-    None => fail("expected a row")
+    // `Option[String]` should give None.
+    let email : String? = row.get(0)
+    match email {
+      Some(s) => fail("expected None, got Some(\{s})")
+      None => ()
+    }
+  } else {
+    fail("expected a row")
   }
+  rows.close()
 }
 
 ///|
-test "unknown_column_raises" {
+async test "unknown_column_raises" {
   fresh_table()
   let conn = connect(conninfo)
   defer conn.close()
@@ -235,22 +246,23 @@ test "unknown_column_raises" {
   )
   |> ignore
   let rows = conn.query("SELECT i4 FROM moonpg_types")
-  defer rows.free()
-  let iter = rows.iter()
-  match iter.next() {
-    Some(row) =>
-      try {
-        let v : Int = row.get_by_name("nope")
-        fail("expected missing column to raise, got: \{v}")
-      } catch {
-        _ => ()
-      }
-    None => fail("expected a row")
+
+  if rows.has_next() {
+    let row = rows.get_row()
+    try {
+      let v : Int = row.get_by_name("nope")
+      fail("expected missing column to raise, got: \{v}")
+    } catch {
+      _ => ()
+    }
+  } else {
+    fail("expected a row")
   }
+  rows.close()
 }
 
 ///|
-test "iter_collects_multiple_rows" {
+async test "iter_collects_multiple_rows" {
   fresh_table()
   let conn = connect(conninfo)
   defer conn.close()
@@ -266,12 +278,13 @@ test "iter_collects_multiple_rows" {
   |> ignore
 
   let rows = conn.query("SELECT name FROM moonpg_types ORDER BY i4")
-  defer rows.free()
   let names : Array[String] = []
-  for row in rows.iter() {
+  while rows.has_next() {
+    let row = rows.get_row()
     let s : String = row.get_by_name("name")
     names.push(s)
   }
+  rows.close()
   assert_eq(names.length(), 3)
   assert_eq(names[0], "one")
   assert_eq(names[1], "two")
@@ -279,7 +292,7 @@ test "iter_collects_multiple_rows" {
 }
 
 ///|
-test "query_one_returns_single_row" {
+async test "query_one_returns_single_row" {
   fresh_table()
   let conn = connect(conninfo)
   defer conn.close()
@@ -300,7 +313,7 @@ test "query_one_returns_single_row" {
 }
 
 ///|
-test "query_one_raises_when_no_match" {
+async test "query_one_raises_when_no_match" {
   fresh_table()
   let conn = connect(conninfo)
   defer conn.close()
@@ -320,7 +333,7 @@ test "query_one_raises_when_no_match" {
 }
 
 ///|
-test "query_one_returns_first_when_multiple_match" {
+async test "query_one_returns_first_when_multiple_match" {
   fresh_table()
   let conn = connect(conninfo)
   defer conn.close()
@@ -340,7 +353,7 @@ test "query_one_returns_first_when_multiple_match" {
 }
 
 ///|
-test "server_version_is_positive" {
+async test "server_version_is_positive" {
   let conn = connect(conninfo)
   defer conn.close()
   let v = conn.server_version()
@@ -351,7 +364,7 @@ test "server_version_is_positive" {
 /// Regression guard for non-ASCII text decoding. The previous byte-cast
 /// path silently corrupted multi-byte UTF-8 (e.g. Chinese, accented Latin);
 /// this test would have caught it.
-test "text_round_trips_utf8" {
+async test "text_round_trips_utf8" {
   fresh_table()
   let conn = connect(conninfo)
   defer conn.close()
@@ -366,30 +379,29 @@ test "text_round_trips_utf8" {
     params=[p_name, p_email],
   )
   assert_eq(r.affected_rows(), 1, msg="utf8 insert affected_rows")
-  r.free()
+  r.close()
 
   let rows = conn.query("SELECT name, email FROM moonpg_types")
-  defer rows.free()
-  let iter = rows.iter()
-  match iter.next() {
-    Some(row) => {
-      let name : String = row.get(0)
-      let email : String? = row.get(1)
-      assert_eq(name, "你好世界", msg="utf8 name round-trip")
-      match email {
-        Some(s) => assert_eq(s, "café@exämple.日本")
-        None => fail("expected Some, got None")
-      }
+
+  if rows.has_next() {
+    let row = rows.get_row()
+    let name : String = row.get(0)
+    let email : String? = row.get(1)
+    assert_eq(name, "你好世界", msg="utf8 name round-trip")
+    match email {
+      Some(s) => assert_eq(s, "café@exämple.日本")
+      None => fail("expected Some, got None")
     }
-    None => fail("expected the inserted utf8 row back")
+  } else {
+    fail("expected the inserted utf8 row back")
   }
+  rows.close()
 }
 
 ///|
-/// Regression guard for non-ASCII column names. `Rows::columns()` reads the
-/// names through `moonpg_fname_bytes`, which now returns raw UTF-8 bytes
-/// decoded on the MoonBit side; a byte-cast to UTF-16 would corrupt them.
-test "column_names_round_trip_utf8" {
+/// Regression guard for non-ASCII column names. Uses wire protocol's
+/// `FieldDescription` which carries the column name from `RowDescription`.
+async test "column_names_round_trip_utf8" {
   let conn = connect(conninfo)
   defer conn.close()
   // Idempotent: drop in case a previous run left the table behind.
@@ -405,11 +417,11 @@ test "column_names_round_trip_utf8" {
   |> ignore
 
   let rows = conn.query("SELECT \"编号\", \"名前\" FROM moonpg_utf8_cols")
-  defer rows.free()
   let cols = rows.columns()
+  rows.close()
   assert_eq(cols.length(), 2, msg="two columns")
-  assert_eq(cols[0], "编号", msg="first column name is 中文")
-  assert_eq(cols[1], "名前", msg="second column name is 日本語")
+  assert_eq(cols[0].name, "编号", msg="first column name is 中文")
+  assert_eq(cols[1].name, "名前", msg="second column name is 日本語")
 
   conn.execute("DROP TABLE moonpg_utf8_cols") |> ignore
 }
@@ -420,16 +432,19 @@ test "column_names_round_trip_utf8" {
 /// error round-trips through `moonpg_error_message_bytes` and `@utf8.decode`
 /// intact. `PgError` is an abstract suberror, so we use `to_repr()` to get
 /// its debug rendering and check it contains the expected text.
-test "error_message_round_trips_utf8" {
+async test "error_message_round_trips_utf8" {
   let conn = connect(conninfo)
   defer conn.close()
   try {
+    // Use params=[] to avoid simple_query's single-statement check
+    // (DO blocks contain semicolons that trip the check).
     let _ = conn.execute(
       (
         #|DO $$ BEGIN
         #|  RAISE EXCEPTION '中文错误信息: %', '详情';
         #|END $$
       ),
+      params=[],
     )
     fail("expected RAISE EXCEPTION to raise")
   } catch {
@@ -438,5 +453,75 @@ test "error_message_round_trips_utf8" {
         to_repr(e).to_string().contains("中文错误信息"),
         msg="error repr contains 中文错误信息, got: \{to_repr(e)}",
       )
+  }
+}
+
+
+
+///|
+/// Verify @async.all truly interleaves tasks.
+/// Task A: pause 200 times. Task B: pause 5 times.
+async test "async_all_interleaves" {
+  let wall = @async.now()
+  let a_ms : Ref[Int64] = Ref(0)
+  let b_ms : Ref[Int64] = Ref(0)
+
+  let _ = @async.all([
+    async fn() {
+      for _ in 0..<200 {
+        @async.pause() catch {
+          _ => ()
+        }
+      }
+      a_ms.val = @async.now() - wall
+    },
+    async fn() {
+      for _ in 0..<5 {
+        @async.pause() catch {
+          _ => ()
+        }
+      }
+      b_ms.val = @async.now() - wall
+    },
+  ])
+
+  println("A=\{a_ms.val}ms B=\{b_ms.val}ms (interleaved)")
+  // B should not be slower than A; skip assertion when timing is too coarse
+  if a_ms.val > 10L {
+    assert_true(b_ms.val < a_ms.val, msg="B=\{b_ms.val} A=\{a_ms.val}")
+  }
+}
+
+///|
+/// Verify @async.all + @async.pause truly interleaves (array variant).
+async test "async_all_interleaves_array" {
+  let wall = @async.now()
+  let a_ms : Ref[Int64] = Ref(0)
+  let b_ms : Ref[Int64] = Ref(0)
+
+  let tasks : Array[async () -> Unit] = [
+    async fn() {
+      for _ in 0..<200 {
+        @async.pause() catch {
+          _ => ()
+        }
+      }
+      a_ms.val = @async.now() - wall
+    },
+    async fn() {
+      for _ in 0..<5 {
+        @async.pause() catch {
+          _ => ()
+        }
+      }
+      b_ms.val = @async.now() - wall
+    },
+  ]
+  @async.all(tasks) |> ignore
+
+  println("A=\{a_ms.val}ms B=\{b_ms.val}ms (array interleaved)")
+  // B should not be slower than A; skip assertion when timing is too coarse
+  if a_ms.val > 10L {
+    assert_true(b_ms.val < a_ms.val, msg="B=\{b_ms.val} A=\{a_ms.val}")
   }
 }

@@ -1,0 +1,15 @@
+import {
+  "moonbitlang/async",
+  "moonbitlang/async/socket",
+  "moonbitlang/async/io",
+  "moonbitlang/core/buffer",
+  "moonbitlang/core/string",
+  "moonbitlang/core/encoding/utf8",
+  "moonbitlang/core/hashmap",
+  "moonbitlang/core/strconv",
+  "moonbitlang/x/crypto",
+  "moonbitlang/x/codec/base64",
+  "jaredzhou/libs/url",
+}
+
+supported_targets = "+native"

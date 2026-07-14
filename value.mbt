@@ -1,6 +1,6 @@
 ///|
 /// PostgreSQL parameter value. Used for both encoding (client → server via
-/// `ToValue`) and decoding (server → client via `FromValue`).
+/// `ToValue`) and decoding (server → client via `FromRaw`).
 pub enum Value {
   Null
   Bool(Bool)
@@ -16,15 +16,7 @@ pub enum Value {
 pub enum Format {
   Text
   Binary
-}
-
-///|
-fn Format::to_int(self : Format) -> Int {
-  match self {
-    Text => 0
-    Binary => 1
-  }
-}
+} derive(Eq)
 
 ///|
 /// Raw value read from a result cell. Carries the format (text or binary)
@@ -36,10 +28,11 @@ pub(all) enum RawValue {
 
 ///|
 /// Convert a `RawValue` (format + bytes from libpq) to a `Value`.
+/// Prefer `FromRaw` for typed decoding; this is a best-effort convenience.
 ///
 /// * `Null` → `Value::Null`
 /// * `Bytes(Text, b)` → `Value::String` (UTF-8 decoded)
-/// * `Bytes(Binary, b)` → `Value::Bytes` (raw bytes, no decoding)
+/// * `Bytes(Binary, b)` → `Value::Bytes` (raw bytes)
 pub fn RawValue::to_value(self : RawValue) -> Value {
   match self {
     Null => Value::Null
@@ -55,16 +48,40 @@ pub fn RawValue::to_value(self : RawValue) -> Value {
 }
 
 ///|
-/// Internal struct for passing encoded parameters to the FFI layer.
-pub(all) struct EncodedParams {
-  values : FixedArray[Bytes]
-  lengths : FixedArray[Int]
-  formats : FixedArray[Int]
-  nulls : FixedArray[Bool]
+/// Encode a `Value` into `(Bytes?, Int)` for the wire protocol.
+///
+/// Returns `(None, 0)` for NULL, or `(Some(encoded_bytes), format_code)`.
+/// All values use text format to avoid needing OID hints for binary.
+pub fn encode_param(v : Value) -> (Bytes?, Int) {
+  match v {
+    Null => (None, 0)
+    Bool(v) => (Some(encode_string(if v { "t" } else { "f" })), 0)
+    Int(v) => (Some(encode_string(v.to_string())), 0)
+    Int64(v) => (Some(encode_string(v.to_string())), 0)
+    Float(v) => (Some(encode_string(v.to_string())), 0)
+    String(v) => (Some(encode_string(v)), 0)
+    Bytes(v) => (Some(v), 1)
+  }
 }
 
 ///|
-fn encode_i32(v : Int) -> Bytes {
+/// Build `(param_values, param_formats)` arrays for the wire protocol's
+/// `execute_params` from an array of `Value`s.
+pub fn build_params(params : Array[Value]) -> (Array[Bytes?], Array[Int]) {
+  let n = params.length()
+  let values : Array[Bytes?] = Array::makei(n, fn(_) { None })
+  let formats : Array[Int] = Array::makei(n, fn(_) { 0 })
+  for i, v in params {
+    let (val, fmt) = encode_param(v)
+    ignore(values.set(i, val))
+    ignore(formats.set(i, fmt))
+  }
+  (values, formats)
+}
+
+///|
+/// PG `integer` (int4) — 4-byte big-endian signed.
+fn encode_int4(v : Int) -> Bytes {
   let b = @buffer.Buffer(size_hint=4)
 
   b.write_byte(((v >> 24) & 0xff).to_byte())
@@ -76,7 +93,16 @@ fn encode_i32(v : Int) -> Bytes {
 }
 
 ///|
-fn encode_i64(v : Int64) -> Bytes {
+fn decode_int4(b : Bytes) -> Int {
+  (b[0].to_int() << 24) |
+  (b[1].to_int() << 16) |
+  (b[2].to_int() << 8) |
+  b[3].to_int()
+}
+
+///|
+/// PG `bigint` (int8) — 8-byte big-endian signed.
+fn encode_int8(v : Int64) -> Bytes {
   let b = @buffer.Buffer(size_hint=8)
 
   b.write_byte(((v >> 56) & 0xff).to_byte())
@@ -92,42 +118,74 @@ fn encode_i64(v : Int64) -> Bytes {
 }
 
 ///|
-/// Encode a `Value` into raw bytes in the given format.
+fn decode_int8(b : Bytes) -> Int64 {
+  (b[0].to_int64() << 56) |
+  (b[1].to_int64() << 48) |
+  (b[2].to_int64() << 40) |
+  (b[3].to_int64() << 32) |
+  (b[4].to_int64() << 24) |
+  (b[5].to_int64() << 16) |
+  (b[6].to_int64() << 8) |
+  b[7].to_int64()
+}
+
+///|
+/// PG `double precision` (float8) — 8-byte big-endian IEEE 754.
+fn encode_float8(v : Double) -> Bytes {
+  encode_int8(v.reinterpret_as_uint64().reinterpret_as_int64())
+}
+
+///|
+fn decode_float8(b : Bytes) -> Double {
+  decode_int8(b).reinterpret_as_double()
+}
+
+///|
+/// PG `boolean` — 1 byte (0 = false, non-zero = true).
+fn encode_bool(v : Bool) -> Bytes {
+  let buf = @buffer.Buffer(size_hint=1)
+  buf.write_byte(if v { 1 } else { 0 })
+  buf.to_bytes()
+}
+
+///|
+fn decode_bool(b : Bytes) -> Bool {
+  b[0].to_int() != 0
+}
+
+///|
+/// Encode a `Value` into a `RawValue` in the given format.
 ///
 /// * `Text` — PostgreSQL text representation (e.g. `"42"`, `"t"`, `"f"`).
 /// * `Binary` — PostgreSQL binary representation (network byte order).
 ///
-/// Returns `None` for `Value::Null` (caller should emit SQL NULL instead)
-/// and for `Value::Float` in binary format (not yet supported).
-pub fn Value::to_raw(self : Value, format : Format) -> Bytes? {
+/// Returns `RawValue::Null` for `Value::Null` (caller should emit SQL NULL
+/// instead).
+pub fn Value::to_raw(self : Value, format : Format) -> RawValue {
   match self {
-    Null => None
+    Null => RawValue::Null
     Bool(v) =>
       match format {
-        Text => Some(encode_string(if v { "t" } else { "f" }))
-        Binary => {
-          let buf : @buffer.Buffer = Buffer()
-          buf.write_byte(if v { 1 } else { 0 })
-          Some(buf.to_bytes())
-        }
+        Text => RawValue::Bytes(Text, encode_string(if v { "t" } else { "f" }))
+        Binary => RawValue::Bytes(Binary, encode_bool(v))
       }
     Int(v) =>
       match format {
-        Text => Some(encode_string(v.to_string()))
-        Binary => Some(encode_i32(v))
+        Text => RawValue::Bytes(Text, encode_string(v.to_string()))
+        Binary => RawValue::Bytes(Binary, encode_int4(v))
       }
     Int64(v) =>
       match format {
-        Text => Some(encode_string(v.to_string()))
-        Binary => Some(encode_i64(v))
+        Text => RawValue::Bytes(Text, encode_string(v.to_string()))
+        Binary => RawValue::Bytes(Binary, encode_int8(v))
       }
     Float(v) =>
       match format {
-        Text => Some(encode_string(v.to_string()))
-        Binary => None
+        Text => RawValue::Bytes(Text, encode_string(v.to_string()))
+        Binary => RawValue::Bytes(Binary, encode_float8(v))
       }
-    String(v) => Some(encode_string(v))
-    Bytes(v) => Some(v)
+    String(v) => RawValue::Bytes(format, encode_string(v))
+    Bytes(v) => RawValue::Bytes(format, v)
   }
 }
 
@@ -137,22 +195,21 @@ fn encode_string(s : String) -> Bytes {
 }
 
 ///|
+fn decode_string(b : Bytes) -> String {
+  @utf8.decode(b) catch {
+    _ => b.to_unchecked_string()
+  }
+}
+
+///|
 /// Encode a `Value` into a `RawValue` for transmission to the server.
-/// `Value::Null` becomes `RawValue::Null`. `Value::Bytes(_)` is sent in
-/// binary format; everything else uses text format.
+/// `Null` becomes `RawValue::Null`. `String` uses text format; everything
+/// else uses binary format.
 pub fn encode(v : Value) -> RawValue {
   match v {
     Null => RawValue::Null
-    _ => {
-      let format = match v {
-        Bytes(_) => Format::Binary
-        _ => Format::Text
-      }
-      match v.to_raw(format) {
-        None => RawValue::Null
-        Some(b) => RawValue::Bytes(format, b)
-      }
-    }
+    String(_) => v.to_raw(Text)
+    _ => v.to_raw(Binary)
   }
 }
 
@@ -163,57 +220,19 @@ pub(open) trait ToValue {
 }
 
 ///|
-pub impl ToValue for Int with fn to_value(self) {
-  Value::Int(self)
-}
-
-///|
-pub impl ToValue for Int64 with fn to_value(self) {
-  Value::Int64(self)
-}
-
-///|
-pub impl ToValue for Double with fn to_value(self) {
-  Value::Float(self)
-}
-
-///|
-pub impl ToValue for String with fn to_value(self) {
-  Value::String(self)
-}
-
-///|
-pub impl ToValue for Bool with fn to_value(self) {
-  Value::Bool(self)
-}
-
-///|
-pub impl ToValue for Bytes with fn to_value(self) {
-  Value::Bytes(self)
-}
-
-///|
-pub impl[T : ToValue] ToValue for T? with fn to_value(self) {
-  match self {
-    None => Value::Null
-    Some(v) => v.to_value()
-  }
-}
-
-///|
 /// Types that can be decoded from a PostgreSQL cell value.
 ///
-/// `from_value` receives a `Value` that was converted from the raw libpq
-/// result (see `RawValue::to_value`). Implementations should handle:
+/// `from_raw` receives a `RawValue` directly from the libpq result (format +
+/// raw bytes). Implementations should handle:
 ///
-/// * `Value::Null` — SQL NULL; raise or return a default
-/// * `Value::String(s)` — text-format value
-/// * `Value::Bytes(b)` — binary-format value (reserved for future support)
+/// * `RawValue::Null` — SQL NULL; raise or return a default
+/// * `RawValue::Bytes(Text, b)` — text-format value (UTF-8 decode then parse)
+/// * `RawValue::Bytes(Binary, b)` — binary wire-protocol value
 ///
 /// The basic implementations raise `PgError::QueryError` on `Null`; use
 /// `Option[T]` for nullable columns.
-pub(open) trait FromValue {
-  fn from_value(Value) -> Self raise PgError
+pub(open) trait FromRaw {
+  fn from_raw(RawValue) -> Self raise PgError
 }
 
 ///|
@@ -228,105 +247,132 @@ pub fn[T] raise_binary() -> T raise PgError {
   raise PgError::QueryError("binary-format cell values are not supported yet")
 }
 
+
 ///|
-pub impl FromValue for Int with fn from_value(v : Value) raise PgError {
-  match v {
-    Null => raise_null("Int")
-    String(s) =>
-      @string.parse_int(s) catch {
-        _ => raise PgError::QueryError("cannot convert '\{s}' to Int")
-      }
-    Bytes(_) => raise_binary()
-    _ => raise PgError::QueryError("unexpected value type for Int")
+/// Helper: build `Bytes` from a byte array literal.
+fn bytes_of(vals : Array[Byte]) -> Bytes {
+  let buf = @buffer.Buffer(size_hint=vals.length())
+  for b in vals {
+    buf.write_byte(b)
   }
+  buf.to_bytes()
 }
 
 ///|
-pub impl FromValue for Int64 with fn from_value(v : Value) raise PgError {
-  match v {
-    Null => raise_null("Int64")
-    String(s) =>
-      @string.parse_int64(s) catch {
-        _ => raise PgError::QueryError("cannot convert '\{s}' to Int64")
-      }
-    Bytes(_) => raise_binary()
-    _ => raise PgError::QueryError("unexpected value type for Int64")
-  }
+test "decode_int4_positive" {
+  // 42 = 0x0000002A in big-endian
+  let b = bytes_of([b'\x00', b'\x00', b'\x00', b'\x2A'])
+  assert_eq(decode_int4(b), 42, msg="int4 positive")
 }
 
 ///|
-pub impl FromValue for Double with fn from_value(v : Value) raise PgError {
-  match v {
-    Null => raise_null("Double")
-    String(s) =>
-      @string.parse_double(s) catch {
-        _ => raise PgError::QueryError("cannot convert '\{s}' to Double")
-      }
-    Bytes(_) => raise_binary()
-    _ => raise PgError::QueryError("unexpected value type for Double")
-  }
+test "decode_int4_negative" {
+  // -1 = 0xFFFFFFFF in big-endian
+  let b = bytes_of([b'\xFF', b'\xFF', b'\xFF', b'\xFF'])
+  assert_eq(decode_int4(b), -1, msg="int4 negative")
 }
 
 ///|
-pub impl FromValue for Bool with fn from_value(v : Value) raise PgError {
-  match v {
-    Null => raise_null("Bool")
-    String(s) =>
-      @string.parse_bool(s) catch {
-        _ => raise PgError::QueryError("cannot convert '\{s}' to Bool")
-      }
-    Bytes(_) => raise_binary()
-    _ => raise PgError::QueryError("unexpected value type for Bool")
-  }
+test "decode_int4_zero" {
+  let b = bytes_of([b'\x00', b'\x00', b'\x00', b'\x00'])
+  assert_eq(decode_int4(b), 0, msg="int4 zero")
 }
 
 ///|
-pub impl FromValue for String with fn from_value(v : Value) raise PgError {
-  match v {
-    Null => raise_null("String")
-    String(s) => s
-    Bytes(_) => raise_binary()
-    _ => raise PgError::QueryError("unexpected value type for String")
-  }
+test "decode_int8_positive" {
+  // 1234567890123 = 0x0000011F71FB04CB
+  let b = bytes_of([
+    b'\x00', b'\x00', b'\x01', b'\x1F', b'\x71', b'\xFB', b'\x04', b'\xCB',
+  ])
+  assert_eq(decode_int8(b), 1234567890123L, msg="int8 positive")
 }
 
 ///|
-/// Nullable variant of `FromValue`: `SQL NULL` decodes to `None`, any other
-/// value is delegated to `T::from_value` (which itself may raise).
-pub impl[T : FromValue] FromValue for T? with fn from_value(v : Value) raise PgError {
-  match v {
-    Null => None
-    String(s) => Some(T::from_value(Value::String(s)))
-    Bytes(_) => raise_binary()
-    _ => raise PgError::QueryError("unexpected value type for Option[T]")
-  }
+test "decode_int8_negative" {
+  // -9223372036854775808 = 0x8000000000000000
+  let b = bytes_of([
+    b'\x80', b'\x00', b'\x00', b'\x00', b'\x00', b'\x00', b'\x00', b'\x00',
+  ])
+  assert_eq(decode_int8(b), -9223372036854775808L, msg="int8 minimum")
 }
 
 ///|
-/// Encode an array of `Value`s into `EncodedParams` for passing to the FFI
-/// parameterized-query functions.
-pub fn encode_params(params : Array[Value]) -> EncodedParams {
-  let n = params.length()
+test "decode_bool_true" {
+  let b = bytes_of([b'\x01'])
+  assert_eq(decode_bool(b), true, msg="bool true")
+}
 
-  let values = FixedArray::make(n, Bytes::default())
-  let lengths = FixedArray::make(n, 0)
-  let formats = FixedArray::make(n, 0)
-  let nulls = FixedArray::make(n, false)
+///|
+test "decode_bool_false" {
+  let b = bytes_of([b'\x00'])
+  assert_eq(decode_bool(b), false, msg="bool false")
+}
 
-  for i, param in params {
-    let raw = encode(param)
-    match raw {
-      Null => {
-        formats[i] = Format::Text.to_int()
-        nulls[i] = true
-      }
-      Bytes(format, b) => {
-        formats[i] = format.to_int()
-        values[i] = b
-        lengths[i] = b.length()
-      }
-    }
+///|
+test "encode_decode_float8_roundtrip" {
+  let v = 3.141592653589793
+  let encoded = encode_float8(v)
+  let decoded = decode_float8(encoded)
+  assert_true((decoded - v).abs() < 1.0e-15, msg="float8 round-trip")
+}
+
+///|
+test "encode_decode_int4_roundtrip" {
+  let v = -42
+  let encoded = encode_int4(v)
+  let decoded = decode_int4(encoded)
+  assert_eq(decoded, v, msg="int4 round-trip")
+}
+
+///|
+test "encode_decode_int8_roundtrip" {
+  let v = -9_223_372_036_854_775_807L
+  let encoded = encode_int8(v)
+  let decoded = decode_int8(encoded)
+  assert_eq(decoded, v, msg="int8 round-trip")
+}
+
+///|
+/// End-to-end: binary-format FromRaw for basic types.
+test "from_raw_binary_int" {
+  let b = bytes_of([b'\x00', b'\x00', b'\x00', b'\x2A']) // 42
+  let v : Int = FromRaw::from_raw(RawValue::Bytes(Binary, b))
+  assert_eq(v, 42, msg="from_raw binary Int")
+}
+
+///|
+test "from_raw_binary_bool" {
+  let v : Bool = FromRaw::from_raw(RawValue::Bytes(Binary, bytes_of([b'\x01'])))
+  assert_eq(v, true, msg="from_raw binary Bool true")
+
+  let v2 : Bool = FromRaw::from_raw(
+    RawValue::Bytes(Binary, bytes_of([b'\x00'])),
+  )
+  assert_eq(v2, false, msg="from_raw binary Bool false")
+}
+
+///|
+test "from_raw_binary_string" {
+  let s = "hello"
+  let b = @utf8.encode(s)
+  let v : String = FromRaw::from_raw(RawValue::Bytes(Binary, b))
+  assert_eq(v, "hello", msg="from_raw binary String")
+}
+
+///|
+test "from_raw_binary_nullable" {
+  // Non-null binary value
+  let b = bytes_of([b'\x00', b'\x00', b'\x00', b'\x07']) // 7
+  let v : Int? = FromRaw::from_raw(RawValue::Bytes(Binary, b))
+  match v {
+    Some(x) => assert_eq(x, 7, msg="nullable binary non-null")
+    None => fail("expected Some(7)")
   }
 
-  { values, lengths, formats, nulls }
+  // Null
+  let v2 : Int? = FromRaw::from_raw(RawValue::Null)
+  match v2 {
+    Some(_) => fail("expected None")
+    None => ()
+  }
 }

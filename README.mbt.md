@@ -1,31 +1,29 @@
 # jaredzhou/moonpg
 
-A MoonBit client for PostgreSQL, based on the `libpq` C library.
+A pure MoonBit PostgreSQL client — wire protocol from scratch, zero C dependencies.
 
 ## Overview
 
-`moonpg` is a thin, idiomatic MoonBit binding over `libpq`. It provides:
+`moonpg` speaks the PostgreSQL wire protocol (v3) directly over TCP.  It provides:
 
-- `Connection` for connecting to a PostgreSQL server with a libpq-style
-  connection string.
-- `Rows` / `Row` for typed iteration over `SELECT` results — values are
-  decoded from text bytes through the `FromValue` trait.
-- `ExecResult` for the row counts of `INSERT` / `UPDATE` / `DELETE` / DDL.
-- Parameterized queries (`Connection::query` / `Connection::execute` with
-  `params=[...]`) via `PQexecParams`, with automatic `NULL` handling for
-  nullable columns via `Option[T]`.
-- `ToValue` impls for `Int`, `Int64`, `Double`, `Bool`, `String`, `Bytes`,
-  and `Option[T : ToValue]`.
+- **Connection** — connect, authenticate (cleartext / MD5 / SCRAM-SHA-256), query, close.
+- **Pool** — bounded connection pool with acquire / release, min-idle, and idle-timeout
+  expiry.
+- **Transactions** — `begin_tx` / `commit` / `rollback` on bare connections and pooled
+  connections, plus `begin_func` (auto-commit/rollback).
+- **Rows trait** — polymorphic row iteration (`ConnRows`, `PoolRows`); pull-based with
+  `has_next()` / `get_row()`.
+- **Typed decoding** — `FromRaw` trait for `Int`, `Int64`, `Double`, `Bool`, `String`,
+  `Bytes`, `Json`, `Decimal`, `UUID`, `Timestamp`, plus `Option[T]` for nullable columns.
+- **Parameterised queries** — `$1`-style placeholders via the extended query protocol;
+  `ToValue` trait with impls for all basic types and `Option[T]`.
+- **Async concurrency** — multiple connections can run queries concurrently; a slow
+  query on one connection never blocks others.
 
 ## Install
 
-This package targets native builds and links against `libpq`. On Debian / Ubuntu:
-
-```bash
-sudo apt install libpq-dev
-```
-
-Then in your project:
+This package targets **native** builds and has **zero C dependencies** — the wire protocol
+is implemented in pure MoonBit.
 
 ```bash
 moon add jaredzhou/moonpg
@@ -36,47 +34,82 @@ moon add jaredzhou/moonpg
 ```moonbit nocheck
 let conn = @moonpg.connect("postgres://user:pw@localhost:5432/db")
 
-// Plain SQL — PQexec
+// Simple query
 let rows = conn.query("SELECT id, name FROM users")
-for row in rows.iter() {
+while rows.has_next() {
+  let row = rows.get_row()
   let id : Int = row.get(0)
   let name : String = row.get_by_name("name")
-  ignore((id, name))
+  println("\{id}: \{name}")
 }
-rows.free()
+rows.close()
 
-// Parameterized — PQexecParams
-let p_id : Int = 42
-let p_email : String? = None
+// Parameterised — extended query protocol
 conn.execute(
   "UPDATE users SET email = $1 WHERE id = $2",
-  params=[p_email, p_id],
+  params=[None, 42],  // Option[T] encodes NULL
 ) |> ignore
 
 conn.close()
 ```
 
+### Connection pool
+
+```moonbit nocheck
+let pool = Pool::new(PoolConfig::new(
+  "postgres://user:pw@localhost:5432/db",
+  max_conns=10,
+  min_idle=2,
+))
+
+// Implicit acquire / release
+let rows = pool.query("SELECT 1")
+rows.close()  // returns conn to pool
+
+let row = pool.query_one("SELECT 42")
+pool.execute("INSERT INTO t (x) VALUES ($1)", params=[1]) |> ignore
+
+pool.close()
+```
+
+### Transactions
+
+```moonbit nocheck
+// Auto-commit / rollback
+let result = begin_func(conn.begin_tx(), async fn(tx) {
+  tx.execute("INSERT INTO users (name) VALUES ($1)", params=["alice"]) |> ignore
+  tx.query_one("SELECT id FROM users WHERE name = $1", params=["alice"])
+    .get(0)
+})  // exception → rollback; success → commit
+```
+
 ## Typed decoding
 
-`Row::get[T : FromValue](col)` and `Row::get_by_name[T : FromValue](name)`
-return the cell value decoded to `T`. The basic impls raise on `NULL`:
+`FromRaw` decodes PostgreSQL cells into MoonBit types:
 
 ```moonbit nocheck
-///|
-let id : Int = row.get(0) // raises on NULL
+let id : Int      = row.get(0)            // raises on NULL
+let email : String? = row.get_by_name("email")  // NULL → None
+let ts : Timestamp  = row.get(2)          // pg timestamp → Unix µs
 ```
 
-For nullable columns, use `Option[T]`:
+## Architecture
 
-```moonbit nocheck
-///|
-let email : String? = row.get_by_name("email")
-```
+See [arch.md](./arch.md) for a detailed walkthrough of the codebase.
 
-## Run the integration tests
+## Run the tests
+
+Requires a running PostgreSQL instance with three test users:
+
+| user          | password    | auth method   |
+|---------------|-------------|---------------|
+| moonpg_plain  | plain_pass  | password      |
+| moonpg_md5    | md5_pass    | md5           |
+| moonpg_scram  | scram_pass  | scram-sha-256 |
 
 ```bash
-MOONPG_CONNINFO="postgres://postgres:111111@localhost:5432/postgres" \
+# Use env var or defaults (see conn_test.mbt)
+MOONPG_CONNINFO="postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test" \
   moon test --target native
 ```
 
