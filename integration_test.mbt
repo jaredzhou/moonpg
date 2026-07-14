@@ -17,7 +17,10 @@ async test "debug_fresh_table_then_insert" {
   fresh_table()
   let c = connect(conninfo)
   defer c.close()
-  let r = c.execute("INSERT INTO moonpg_types (i4, i8, f8, flag, name, email) VALUES ($1, $2, $3, $4, $5, $6)", params=[42, 0L, 0.0, true, "alice", "a@b.com"])
+  let r = c.execute(
+    "INSERT INTO moonpg_types (i4, i8, f8, flag, name, email) VALUES ($1, $2, $3, $4, $5, $6)",
+    params=[42, 0L, 0.0, true, "alice", "a@b.com"],
+  )
   assert_eq(r.affected_rows(), 1)
   r.close()
   let rows = c.query("SELECT name FROM moonpg_types")
@@ -32,7 +35,8 @@ async test "debug_fresh_table_then_insert" {
 async fn fresh_table() -> Unit raise PgError {
   let c = connect(conninfo)
   defer c.close()
-  let ddl = #|CREATE TABLE IF NOT EXISTS moonpg_types (
+  let ddl =
+    #|CREATE TABLE IF NOT EXISTS moonpg_types (
     #|  id    SERIAL PRIMARY KEY,
     #|  i4    INTEGER       NOT NULL,
     #|  i8    BIGINT        NOT NULL,
@@ -455,8 +459,6 @@ async test "error_message_round_trips_utf8" {
       )
   }
 }
-
-
 
 ///|
 /// Verify @async.all truly interleaves tasks.

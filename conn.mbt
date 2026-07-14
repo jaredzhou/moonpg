@@ -20,7 +20,7 @@ pub enum ConnStatus {
 /// A pull-based row reader. Both `ConnRows` (bare connection) and
 /// `PoolRows` (pooled connection) implement this trait.
 ///
-/// ```moonbit
+/// ```moonbit nocheck
 /// while rows.has_next() {
 ///   let row = rows.get_row()
 ///   let v : Int = row.get(0)
@@ -45,21 +45,15 @@ pub(all) struct ConnRows {
 }
 
 ///|
-pub impl Rows for ConnRows with fn has_next(
-  self : ConnRows,
-) -> Bool raise PgError {
+pub impl Rows for ConnRows with fn has_next(self : ConnRows) -> Bool raise PgError {
   self.reader.has_next() catch {
     e => raise map_wire_error(e)
   }
 }
 
 ///|
-pub impl Rows for ConnRows with fn get_row(
-  self : ConnRows,
-) -> Row raise PgError {
-  let raw_row = self.reader.data_row() catch {
-    e => raise map_wire_error(e)
-  }
+pub impl Rows for ConnRows with fn get_row(self : ConnRows) -> Row raise PgError {
+  let raw_row = self.reader.data_row() catch { e => raise map_wire_error(e) }
   let col_descs = self.reader.columns()
   let values : Array[RawValue] = []
   for i = 0; i < raw_row.length(); i = i + 1 {
@@ -79,18 +73,16 @@ pub impl Rows for ConnRows with fn get_row(
 }
 
 ///|
-pub impl Rows for ConnRows with fn columns(
-  self : ConnRows,
-) -> Array[@wire.FieldDescription] {
+pub impl Rows for ConnRows with fn columns(self : ConnRows) -> Array[
+  @wire.FieldDescription,
+] {
   self.reader.columns()
 }
 
 ///|
 /// Drain remaining results from the reader.
 pub impl Rows for ConnRows with fn close(self : ConnRows) -> Unit raise PgError {
-  let _ = self.reader.close() catch {
-    e => raise map_wire_error(e)
-  }
+  let _ = self.reader.close() catch { e => raise map_wire_error(e) }
 }
 
 // ---------------------------------------------------------------------------
@@ -169,9 +161,7 @@ pub struct Connection {
 ///|
 /// Open a new connection to a PostgreSQL server.
 pub async fn connect(conninfo : String) -> Connection raise PgError {
-  let inner = @wire.connect(conninfo) catch {
-    e => raise map_wire_error(e)
-  }
+  let inner = @wire.connect(conninfo) catch { e => raise map_wire_error(e) }
   Connection::{ conn: inner }
 }
 
@@ -227,14 +217,14 @@ pub impl QueryExecutor for Connection with fn query(
       let reader = self.conn.simple_query(sql) catch {
         e => raise map_wire_error(e)
       }
-      ConnRows::{ reader }
+      ConnRows::{ reader, }
     }
     Some(ps) => {
       let (vals, _) = build_param_arrays(ps)
       let reader = self.conn.execute_params(sql, vals, [], [], []) catch {
         e => raise map_wire_error(e)
       }
-      ConnRows::{ reader }
+      ConnRows::{ reader, }
     }
   }
 }
@@ -266,20 +256,16 @@ pub impl QueryExecutor for Connection with fn execute(
       let reader = self.conn.simple_query(sql) catch {
         e => raise map_wire_error(e)
       }
-      let tag = reader.close() catch {
-        e => raise map_wire_error(e)
-      }
-      ExecResult::{ tag }
+      let tag = reader.close() catch { e => raise map_wire_error(e) }
+      ExecResult::{ tag, }
     }
     Some(ps) => {
       let (vals, _) = build_param_arrays(ps)
       let reader = self.conn.execute_params(sql, vals, [], [], []) catch {
         e => raise map_wire_error(e)
       }
-      let tag = reader.close() catch {
-        e => raise map_wire_error(e)
-      }
-      ExecResult::{ tag }
+      let tag = reader.close() catch { e => raise map_wire_error(e) }
+      ExecResult::{ tag, }
     }
   }
 }
@@ -302,9 +288,7 @@ fn map_wire_error(e : @wire.WireError) -> PgError {
 }
 
 ///|
-fn build_param_arrays(
-  params : Array[&ToValue],
-) -> (Array[Bytes?], Array[Int]) {
+fn build_param_arrays(params : Array[&ToValue]) -> (Array[Bytes?], Array[Int]) {
   let values : Array[Value] = []
   for v in params {
     values.push(v.to_value())

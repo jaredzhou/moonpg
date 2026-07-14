@@ -12,7 +12,10 @@ let pool_test_conninfo : String = @env.get_env_var("MOONPG_CONNINFO").unwrap_or(
 async fn pool_setup(name : String) -> Unit raise PgError {
   let c = connect(pool_test_conninfo)
   c.execute("DROP TABLE IF EXISTS \{name}") |> ignore
-  c.execute("CREATE TABLE \{name} (id SERIAL PRIMARY KEY, val INTEGER NOT NULL, note TEXT NOT NULL)") |> ignore
+  c.execute(
+    "CREATE TABLE \{name} (id SERIAL PRIMARY KEY, val INTEGER NOT NULL, note TEXT NOT NULL)",
+  )
+  |> ignore
   c.close()
 }
 
@@ -141,7 +144,10 @@ async test "pc_query_returns_rows" {
   pool_setup(tbl)
   let pool = Pool::new(default_config())
   let pc = pool.acquire()
-  pc.execute("INSERT INTO \{tbl} (val, note) VALUES ($1, $2)", params=[1, "pc_query"]) |> ignore
+  pc.execute("INSERT INTO \{tbl} (val, note) VALUES ($1, $2)", params=[
+    1, "pc_query",
+  ])
+  |> ignore
   let rows = pc.query("SELECT note FROM \{tbl}")
   assert_true(rows.has_next())
   assert_eq(rows.get_row().get(0), "pc_query")
@@ -159,7 +165,8 @@ async test "pc_query_rows_close_drains" {
   pc.execute("INSERT INTO \{tbl} (val, note) VALUES (1, 'drain')") |> ignore
   let rows = pc.query("SELECT note FROM \{tbl}")
   rows.close()
-  pc.execute("INSERT INTO \{tbl} (val, note) VALUES (2, 'after_drain')") |> ignore
+  pc.execute("INSERT INTO \{tbl} (val, note) VALUES (2, 'after_drain')")
+  |> ignore
   pc.release()
   pool.close()
 }
@@ -175,7 +182,9 @@ async test "pc_query_one" {
   let pool = Pool::new(default_config())
   let pc = pool.acquire()
   pc.execute("INSERT INTO \{tbl} (val, note) VALUES (7, 'pc_q1')") |> ignore
-  let row = pc.query_one("SELECT val FROM \{tbl} WHERE note = $1", params=["pc_q1"])
+  let row = pc.query_one("SELECT val FROM \{tbl} WHERE note = $1", params=[
+    "pc_q1",
+  ])
   assert_eq(row.get(0), 7)
   pc.release()
   pool.close()
@@ -187,7 +196,9 @@ async test "pc_execute" {
   pool_setup(tbl)
   let pool = Pool::new(default_config())
   let pc = pool.acquire()
-  let r = pc.execute("INSERT INTO \{tbl} (val, note) VALUES ($1, $2)", params=[10, "pc_exec"])
+  let r = pc.execute("INSERT INTO \{tbl} (val, note) VALUES ($1, $2)", params=[
+    10, "pc_exec",
+  ])
   assert_eq(r.affected_rows(), 1)
   r.close()
   pc.release()
@@ -223,7 +234,9 @@ async test "pool_query_one" {
   pc.execute("INSERT INTO \{tbl} (val, note) VALUES (42, 'pq1')") |> ignore
   pc.release()
 
-  let row = pool.query_one("SELECT val FROM \{tbl} WHERE note = $1", params=["pq1"])
+  let row = pool.query_one("SELECT val FROM \{tbl} WHERE note = $1", params=[
+    "pq1",
+  ])
   assert_eq(row.get(0), 42)
   pool.close()
 }
@@ -234,7 +247,9 @@ async test "pool_query_one_raises_no_rows" {
   pool_setup(tbl)
   let pool = Pool::new(default_config())
   try {
-    let _ = pool.query_one("SELECT val FROM \{tbl} WHERE note = $1", params=["nobody"])
+    let _ = pool.query_one("SELECT val FROM \{tbl} WHERE note = $1", params=[
+      "nobody",
+    ])
     fail("expected NoRows")
   } catch {
     e => assert_true(to_repr(e).to_string().contains("NoRows"))
@@ -247,7 +262,9 @@ async test "pool_execute" {
   let tbl = "p_exec"
   pool_setup(tbl)
   let pool = Pool::new(default_config())
-  let r = pool.execute("INSERT INTO \{tbl} (val, note) VALUES ($1, $2)", params=[99, "pool_exec"])
+  let r = pool.execute("INSERT INTO \{tbl} (val, note) VALUES ($1, $2)", params=[
+    99, "pool_exec",
+  ])
   assert_eq(r.affected_rows(), 1)
   r.close()
   pool.close()
@@ -275,7 +292,10 @@ async test "pool_begin_tx_commit" {
   pool_setup(tbl)
   let pool = Pool::new(default_config())
   let tx = pool.begin_tx()
-  tx.execute("INSERT INTO \{tbl} (val, note) VALUES ($1, $2)", params=[1, "ptx_commit"]) |> ignore
+  QueryExecutor::execute(tx, "INSERT INTO \{tbl} (val, note) VALUES ($1, $2)", params=[
+    1, "ptx_commit",
+  ])
+  |> ignore
   tx.commit()
 
   let rows = pool.query("SELECT note FROM \{tbl}")
@@ -291,7 +311,10 @@ async test "pool_begin_tx_rollback" {
   pool_setup(tbl)
   let pool = Pool::new(default_config())
   let tx = pool.begin_tx()
-  tx.execute("INSERT INTO \{tbl} (val, note) VALUES ($1, $2)", params=[99, "ptx_rb"]) |> ignore
+  QueryExecutor::execute(tx, "INSERT INTO \{tbl} (val, note) VALUES ($1, $2)", params=[
+    99, "ptx_rb",
+  ])
+  |> ignore
   tx.rollback()
 
   let rows = pool.query("SELECT COUNT(*) FROM \{tbl}")
@@ -322,8 +345,11 @@ async test "pooldbtx_query" {
   pool_setup(tbl)
   let pool = Pool::new(default_config())
   let tx = pool.begin_tx()
-  tx.execute("INSERT INTO \{tbl} (val, note) VALUES ($1, $2)", params=[5, "pdbtx_q"]) |> ignore
-  let rows = tx.query("SELECT note FROM \{tbl}")
+  QueryExecutor::execute(tx, "INSERT INTO \{tbl} (val, note) VALUES ($1, $2)", params=[
+    5, "pdbtx_q",
+  ])
+  |> ignore
+  let rows = QueryExecutor::query(tx, "SELECT note FROM \{tbl}")
   assert_true(rows.has_next())
   assert_eq(rows.get_row().get(0), "pdbtx_q")
   rows.close()
@@ -337,8 +363,15 @@ async test "pooldbtx_query_one" {
   pool_setup(tbl)
   let pool = Pool::new(default_config())
   let tx = pool.begin_tx()
-  tx.execute("INSERT INTO \{tbl} (val, note) VALUES ($1, $2)", params=[8, "pdbtx_q1"]) |> ignore
-  let row = tx.query_one("SELECT val FROM \{tbl} WHERE note = $1", params=["pdbtx_q1"])
+  QueryExecutor::execute(tx, "INSERT INTO \{tbl} (val, note) VALUES ($1, $2)", params=[
+    8, "pdbtx_q1",
+  ])
+  |> ignore
+  let row = QueryExecutor::query_one(
+    tx,
+    "SELECT val FROM \{tbl} WHERE note = $1",
+    params=["pdbtx_q1"],
+  )
   assert_eq(row.get(0), 8)
   tx.commit()
   pool.close()
@@ -350,7 +383,11 @@ async test "pooldbtx_execute" {
   pool_setup(tbl)
   let pool = Pool::new(default_config())
   let tx = pool.begin_tx()
-  let r = tx.execute("INSERT INTO \{tbl} (val, note) VALUES ($1, $2)", params=[3, "pdbtx_exec"])
+  let r = QueryExecutor::execute(
+    tx,
+    "INSERT INTO \{tbl} (val, note) VALUES ($1, $2)",
+    params=[3, "pdbtx_exec"],
+  )
   assert_eq(r.affected_rows(), 1)
   r.close()
   tx.commit()
@@ -396,7 +433,10 @@ async test "pc_begin_tx_returns_dbtx" {
   let pool = Pool::new(default_config())
   let pc = pool.acquire()
   let tx = pc.begin_tx()
-  tx.execute("INSERT INTO \{tbl} (val, note) VALUES ($1, $2)", params=[1, "pc_dbtx"]) |> ignore
+  QueryExecutor::execute(tx, "INSERT INTO \{tbl} (val, note) VALUES ($1, $2)", params=[
+    1, "pc_dbtx",
+  ])
+  |> ignore
   tx.commit()
   pc.release()
   pool.close()
@@ -409,7 +449,10 @@ async test "pc_begin_tx_rollback_then_release" {
   let pool = Pool::new(default_config())
   let pc = pool.acquire()
   let tx = pc.begin_tx()
-  tx.execute("INSERT INTO \{tbl} (val, note) VALUES ($1, $2)", params=[999, "pc_rollback"]) |> ignore
+  QueryExecutor::execute(tx, "INSERT INTO \{tbl} (val, note) VALUES ($1, $2)", params=[
+    999, "pc_rollback",
+  ])
+  |> ignore
   tx.rollback()
   pc.release()
 
@@ -431,7 +474,12 @@ async test "begin_func_with_pool_success" {
   pool_setup(tbl)
   let pool = Pool::new(default_config())
   let result = begin_func(pool, async fn(tx) {
-    tx.execute("INSERT INTO \{tbl} (val, note) VALUES ($1, $2)", params=[1, "bf_pool"]) |> ignore
+    QueryExecutor::execute(
+      tx,
+      "INSERT INTO \{tbl} (val, note) VALUES ($1, $2)",
+      params=[1, "bf_pool"],
+    )
+    |> ignore
     100
   })
   assert_eq(result, 100)
@@ -450,7 +498,12 @@ async test "begin_func_with_pool_error_rolls_back" {
   let pool = Pool::new(default_config())
   try {
     let _ = begin_func(pool, async fn(tx) {
-      tx.execute("INSERT INTO \{tbl} (val, note) VALUES ($1, $2)", params=[1, "should_rollback"]) |> ignore
+      QueryExecutor::execute(
+        tx,
+        "INSERT INTO \{tbl} (val, note) VALUES ($1, $2)",
+        params=[1, "should_rollback"],
+      )
+      |> ignore
       fail("intentional failure")
       0
     })
@@ -477,7 +530,10 @@ async test "pool_rows_close_releases" {
   pool_setup(tbl)
   let pool = Pool::new(default_config())
   let pc = pool.acquire()
-  pc.execute("INSERT INTO \{tbl} (val, note) VALUES ($1, $2)", params=[1, "rows_rel"]) |> ignore
+  pc.execute("INSERT INTO \{tbl} (val, note) VALUES ($1, $2)", params=[
+    1, "rows_rel",
+  ])
+  |> ignore
   let rows = pc.query("SELECT note FROM \{tbl}")
   rows.close()
   pc.release()
@@ -490,7 +546,10 @@ async test "pool_query_rows_close_releases" {
   pool_setup(tbl)
   let pool = Pool::new(default_config())
   let pc = pool.acquire()
-  pc.execute("INSERT INTO \{tbl} (val, note) VALUES ($1, $2)", params=[2, "pool_rows_rel"]) |> ignore
+  pc.execute("INSERT INTO \{tbl} (val, note) VALUES ($1, $2)", params=[
+    2, "pool_rows_rel",
+  ])
+  |> ignore
   pc.release()
 
   let initial = pool.total()
@@ -512,7 +571,10 @@ async test "pool_reuse_across_operations" {
   let pool = Pool::new(cfg)
 
   for i = 0; i < 5; i = i + 1 {
-    pool.execute("INSERT INTO \{tbl} (val, note) VALUES ($1, $2)", params=[i, "reuse"]) |> ignore
+    pool.execute("INSERT INTO \{tbl} (val, note) VALUES ($1, $2)", params=[
+      i, "reuse",
+    ])
+    |> ignore
   }
 
   let rows = pool.query("SELECT COUNT(*) FROM \{tbl}")

@@ -27,7 +27,6 @@ pub struct RawConn {
 ///|
 /// Connection lifecycle states.
 pub enum ConnStatus {
-  Uninitialized
   Connecting
   Closed
   Idle
@@ -173,8 +172,14 @@ pub async fn[M : Message] RawConn::send(
   msg : M,
 ) -> Unit raise WireError {
   let data = msg.encode() catch {
-    WireError::InvalidMessage(m) => { self.close(); raise WireError::InvalidMessage(m) }
-    _ => { self.close(); raise WireError::InvalidMessage("unexpected error") }
+    WireError::InvalidMessage(m) => {
+      self.close()
+      raise WireError::InvalidMessage(m)
+    }
+    _ => {
+      self.close()
+      raise WireError::InvalidMessage("unexpected error")
+    }
   }
 
   if self.trace {
@@ -182,14 +187,19 @@ pub async fn[M : Message] RawConn::send(
   }
 
   self.stream.write(data) catch {
-    e => { self.close(); raise WireError::IO("write: \{e}") }
+    e => {
+      self.close()
+      raise WireError::IO("write: \{e}")
+    }
   }
 }
 
 ///|
 /// Core receive logic without close-on-error.  Separated so the public
 /// `receive` wrapper can add `close()` in one place.
-async fn RawConn::receive_inner(self : RawConn) -> BackendMessage raise WireError {
+async fn RawConn::receive_inner(
+  self : RawConn,
+) -> BackendMessage raise WireError {
   // Read type byte
   let type_byte_arr = self.stream.read_exactly(1) catch {
     e => raise WireError::IO("read type byte: \{e}")
@@ -389,9 +399,15 @@ async fn RawConn::receive_inner(self : RawConn) -> BackendMessage raise WireErro
 /// I/O or protocol error.
 pub async fn RawConn::receive(self : RawConn) -> BackendMessage raise WireError {
   self.receive_inner() catch {
-    WireError::IO(m) => { self.close(); raise WireError::IO(m) }
-    WireError::InvalidMessage(m) => { self.close(); raise WireError::InvalidMessage(m) }
-    err =>  raise err 
+    WireError::IO(m) => {
+      self.close()
+      raise WireError::IO(m)
+    }
+    WireError::InvalidMessage(m) => {
+      self.close()
+      raise WireError::InvalidMessage(m)
+    }
+    err => raise err
   }
 }
 
@@ -545,7 +561,6 @@ fn RawConn::lock(self : RawConn) -> Unit raise WireError {
   match self.status {
     Busy => raise WireError::Connect("conn is busy")
     Closed => raise WireError::Connect("conn is closed")
-    Uninitialized => raise WireError::Connect("conn is uninitialized")
     Connecting => raise WireError::Connect("conn is still connecting")
     Idle => ()
   }
@@ -615,18 +630,15 @@ pub async fn RawConn::try_close(self : RawConn) -> Unit {
   let pid = self.pid
   let secret_key = self.secret_key
   let stream = self.stream
-   @async.with_task_group() <| group => {
+  @async.with_task_group() <| group => {
     group.spawn_bg() <| () => {
-      @async.sleep(1000*10)
-      group.return_immediately(()) 
+      @async.sleep(1000 * 10)
+      group.return_immediately(())
     }
-    group.spawn_bg() <| () => {
-     cancel_request(host, port, pid, secret_key) 
-     }
-      let data = Terminate::encode(Terminate::{  }) catch { _ => return }
-      stream.write(data)
-
-  } 
+    group.spawn_bg() <| () => { cancel_request(host, port, pid, secret_key) }
+    let data = Terminate::encode(Terminate::{  }) catch { _ => return }
+    stream.write(data)
+  }
   stream.close()
 }
 
@@ -648,6 +660,7 @@ pub fn RawConn::set_trace(self : RawConn, on : Bool) -> Unit {
 // Cancel request
 // ---------------------------------------------------------------------------
 
+///|
 /// Cancel request magic number (different from SSL request).
 const CANCEL_REQUEST_CODE : Int = 80877102
 
@@ -655,14 +668,13 @@ const CANCEL_REQUEST_CODE : Int = 80877102
 /// Send a cancel request to the server via a new TCP connection.
 /// Best-effort — all errors are silently ignored.
 async fn cancel_request(
-  host : String, port : Int, backend_pid : Int, secret_key : Int,
+  host : String,
+  port : Int,
+  backend_pid : Int,
+  secret_key : Int,
 ) -> Unit {
-  let addr = @socket.Addr::resolve(host, port=port) catch {
-    _ => return
-  }
-  let tcp = @socket.Tcp::connect(addr) catch {
-    _ => return
-  }
+  let addr = @socket.Addr::resolve(host, port~) catch { _ => return }
+  let tcp = @socket.Tcp::connect(addr) catch { _ => return }
   let buf = BytesMut::new()
   buf.append_int_be(16)
   buf.append_int_be(CANCEL_REQUEST_CODE)
@@ -749,13 +761,7 @@ pub async fn RawConn::bind(
   param_formats : Array[Int],
   result_formats : Array[Int],
 ) -> Unit raise WireError {
-  self.send(Bind::{
-    portal,
-    statement,
-    params,
-    param_formats,
-    result_formats,
-  })
+  self.send(Bind::{ portal, statement, params, param_formats, result_formats })
   self.flush()
   match self.receive() {
     BindComplete(_) => ()

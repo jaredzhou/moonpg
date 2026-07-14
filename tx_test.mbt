@@ -12,7 +12,10 @@ let tx_test_conninfo : String = @env.get_env_var("MOONPG_CONNINFO").unwrap_or(
 async fn tx_setup(name : String) -> Unit raise PgError {
   let c = connect(tx_test_conninfo)
   c.execute("DROP TABLE IF EXISTS \{name}") |> ignore
-  c.execute("CREATE TABLE \{name} (id SERIAL PRIMARY KEY, val INTEGER NOT NULL, note TEXT)") |> ignore
+  c.execute(
+    "CREATE TABLE \{name} (id SERIAL PRIMARY KEY, val INTEGER NOT NULL, note TEXT)",
+  )
+  |> ignore
   c.close()
 }
 
@@ -27,7 +30,8 @@ async test "begin_tx_returns_db_tx" {
   let c = connect(tx_test_conninfo)
   defer c.close()
   let tx = c.begin_tx()
-  tx.execute("INSERT INTO \{tbl} (val, note) VALUES (1, 'tx1')") |> ignore
+  QueryExecutor::execute(tx, "INSERT INTO \{tbl} (val, note) VALUES (1, 'tx1')")
+  |> ignore
   tx.commit()
 }
 
@@ -38,7 +42,11 @@ async test "begin_tx_commit_persists" {
   let c = connect(tx_test_conninfo)
   defer c.close()
   let tx = c.begin_tx()
-  tx.execute("INSERT INTO \{tbl} (val, note) VALUES (42, 'committed')") |> ignore
+  QueryExecutor::execute(
+    tx,
+    "INSERT INTO \{tbl} (val, note) VALUES (42, 'committed')",
+  )
+  |> ignore
   tx.commit()
 
   let rows = c.query("SELECT val, note FROM \{tbl}")
@@ -56,7 +64,11 @@ async test "begin_tx_rollback_discards" {
   let c = connect(tx_test_conninfo)
   defer c.close()
   let tx = c.begin_tx()
-  tx.execute("INSERT INTO \{tbl} (val, note) VALUES (99, 'rolled_back')") |> ignore
+  QueryExecutor::execute(
+    tx,
+    "INSERT INTO \{tbl} (val, note) VALUES (99, 'rolled_back')",
+  )
+  |> ignore
   tx.rollback()
 
   let rows = c.query("SELECT COUNT(*) FROM \{tbl}")
@@ -98,8 +110,9 @@ async test "dbtx_query" {
   let c = connect(tx_test_conninfo)
   defer c.close()
   let tx = c.begin_tx()
-  tx.execute("INSERT INTO \{tbl} (val, note) VALUES (1, 'q')") |> ignore
-  let rows = tx.query("SELECT val, note FROM \{tbl}")
+  QueryExecutor::execute(tx, "INSERT INTO \{tbl} (val, note) VALUES (1, 'q')")
+  |> ignore
+  let rows = QueryExecutor::query(tx, "SELECT val, note FROM \{tbl}")
   assert_true(rows.has_next())
   let row = rows.get_row()
   assert_eq(row.get(0), 1)
@@ -115,8 +128,13 @@ async test "dbtx_query_one" {
   let c = connect(tx_test_conninfo)
   defer c.close()
   let tx = c.begin_tx()
-  tx.execute("INSERT INTO \{tbl} (val, note) VALUES (7, 'q1')") |> ignore
-  let row = tx.query_one("SELECT note FROM \{tbl} WHERE val = $1", params=[7])
+  QueryExecutor::execute(tx, "INSERT INTO \{tbl} (val, note) VALUES (7, 'q1')")
+  |> ignore
+  let row = QueryExecutor::query_one(
+    tx,
+    "SELECT note FROM \{tbl} WHERE val = $1",
+    params=[7],
+  )
   assert_eq(row.get(0), "q1")
   tx.commit()
 }
@@ -128,7 +146,11 @@ async test "dbtx_execute" {
   let c = connect(tx_test_conninfo)
   defer c.close()
   let tx = c.begin_tx()
-  let r = tx.execute("INSERT INTO \{tbl} (val, note) VALUES ($1, $2)", params=[3, "exec"])
+  let r = QueryExecutor::execute(
+    tx,
+    "INSERT INTO \{tbl} (val, note) VALUES ($1, $2)",
+    params=[3, "exec"],
+  )
   assert_eq(r.affected_rows(), 1)
   r.close()
   tx.commit()
@@ -145,9 +167,20 @@ async test "dbtx_multiple_operations" {
   let c = connect(tx_test_conninfo)
   defer c.close()
   let tx = c.begin_tx()
-  tx.execute("INSERT INTO \{tbl} (val, note) VALUES (10, 'multi1')") |> ignore
-  tx.execute("INSERT INTO \{tbl} (val, note) VALUES (20, 'multi2')") |> ignore
-  let r = tx.execute("UPDATE \{tbl} SET val = 30 WHERE note = 'multi1'")
+  QueryExecutor::execute(
+    tx,
+    "INSERT INTO \{tbl} (val, note) VALUES (10, 'multi1')",
+  )
+  |> ignore
+  QueryExecutor::execute(
+    tx,
+    "INSERT INTO \{tbl} (val, note) VALUES (20, 'multi2')",
+  )
+  |> ignore
+  let r = QueryExecutor::execute(
+    tx,
+    "UPDATE \{tbl} SET val = 30 WHERE note = 'multi1'",
+  )
   assert_eq(r.affected_rows(), 1)
   r.close()
   tx.commit()
@@ -177,7 +210,11 @@ async test "dbtx_isolation" {
   defer c2.close()
 
   let tx = c1.begin_tx()
-  tx.execute("INSERT INTO \{tbl} (val, note) VALUES (100, 'isolated')") |> ignore
+  QueryExecutor::execute(
+    tx,
+    "INSERT INTO \{tbl} (val, note) VALUES (100, 'isolated')",
+  )
+  |> ignore
 
   let rows = c2.query("SELECT COUNT(*) FROM \{tbl}")
   assert_true(rows.has_next())
@@ -206,8 +243,12 @@ async test "begin_func_success" {
   tx_setup(tbl)
   let c = connect(tx_test_conninfo)
   defer c.close()
-  let result = begin_func(c,async fn(tx) {
-    tx.execute("INSERT INTO \{tbl} (val, note) VALUES (5, 'func_ok')") |> ignore
+  let result = begin_func(c, async fn(tx) {
+    QueryExecutor::execute(
+      tx,
+      "INSERT INTO \{tbl} (val, note) VALUES (5, 'func_ok')",
+    )
+    |> ignore
     42
   })
   assert_eq(result, 42)
@@ -225,7 +266,8 @@ async test "begin_func_error_rolls_back" {
   let c = connect(tx_test_conninfo)
   defer c.close()
   try {
-    let _ = begin_func(c,async fn(_tx) {
+    let _ = begin_func(c, async fn(tx) {
+      QueryExecutor::execute(tx, "SELECT 1") |> ignore
       fail("intentional failure")
       0
     })
@@ -248,8 +290,12 @@ async test "begin_func_error_with_insert_then_fail" {
   let c = connect(tx_test_conninfo)
   defer c.close()
   try {
-    let _ = begin_func(c,async fn(tx) {
-      tx.execute("INSERT INTO \{tbl} (val, note) VALUES (999, 'should_rollback')") |> ignore
+    let _ = begin_func(c, async fn(tx) {
+      QueryExecutor::execute(
+        tx,
+        "INSERT INTO \{tbl} (val, note) VALUES (999, 'should_rollback')",
+      )
+      |> ignore
       fail("mid-tx failure")
       0
     })
@@ -276,7 +322,11 @@ async test "tx_beginner_trait" {
   let c = connect(tx_test_conninfo)
   defer c.close()
   let tx : &Tx = TxBeginner::begin_tx(c)
-  tx.execute("INSERT INTO \{tbl} (val, note) VALUES (1, 'trait')") |> ignore
+  QueryExecutor::execute(
+    tx,
+    "INSERT INTO \{tbl} (val, note) VALUES (1, 'trait')",
+  )
+  |> ignore
   tx.commit()
 
   let rows = c.query("SELECT note FROM \{tbl}")
@@ -296,7 +346,11 @@ async test "dbtx_query_via_query_executor_trait" {
   let c = connect(tx_test_conninfo)
   defer c.close()
   let tx = c.begin_tx()
-  tx.execute("INSERT INTO \{tbl} (val, note) VALUES (88, 'qe_trait')") |> ignore
+  QueryExecutor::execute(
+    tx,
+    "INSERT INTO \{tbl} (val, note) VALUES (88, 'qe_trait')",
+  )
+  |> ignore
   let rows : &Rows = QueryExecutor::query(tx, "SELECT note FROM \{tbl}")
   assert_true(rows.has_next())
   assert_eq(rows.get_row().get(0), "qe_trait")

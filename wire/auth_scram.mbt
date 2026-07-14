@@ -161,9 +161,7 @@ priv struct ScramState {
 }
 
 ///|
-fn scram_client_first(
-  user : String,
-) -> (SASLInitialResponse, ScramState) {
+fn scram_client_first(user : String) -> (SASLInitialResponse, ScramState) {
   let client_nonce = generate_nonce()
   let client_first_bare = "n=\{user},r=\{client_nonce}"
   let client_first = "n,,\{client_first_bare}"

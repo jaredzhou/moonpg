@@ -237,6 +237,7 @@ async test "simple_multiple_queries" {
 // Extended query — execute_params tests
 // ---------------------------------------------------------------------------
 
+///|
 /// Shorthand to encode a UTF-8 string into bytes for text-format params.
 fn enc(s : String) -> Bytes {
   @utf8.encode(s)
@@ -315,13 +316,7 @@ async test "ext_select_no_params" {
     "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
   )
   defer conn.close()
-  let reader = conn.execute_params(
-    "SELECT 1 + 2 AS n",
-    [],
-    [],
-    [],
-    [],
-  )
+  let reader = conn.execute_params("SELECT 1 + 2 AS n", [], [], [], [])
   assert_eq(reader.columns().length(), 1)
   assert_eq(reader.columns()[0].name, "n")
   let result = reader.read()
@@ -337,9 +332,7 @@ async test "ext_select_no_rows" {
     "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
   )
   defer conn.close()
-  let _ = conn
-    .simple_query("CREATE TEMP TABLE _ex_empty (x int)")
-    .close()
+  let _ = conn.simple_query("CREATE TEMP TABLE _ex_empty (x int)").close()
   let reader = conn.execute_params(
     "SELECT * FROM _ex_empty WHERE false",
     [],
@@ -384,9 +377,7 @@ async test "ext_insert_multi" {
     "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
   )
   defer conn.close()
-  let _ = conn
-    .simple_query("CREATE TEMP TABLE _ex_im (x int, y text)")
-    .close()
+  let _ = conn.simple_query("CREATE TEMP TABLE _ex_im (x int, y text)").close()
   let reader = conn.execute_params(
     "INSERT INTO _ex_im (x, y) VALUES ($1, $2), ($3, $4)",
     [Some(enc("1")), Some(enc("a")), Some(enc("2")), Some(enc("b"))],
@@ -405,12 +396,8 @@ async test "ext_update_params" {
     "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
   )
   defer conn.close()
-  let _ = conn
-    .simple_query("CREATE TEMP TABLE _ex_upd (x int)")
-    .close()
-  let _ = conn
-    .simple_query("INSERT INTO _ex_upd VALUES (1), (2), (3)")
-    .close()
+  let _ = conn.simple_query("CREATE TEMP TABLE _ex_upd (x int)").close()
+  let _ = conn.simple_query("INSERT INTO _ex_upd VALUES (1), (2), (3)").close()
   let reader = conn.execute_params(
     "UPDATE _ex_upd SET x = x * 10 WHERE x > $1",
     [Some(enc("1"))],
@@ -429,12 +416,8 @@ async test "ext_delete_params" {
     "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
   )
   defer conn.close()
-  let _ = conn
-    .simple_query("CREATE TEMP TABLE _ex_del (x int)")
-    .close()
-  let _ = conn
-    .simple_query("INSERT INTO _ex_del VALUES (1), (2), (3)")
-    .close()
+  let _ = conn.simple_query("CREATE TEMP TABLE _ex_del (x int)").close()
+  let _ = conn.simple_query("INSERT INTO _ex_del VALUES (1), (2), (3)").close()
   let reader = conn.execute_params(
     "DELETE FROM _ex_del WHERE x = $1",
     [Some(enc("2"))],
@@ -519,8 +502,12 @@ async test "ext_batch_read" {
   match result.rows {
     [r1, r2, r3] =>
       assert_true(
-        [@utf8.decode(r1[0].unwrap()), @utf8.decode(r2[0].unwrap()), @utf8.decode(r3[0].unwrap())] ==
-          ["10", "20", "30"],
+        [
+          @utf8.decode(r1[0].unwrap()),
+          @utf8.decode(r2[0].unwrap()),
+          @utf8.decode(r3[0].unwrap()),
+        ] ==
+        ["10", "20", "30"],
       )
     _ => fail("expected 3 rows")
   }
@@ -555,13 +542,7 @@ async test "ext_double_close" {
     "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
   )
   defer conn.close()
-  let reader = conn.execute_params(
-    "SELECT 1 AS n",
-    [],
-    [],
-    [],
-    [],
-  )
+  let reader = conn.execute_params("SELECT 1 AS n", [], [], [], [])
   let tag1 = reader.close()
   let tag2 = reader.close()
   assert_eq(tag1.command(), tag2.command())
@@ -573,9 +554,8 @@ async test "ext_syntax_error" {
     "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
   )
   defer conn.close()
-  (conn
-    .execute_params("SELEC $1", [Some(enc("1"))], [], [], [])
-    .read() |> ignore) catch {
+  (conn.execute_params("SELEC $1", [Some(enc("1"))], [], [], []).read()
+  |> ignore) catch {
     WireError::PgServer(s) =>
       inspect(
         s,
@@ -595,14 +575,15 @@ async test "ext_param_count_mismatch" {
   defer conn.close()
   // param_oids length must be 0, 1, or equal to param_values count
   (conn
-    .execute_params(
-      "SELECT $1::int + $2::int",
-      [Some(enc("1")), Some(enc("2"))],
-      [23, 23, 23],
-      [],
-      [],
-    )
-    .close() |> ignore) catch {
+  .execute_params(
+    "SELECT $1::int + $2::int",
+    [Some(enc("1")), Some(enc("2"))],
+    [23, 23, 23],
+    [],
+    [],
+  )
+  .close()
+  |> ignore) catch {
     WireError::Parse(s) =>
       inspect(
         s,
@@ -648,11 +629,9 @@ async test "prepare_select" {
     "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
   )
   defer conn.close()
-  let desc = conn.prepare(
-    "stmt_sel",
-    "SELECT $1::int + $2::int AS sum",
-    [23, 23],
-  )
+  let desc = conn.prepare("stmt_sel", "SELECT $1::int + $2::int AS sum", [
+    23, 23,
+  ])
   assert_eq(desc.name, "stmt_sel")
   assert_eq(desc.param_oids.length(), 2)
   assert_eq(desc.fields.length(), 1)
@@ -739,13 +718,9 @@ async test "exec_prepared_insert" {
     "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
   )
   defer conn.close()
-  let _ = conn
-    .simple_query("CREATE TEMP TABLE _epp_ins (x int)")
-    .close()
+  let _ = conn.simple_query("CREATE TEMP TABLE _epp_ins (x int)").close()
   conn.prepare("ep_ins", "INSERT INTO _epp_ins VALUES ($1)", [23]) |> ignore
-  let tag = conn
-    .execute_prepared("ep_ins", [Some(enc("42"))], [], [])
-    .close()
+  let tag = conn.execute_prepared("ep_ins", [Some(enc("42"))], [], []).close()
   assert_eq(tag.command(), "INSERT")
   assert_true(tag.rows_affected() is Some(1))
 }
@@ -762,12 +737,7 @@ async test "exec_statement_select" {
     [23],
   )
   // execute_statement skips Describe — uses pre-known columns from desc
-  let reader = conn.execute_statement(
-    desc,
-    [Some(enc("10"))],
-    [],
-    [],
-  )
+  let reader = conn.execute_statement(desc, [Some(enc("10"))], [], [])
   // Columns are available without a Describe round-trip
   assert_eq(reader.columns().length(), 1)
   assert_eq(reader.columns()[0].name, "prod")
@@ -782,18 +752,10 @@ async test "exec_statement_no_columns" {
     "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
   )
   defer conn.close()
-  let _ = conn
-    .simple_query("CREATE TEMP TABLE _esp_ins (x int)")
-    .close()
-  let desc = conn.prepare(
-    "es_ins",
-    "INSERT INTO _esp_ins VALUES ($1)",
-    [23],
-  )
+  let _ = conn.simple_query("CREATE TEMP TABLE _esp_ins (x int)").close()
+  let desc = conn.prepare("es_ins", "INSERT INTO _esp_ins VALUES ($1)", [23])
   assert_eq(desc.fields.length(), 0)
-  let tag = conn
-    .execute_statement(desc, [Some(enc("99"))], [], [])
-    .close()
+  let tag = conn.execute_statement(desc, [Some(enc("99"))], [], []).close()
   assert_eq(tag.command(), "INSERT")
   assert_true(tag.rows_affected() is Some(1))
 }
@@ -810,16 +772,10 @@ async test "exec_prepared_multi_exec" {
   defer conn.close()
   conn.prepare("epm", "SELECT $1::int * 2 AS doubled", [23]) |> ignore
   for i = 1; i <= 3; i = i + 1 {
-    let reader = conn.execute_prepared(
-      "epm",
-      [Some(enc(i.to_string()))],
-      [],
-      [],
-    )
+    let reader = conn.execute_prepared("epm", [Some(enc(i.to_string()))], [], [])
     let result = reader.read()
     match result.rows[0] {
-      [Some(bs)] =>
-        assert_eq(@utf8.decode(bs), (i * 2).to_string())
+      [Some(bs)] => assert_eq(@utf8.decode(bs), (i * 2).to_string())
       _ => fail("expected one column")
     }
   }
@@ -859,9 +815,7 @@ async test "exec_prepared_unknown_statement" {
     "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
   )
   defer conn.close()
-  (conn
-    .execute_prepared("no_such_stmt", [], [], [])
-    .close() |> ignore) catch {
+  (conn.execute_prepared("no_such_stmt", [], [], []).close() |> ignore) catch {
     WireError::PgServer(_) => ()
     _ => fail("expected PgServer error")
   }
@@ -873,11 +827,7 @@ async test "exec_prepared_pull" {
     "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
   )
   defer conn.close()
-  conn.prepare(
-    "epp",
-    "SELECT generate_series(1, $1::int) AS x",
-    [23],
-  ) |> ignore
+  conn.prepare("epp", "SELECT generate_series(1, $1::int) AS x", [23]) |> ignore
   let reader = conn.execute_prepared("epp", [Some(enc("4"))], [], [])
   let values : Array[String] = []
   while reader.has_next() {
@@ -896,11 +846,7 @@ async test "exec_prepared_close_early" {
     "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
   )
   defer conn.close()
-  conn.prepare(
-    "epc",
-    "SELECT generate_series(1, 10) AS x",
-    [],
-  ) |> ignore
+  conn.prepare("epc", "SELECT generate_series(1, 10) AS x", []) |> ignore
   let reader = conn.execute_prepared("epc", [], [], [])
   assert_true(reader.has_next())
   let _ = reader.data_row()
@@ -920,23 +866,14 @@ async test "exec_statement_multi_exec" {
     "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
   )
   defer conn.close()
-  let desc = conn.prepare(
-    "esm",
-    "SELECT $1::text || '!' AS excited",
-    [25],
-  )
+  let desc = conn.prepare("esm", "SELECT $1::text || '!' AS excited", [25])
   for i = 0; i < 3; i = i + 1 {
     let word = match i {
       0 => "hello"
       1 => "world"
       _ => "moon"
     }
-    let reader = conn.execute_statement(
-      desc,
-      [Some(enc(word))],
-      [],
-      [],
-    )
+    let reader = conn.execute_statement(desc, [Some(enc(word))], [], [])
     let result = reader.read()
     match result.rows[0] {
       [Some(bs)] => assert_eq(@utf8.decode(bs), word + "!")
@@ -979,16 +916,18 @@ async test "exec_statement_batch" {
     "SELECT $1::int * n FROM generate_series(1, 3) AS n",
     [23],
   )
-  let result = conn
-    .execute_statement(desc, [Some(enc("7"))], [], [])
-    .read()
+  let result = conn.execute_statement(desc, [Some(enc("7"))], [], []).read()
   assert_eq(result.columns[0].name, "?column?")
   assert_eq(result.rows.length(), 3)
   match result.rows {
     [r1, r2, r3] =>
       assert_true(
-        [@utf8.decode(r1[0].unwrap()), @utf8.decode(r2[0].unwrap()), @utf8.decode(r3[0].unwrap())] ==
-          ["7", "14", "21"],
+        [
+          @utf8.decode(r1[0].unwrap()),
+          @utf8.decode(r2[0].unwrap()),
+          @utf8.decode(r3[0].unwrap()),
+        ] ==
+        ["7", "14", "21"],
       )
     _ => fail("expected 3 rows")
   }

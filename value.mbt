@@ -247,7 +247,6 @@ pub fn[T] raise_binary() -> T raise PgError {
   raise PgError::QueryError("binary-format cell values are not supported yet")
 }
 
-
 ///|
 /// Helper: build `Bytes` from a byte array literal.
 fn bytes_of(vals : Array[Byte]) -> Bytes {

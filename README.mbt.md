@@ -84,11 +84,12 @@ pc.release()
 
 ```moonbit nocheck
 // Auto-commit / rollback
+
+///|
 let result = begin_func(conn, async fn(tx) {
   tx.execute("INSERT INTO users (name) VALUES ($1)", params=["alice"]) |> ignore
-  tx.query_one("SELECT id FROM users WHERE name = $1", params=["alice"])
-    .get(0)
-})  // exception → rollback; success → commit
+  tx.query_one("SELECT id FROM users WHERE name = $1", params=["alice"]).get(0)
+}) // exception → rollback; success → commit
 ```
 
 ## Typed decoding
@@ -96,9 +97,14 @@ let result = begin_func(conn, async fn(tx) {
 `FromRaw` decodes PostgreSQL cells into MoonBit types:
 
 ```moonbit nocheck
-let id : Int      = row.get(0)            // raises on NULL
-let email : String? = row.get_by_name("email")  // NULL → None
-let ts : Timestamp  = row.get(2)          // pg timestamp → Unix µs
+///|
+let id : Int = row.get(0) // raises on NULL
+
+///|
+let email : String? = row.get_by_name("email") // NULL → None
+
+///|
+let ts : Timestamp = row.get(2) // pg timestamp → Unix µs
 ```
 
 ## Architecture

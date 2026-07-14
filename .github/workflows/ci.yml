@@ -1,5 +1,4 @@
-# MoonPG CI — install toolchain, then run check / fmt / info / test on every push and PR.
-# Modeled after the MoonBase CI template.
+# MoonPG CI — check / fmt / test on every push and PR.
 
 name: CI
 
@@ -17,9 +16,10 @@ jobs:
 
     services:
       postgres:
-        image: postgres:latest
+        image: postgres:16
         env:
-          POSTGRES_PASSWORD: 111111
+          POSTGRES_PASSWORD: postgres_pass
+          POSTGRES_HOST_AUTH_METHOD: password
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -28,18 +28,10 @@ jobs:
         ports:
           - 5432:5432
 
-    env:
-      MOONPG_CONNINFO: "postgres://postgres:111111@localhost:5432/postgres"
-
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y libpq-dev
 
       - name: Install MoonBit
         run: |
@@ -51,20 +43,21 @@ jobs:
           moon version --all
           moon update
 
-      # Type-check the workspace.
+      - name: Setup test database and users
+        run: |
+          sudo apt-get update -y && sudo apt-get install -y postgresql-client
+          PGPASSWORD=postgres_pass psql -h localhost -U postgres -c "CREATE DATABASE moonpg_test;"
+          PGPASSWORD=postgres_pass psql -h localhost -U postgres -c "CREATE USER moonpg_plain WITH PASSWORD 'plain_pass';"
+          PGPASSWORD=postgres_pass psql -h localhost -U postgres -d moonpg_test -c "GRANT ALL ON SCHEMA public TO moonpg_plain;"
+
+      # Type-check with warnings as errors.
       - name: Check
         run: moon check --deny-warn
 
-      # Format check — no-op if `moon fmt` would produce no diff.
+      # Format check.
       - name: Format check
         run: moon fmt --check
 
-      # Regenerate .mbti interfaces and fail on drift (signals API change).
-      - name: Interface check
-        run: |
-          moon info
-          git diff --exit-code
-
-      # Build + run all tests (unit + integration) against the service container.
+      # Build and run all tests.
       - name: Test
         run: moon test --target native

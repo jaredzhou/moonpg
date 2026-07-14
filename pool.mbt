@@ -44,12 +44,13 @@ pub(all) struct PoolConfig {
   max_lifetime_sec : Int
 }
 
+///|
 pub fn PoolConfig::new(
   conninfo : String,
-  max_conns~ : Int = 10,
-  min_idle~ : Int = 0,
-  max_idle_sec~ : Int = 0,
-  max_lifetime_sec~ : Int = 0,
+  max_conns? : Int = 10,
+  min_idle? : Int = 0,
+  max_idle_sec? : Int = 0,
+  max_lifetime_sec? : Int = 0,
 ) -> PoolConfig {
   { conninfo, max_conns, min_idle, max_idle_sec, max_lifetime_sec }
 }
@@ -58,6 +59,7 @@ pub fn PoolConfig::new(
 // Internal
 // ---------------------------------------------------------------------------
 
+///|
 pub(all) struct IdleConn {
   conn : Connection
   created_at : Int64
@@ -68,6 +70,7 @@ pub(all) struct IdleConn {
 // Pool & PoolConn
 // ---------------------------------------------------------------------------
 
+///|
 pub(all) struct Pool {
   queue : @aqueue.Queue[IdleConn]
   conninfo : String
@@ -77,6 +80,7 @@ pub(all) struct Pool {
   count : Ref[Int]
 }
 
+///|
 pub(all) struct PoolConn {
   conn : Connection
   pool : Pool
@@ -97,23 +101,19 @@ pub(all) struct PoolRows {
 }
 
 ///|
-pub impl Rows for PoolRows with fn has_next(
-  self : PoolRows,
-) -> Bool raise PgError {
+pub impl Rows for PoolRows with fn has_next(self : PoolRows) -> Bool raise PgError {
   self.inner.has_next()
 }
 
 ///|
-pub impl Rows for PoolRows with fn get_row(
-  self : PoolRows,
-) -> Row raise PgError {
+pub impl Rows for PoolRows with fn get_row(self : PoolRows) -> Row raise PgError {
   self.inner.get_row()
 }
 
 ///|
-pub impl Rows for PoolRows with fn columns(
-  self : PoolRows,
-) -> Array[@wire.FieldDescription] {
+pub impl Rows for PoolRows with fn columns(self : PoolRows) -> Array[
+  @wire.FieldDescription,
+] {
   self.inner.columns()
 }
 
@@ -131,6 +131,7 @@ pub impl Rows for PoolRows with fn close(self : PoolRows) -> Unit raise PgError 
 // Pool constructor
 // ---------------------------------------------------------------------------
 
+///|
 pub async fn Pool::new(config : PoolConfig) -> Pool raise PgError {
   let pool = Pool::{
     queue: @aqueue.Queue(kind=@aqueue.Unbounded),
@@ -144,7 +145,11 @@ pub async fn Pool::new(config : PoolConfig) -> Pool raise PgError {
     let conn = connect(pool.conninfo)
     let now = @async.now()
     pool.count.val = pool.count.val + 1
-    let _ = pool.queue.try_put(IdleConn::{ conn, created_at: now, idle_since: now }) catch {
+    let _ = pool.queue.try_put(IdleConn::{
+      conn,
+      created_at: now,
+      idle_since: now,
+    }) catch {
       _ => {
         conn.close()
         pool.count.val = pool.count.val - 1
@@ -155,6 +160,7 @@ pub async fn Pool::new(config : PoolConfig) -> Pool raise PgError {
   pool
 }
 
+///|
 pub fn Pool::total(self : Pool) -> Int {
   self.count.val
 }
@@ -163,6 +169,7 @@ pub fn Pool::total(self : Pool) -> Int {
 // Validation
 // ---------------------------------------------------------------------------
 
+///|
 fn Pool::expired(self : Pool, idle : IdleConn) -> Bool {
   if idle.conn.status() != ConnStatus::OK {
     return true
@@ -183,6 +190,7 @@ fn Pool::expired(self : Pool, idle : IdleConn) -> Bool {
 // Acquire
 // ---------------------------------------------------------------------------
 
+///|
 pub async fn Pool::acquire(self : Pool) -> PoolConn raise PgError {
   let maybe_idle : IdleConn? = self.queue.try_get() catch {
     _ => raise PgError::ConnectionError("pool closed")
@@ -194,7 +202,12 @@ pub async fn Pool::acquire(self : Pool) -> PoolConn raise PgError {
         self.count.val = self.count.val - 1
         self.acquire()
       } else {
-        PoolConn::{ conn: idle.conn, pool: self, created_at: idle.created_at, released: Ref(false) }
+        PoolConn::{
+          conn: idle.conn,
+          pool: self,
+          created_at: idle.created_at,
+          released: Ref(false),
+        }
       }
     None =>
       if self.count.val < self.max_conns {
@@ -211,7 +224,12 @@ pub async fn Pool::acquire(self : Pool) -> PoolConn raise PgError {
           self.count.val = self.count.val - 1
           self.acquire()
         } else {
-          PoolConn::{ conn: idle.conn, pool: self, created_at: idle.created_at, released: Ref(false) }
+          PoolConn::{
+            conn: idle.conn,
+            pool: self,
+            created_at: idle.created_at,
+            released: Ref(false),
+          }
         }
       }
   }
@@ -221,6 +239,7 @@ pub async fn Pool::acquire(self : Pool) -> PoolConn raise PgError {
 // Release / Close
 // ---------------------------------------------------------------------------
 
+///|
 pub fn PoolConn::release(self : PoolConn) -> Unit {
   if self.released.val {
     return
@@ -249,18 +268,18 @@ pub fn PoolConn::release(self : PoolConn) -> Unit {
   }
 }
 
+///|
 pub fn PoolConn::close(self : PoolConn) -> Unit {
   self.released.val = true
   self.conn.close()
   self.pool.count.val = self.pool.count.val - 1
 }
 
+///|
 pub fn Pool::close(self : Pool) -> Unit {
   self.queue.close()
   for ;; {
-    let maybe : IdleConn? = self.queue.try_get() catch {
-      _ => break
-    }
+    let maybe : IdleConn? = self.queue.try_get() catch { _ => break }
     match maybe {
       Some(idle) => idle.conn.close()
       None => break
@@ -272,6 +291,7 @@ pub fn Pool::close(self : Pool) -> Unit {
 // PoolConn: all methods delegate to inner Connection, caller manages release
 // ---------------------------------------------------------------------------
 
+///|
 pub async fn PoolConn::query(
   self : PoolConn,
   sql : String,
@@ -280,6 +300,7 @@ pub async fn PoolConn::query(
   self.conn.query(sql, params?)
 }
 
+///|
 pub async fn PoolConn::query_one(
   self : PoolConn,
   sql : String,
@@ -288,6 +309,7 @@ pub async fn PoolConn::query_one(
   self.conn.query_one(sql, params?)
 }
 
+///|
 pub async fn PoolConn::execute(
   self : PoolConn,
   sql : String,
@@ -368,9 +390,7 @@ pub impl TxBeginner for PoolConn with fn begin_tx(self : PoolConn) -> &Tx raise 
 /// Connection is returned to the pool on `commit()` or `rollback()`.
 pub impl TxBeginner for Pool with fn begin_tx(self : Pool) -> &Tx raise PgError {
   let pc = self.acquire()
-  try {
-    pc.conn.execute("BEGIN") |> ignore
-  } catch {
+  try pc.conn.execute("BEGIN") |> ignore catch {
     e => {
       pc.close()
       raise e
@@ -384,6 +404,7 @@ pub impl TxBeginner for Pool with fn begin_tx(self : Pool) -> &Tx raise PgError 
 // Pool: QueryExecutor — acquire, delegate, release on error
 // ---------------------------------------------------------------------------
 
+///|
 pub impl QueryExecutor for Pool with fn query(
   self : Pool,
   sql : String,
@@ -399,6 +420,7 @@ pub impl QueryExecutor for Pool with fn query(
   PoolRows::{ inner: rows, pc }
 }
 
+///|
 pub impl QueryExecutor for Pool with fn query_one(
   self : Pool,
   sql : String,
@@ -415,6 +437,7 @@ pub impl QueryExecutor for Pool with fn query_one(
   row
 }
 
+///|
 pub impl QueryExecutor for Pool with fn execute(
   self : Pool,
   sql : String,
@@ -430,4 +453,3 @@ pub impl QueryExecutor for Pool with fn execute(
   pc.release()
   result
 }
-
