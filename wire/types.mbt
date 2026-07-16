@@ -172,3 +172,22 @@ pub const MSG_NO_DATA : Byte = b'n'
 
 ///|
 pub const MSG_PARAMETER_DESCRIPTION : Byte = b't'
+
+///|
+pub const MSG_COPY_IN_RESPONSE : Byte = b'G'
+
+///|
+pub const MSG_COPY_OUT_RESPONSE : Byte = b'H'
+
+///|
+pub const MSG_COPY_BOTH_RESPONSE : Byte = b'W'
+
+///|
+pub const MSG_COPY_DATA : Byte = b'd'
+
+///|
+pub const MSG_COPY_DONE : Byte = b'c'
+
+///|
+/// `CopyFail` is frontend-only (server never sends it).
+pub const MSG_COPY_FAIL : Byte = b'f'

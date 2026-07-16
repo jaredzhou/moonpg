@@ -527,3 +527,30 @@ async test "async_all_interleaves_array" {
     assert_true(b_ms.val < a_ms.val, msg="B=\{b_ms.val} A=\{a_ms.val}")
   }
 }
+
+// ---------------------------------------------------------------------------
+// COPY protocol
+// ---------------------------------------------------------------------------
+
+///|
+async test "copy_in" {
+  let c = connect(test_conninfo)
+  defer c.close()
+  let tbl = "moonpg_copy_in"
+  c.execute("DROP TABLE IF EXISTS \{tbl}") |> ignore
+  c.execute("CREATE TABLE \{tbl} (id INTEGER, name TEXT, val REAL)") |> ignore
+
+  let rows = ["1\tAlice\t3.14\n", "2\tBob\t2.71\n", "3\tCarol\t1.41\n"]
+  c.copy_in("COPY \{tbl} FROM STDIN", rows) |> ignore
+
+  let result = c.query("SELECT id, name, val FROM \{tbl} ORDER BY id")
+  assert_true(result.has_next())
+  let r1 = result.get_row()
+  assert_eq(r1.get(0), 1)
+  assert_eq(r1.get(1), "Alice")
+  assert_eq(r1.get(2), 3.14)
+  assert_true(result.has_next())
+  let r2 = result.get_row()
+  assert_eq(r2.get(0), 2)
+  result.close()
+}

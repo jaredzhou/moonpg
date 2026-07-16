@@ -357,3 +357,153 @@ async test "dbtx_query_via_query_executor_trait" {
   rows.close()
   tx.commit()
 }
+
+// ---------------------------------------------------------------------------
+// TxOptions — SQL generation
+// ---------------------------------------------------------------------------
+
+///|
+test "tx_options_default_is_begin" {
+  let sql = build_begin_sql(TxOptions::default())
+  assert_eq(sql, "BEGIN")
+}
+
+///|
+test "tx_options_isolation_level" {
+  let sql = build_begin_sql(
+    TxOptions::{
+      isolation_level: Some(IsolationLevel::Serializable),
+      read_only: None,
+      deferrable: None,
+    },
+  )
+  assert_eq(sql, "BEGIN ISOLATION LEVEL SERIALIZABLE")
+}
+
+///|
+test "tx_options_read_only" {
+  let sql = build_begin_sql(
+    TxOptions::{
+      isolation_level: None,
+      read_only: Some(true),
+      deferrable: None,
+    },
+  )
+  assert_eq(sql, "BEGIN READ ONLY")
+}
+
+///|
+test "tx_options_deferrable" {
+  let sql = build_begin_sql(
+    TxOptions::{
+      isolation_level: None,
+      read_only: None,
+      deferrable: Some(true),
+    },
+  )
+  assert_eq(sql, "BEGIN DEFERRABLE")
+}
+
+///|
+test "tx_options_combined" {
+  let sql = build_begin_sql(
+    TxOptions::{
+      isolation_level: Some(IsolationLevel::Serializable),
+      read_only: Some(true),
+      deferrable: Some(true),
+    },
+  )
+  assert_eq(sql, "BEGIN ISOLATION LEVEL SERIALIZABLE READ ONLY DEFERRABLE")
+}
+
+// ---------------------------------------------------------------------------
+// TxOptions — live tests against PG
+// ---------------------------------------------------------------------------
+
+///|
+async test "begin_tx_serializable" {
+  let tbl = "tx_serial"
+  tx_setup(tbl)
+  let c = connect(tx_test_conninfo)
+  defer c.close()
+  let tx = c.begin_tx(
+    opts=TxOptions::{
+      isolation_level: Some(IsolationLevel::Serializable),
+      read_only: None,
+      deferrable: None,
+    },
+  )
+  QueryExecutor::execute(tx, "INSERT INTO \{tbl} (val, note) VALUES (1, 's')")
+  |> ignore
+  tx.commit()
+
+  let rows = c.query("SELECT note FROM \{tbl}")
+  assert_true(rows.has_next())
+  assert_eq(rows.get_row().get(0), "s")
+  rows.close()
+}
+
+///|
+async test "begin_tx_read_only" {
+  let tbl = "tx_ro"
+  tx_setup(tbl)
+  let c = connect(tx_test_conninfo)
+  defer c.close()
+  c.execute("INSERT INTO \{tbl} (val, note) VALUES (7, 'ro_test')") |> ignore
+
+  let tx = c.begin_tx(
+    opts=TxOptions::{
+      isolation_level: None,
+      read_only: Some(true),
+      deferrable: None,
+    },
+  )
+  let rows = QueryExecutor::query(tx, "SELECT note FROM \{tbl}")
+  assert_true(rows.has_next())
+  assert_eq(rows.get_row().get(0), "ro_test")
+  rows.close()
+  tx.commit()
+}
+
+///|
+async test "begin_tx_repeatable_read" {
+  let tbl = "tx_rr"
+  tx_setup(tbl)
+  let c = connect(tx_test_conninfo)
+  defer c.close()
+  let tx = c.begin_tx(
+    opts=TxOptions::{
+      isolation_level: Some(IsolationLevel::RepeatableRead),
+      read_only: Some(true),
+      deferrable: None,
+    },
+  )
+  let rows = QueryExecutor::query(tx, "SELECT 1 AS n")
+  assert_true(rows.has_next())
+  assert_eq(rows.get_row().get(0), 1)
+  rows.close()
+  tx.commit()
+}
+
+///|
+async test "begin_tx_opts_via_trait" {
+  let tbl = "tx_opts_trait"
+  tx_setup(tbl)
+  let c = connect(tx_test_conninfo)
+  defer c.close()
+  let tx : &Tx = TxBeginner::begin_tx(
+    c,
+    opts=TxOptions::{
+      isolation_level: Some(IsolationLevel::Serializable),
+      read_only: None,
+      deferrable: None,
+    },
+  )
+  QueryExecutor::execute(tx, "INSERT INTO \{tbl} (val, note) VALUES (3, 'trait')")
+  |> ignore
+  tx.commit()
+  let rows = c.query("SELECT note FROM \{tbl}")
+  assert_true(rows.has_next())
+  assert_eq(rows.get_row().get(0), "trait")
+  rows.close()
+}

@@ -22,6 +22,7 @@ pub(all) struct Config {
   password : String?
   sslmode : String
   application_name : String?
+  connect_timeout : Int
   trace : Bool
 }
 
@@ -40,6 +41,7 @@ pub fn Config::new(
   password? : String? = None,
   sslmode? : String = "disable",
   application_name? : String? = None,
+  connect_timeout? : Int = 0,
   trace? : Bool = false,
 ) -> Config {
   {
@@ -51,6 +53,7 @@ pub fn Config::new(
     password,
     sslmode,
     application_name,
+    connect_timeout,
     trace,
   }
 }
@@ -59,7 +62,7 @@ pub fn Config::new(
 /// Parse a PostgreSQL connection string.
 ///
 /// Auto-detects URI (`postgresql://` / `postgres://`) vs keyword/value format.
-pub fn Config::from_connstr(s : String) -> Config {
+pub fn Config::from_connstr(s : String) -> Config raise WireError {
   if s.has_prefix("postgresql://") || s.has_prefix("postgres://") {
     parse_uri(s)
   } else {
@@ -73,9 +76,9 @@ pub fn Config::from_connstr(s : String) -> Config {
 
 ///|
 /// Parse a URI connection string via `@url.parse`.
-fn parse_uri(uri_str : String) -> Config {
+fn parse_uri(uri_str : String) -> Config raise WireError {
   let url = @url.parse(uri_str) catch {
-    _ => abort("invalid PostgreSQL connection URI: \{uri_str}")
+    _ => raise WireError::Parse("invalid PostgreSQL connection URI: \{uri_str}")
   }
 
   // user : password
@@ -166,7 +169,7 @@ fn split_hostport(hostport : String) -> (String, Int) {
 ///
 /// Values may be **bare**, **single-quoted** (`'...'`), or use **backslash
 /// escaping**.  Inside single quotes `\'` embeds a literal single quote.
-fn parse_kv(s : String) -> Config {
+fn parse_kv(s : String) -> Config raise WireError {
   let mut config = Config::new("")
   for s0 = s.to_string_view() {
     match s0 {
@@ -194,9 +197,9 @@ fn parse_kv(s : String) -> Config {
 /// Scan a keyword until `=`.  Handles optional whitespace before `=`.
 ///
 /// Returns `(keyword, rest_past_=)`.
-fn scan_keyword(s : StringView) -> (String, StringView) {
+fn scan_keyword(s : StringView) -> (String, StringView) raise WireError {
   guard s.find("=") is Some(index) else {
-    abort("invalid connection string: expected '=' after '\{s}'")
+    raise WireError::Parse("invalid connection string: expected '=' after '\{s}'")
   }
   // Skip optional whitespace between keyword and `=`.
   let key = s[0:index].trim().to_owned()
@@ -206,7 +209,7 @@ fn scan_keyword(s : StringView) -> (String, StringView) {
 
 ///|
 /// Dispatch to the appropriate value scanner.
-fn scan_value(s : StringView) -> (String, StringView) {
+fn scan_value(s : StringView) -> (String, StringView) raise WireError {
   match s {
     ['\'', ..] => scan_quoted(s)
     _ => scan_bare(s)
@@ -217,12 +220,12 @@ fn scan_value(s : StringView) -> (String, StringView) {
 /// Scan a single-quoted value.  `s` starts with the opening `'`.
 ///
 /// Backslash escapes the next character (`\'` → `'`, `\\` → `\`).
-fn scan_quoted(s : StringView) -> (String, StringView) {
+fn scan_quoted(s : StringView) -> (String, StringView) raise WireError {
   let buf = StringBuilder::new()
   for rest = s[1:] {
     match rest {
       ['\'', .. rest] => return (buf.to_string(), rest)
-      [] => abort("unterminated quoted value")
+      [] => raise WireError::Parse("unterminated quoted value")
       ['\\', c, .. rest] => {
         buf.write_char(c)
         continue rest
@@ -276,7 +279,16 @@ fn with_param(config : Config, key : String, value : String) -> Config {
     "password" => { ..config, password: Some(value) }
     "sslmode" => { ..config, sslmode: value }
     "application_name" => { ..config, application_name: Some(value) }
+    "connect_timeout" => { ..config, connect_timeout: parse_int(value) }
     _ => config
+  }
+}
+
+///|
+/// Parse an integer, returning 0 on failure (sensible default for timeouts).
+fn parse_int(s : String) -> Int {
+  @string.parse_int(s) catch {
+    _ => 0
   }
 }
 

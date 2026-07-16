@@ -2,6 +2,7 @@ import {
   "moonbitlang/async",
   "moonbitlang/async/socket",
   "moonbitlang/async/io",
+  "moonbitlang/async/tls",
   "moonbitlang/core/buffer",
   "moonbitlang/core/string",
   "moonbitlang/core/encoding/utf8",

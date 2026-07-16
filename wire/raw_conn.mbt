@@ -5,7 +5,7 @@
 /// authentication, and message send/receive. After a successful handshake
 /// the connection is in the `Idle` state and can be used for queries.
 pub struct RawConn {
-  stream : @socket.Tcp
+  stream : Stream
   /// When `true`, every sent and received message is traced to stderr.
   mut trace : Bool
   /// Server host, stored for cancel requests.
@@ -61,11 +61,64 @@ pub async fn connect_config(config : Config) -> RawConn raise WireError {
   let addr = @socket.Addr::resolve(config.host, port=config.port) catch {
     e => raise WireError::IO("resolve \{config.host}:\{config.port}: \{e}")
   }
-  let tcp = @socket.Tcp::connect(addr) catch {
-    e => raise WireError::IO("connect \{config.host}:\{config.port}: \{e}")
+  let tcp = if config.connect_timeout > 0 {
+    @async.with_timeout(
+      config.connect_timeout * 1000,
+      () => { @socket.Tcp::connect(addr) },
+    ) catch {
+      @async.TimeoutError =>
+        raise WireError::Connect(
+          "connection timed out after \{config.connect_timeout}s",
+        )
+      e => raise WireError::IO("connect \{config.host}:\{config.port}: \{e}")
+    }
+  } else {
+    @socket.Tcp::connect(addr) catch {
+      e => raise WireError::IO("connect \{config.host}:\{config.port}: \{e}")
+    }
   }
+
+  // SSL negotiation (before StartupMessage)
+  let ssl = config.sslmode
+  let stream = if ssl == "require" || ssl == "prefer" {
+    let ssl_req = SSLRequest::{}
+    tcp.write(ssl_req.encode()) catch {
+      e => raise WireError::IO("SSL request write: \{e}")
+    }
+    let resp = tcp.read_exactly(1) catch {
+      e => raise WireError::IO("SSL response read: \{e}")
+    }
+    match resp[0] {
+      b'S' => {
+        let tls = @tls.Tls::client(
+          tcp,
+          host=config.host,
+          trust=@tls.SystemRoot,
+        ) catch {
+          e => raise WireError::Connect("TLS handshake: \{e}")
+        }
+        Stream::Tls(tls)
+      }
+      b'N' => {
+        if ssl == "require" {
+          raise WireError::Connect(
+            "sslmode=require but server does not support TLS",
+          )
+        }
+        Stream::Plain(tcp)
+      }
+      b => {
+        raise WireError::Connect(
+          "unexpected SSL response byte: \{b.to_int()}",
+        )
+      }
+    }
+  } else {
+    Stream::Plain(tcp)
+  }
+
   let conn = RawConn::{
-    stream: tcp,
+    stream,
     trace: config.trace,
     host: config.host,
     port: config.port,
@@ -76,16 +129,6 @@ pub async fn connect_config(config : Config) -> RawConn raise WireError {
     status: Connecting,
   }
 
-  // SSL negotiation
-  let ssl = config.sslmode
-  if ssl == "require" || ssl == "prefer" {
-    if ssl == "require" {
-      raise WireError::Connect(
-        "sslmode=require requested but TLS is not yet implemented",
-      )
-    }
-  }
-
   // Build and send StartupMessage
   let startup_params : Array[ConnParam] = []
   startup_params.push(ConnParam::{ key: "user", value: config.user })
@@ -94,6 +137,11 @@ pub async fn connect_config(config : Config) -> RawConn raise WireError {
     None => config.user
   }
   startup_params.push(ConnParam::{ key: "database", value: db })
+  // application_name
+  match config.application_name {
+    Some(name) => startup_params.push(ConnParam::{ key: "application_name", value: name })
+    None => ()
+  }
   let startup = StartupMessage::{ version: V3_2, params: startup_params }
   conn.send(startup)
 
@@ -380,6 +428,41 @@ async fn RawConn::receive_inner(
           _ => raise WireError::InvalidMessage("unexpected error")
         },
       )
+    b'G' =>
+      CopyInResponse(
+        CopyInResponse::decode(payload) catch {
+          WireError::InvalidMessage(m) => raise WireError::InvalidMessage(m)
+          _ => raise WireError::InvalidMessage("unexpected error")
+        },
+      )
+    b'H' =>
+      CopyOutResponse(
+        CopyOutResponse::decode(payload) catch {
+          WireError::InvalidMessage(m) => raise WireError::InvalidMessage(m)
+          _ => raise WireError::InvalidMessage("unexpected error")
+        },
+      )
+    b'W' =>
+      CopyBothResponse(
+        CopyBothResponse::decode(payload) catch {
+          WireError::InvalidMessage(m) => raise WireError::InvalidMessage(m)
+          _ => raise WireError::InvalidMessage("unexpected error")
+        },
+      )
+    b'd' =>
+      CopyData(
+        CopyData::decode(payload) catch {
+          WireError::InvalidMessage(m) => raise WireError::InvalidMessage(m)
+          _ => raise WireError::InvalidMessage("unexpected error")
+        },
+      )
+    b'c' =>
+      CopyDone(
+        CopyDone::decode(payload) catch {
+          WireError::InvalidMessage(m) => raise WireError::InvalidMessage(m)
+          _ => raise WireError::InvalidMessage("unexpected error")
+        },
+      )
     _ => Unknown(type_byte, payload)
   }
 
@@ -654,6 +737,96 @@ pub async fn RawConn::read_byte(self : RawConn) -> Byte {
 /// Enable or disable protocol tracing.
 pub fn RawConn::set_trace(self : RawConn, on : Bool) -> Unit {
   self.trace = on
+}
+
+// ---------------------------------------------------------------------------
+// COPY protocol helpers
+// ---------------------------------------------------------------------------
+
+///|
+/// Send a `CopyData` message — a single row or chunk of COPY data.
+pub async fn RawConn::send_copy_data(
+  self : RawConn,
+  data : Bytes,
+) -> Unit raise WireError {
+  self.send(CopyData::{ data })
+}
+
+///|
+/// Signal successful completion of COPY data transfer.
+pub async fn RawConn::send_copy_done(self : RawConn) -> Unit raise WireError {
+  self.send(CopyDone::{  })
+}
+
+///|
+/// Abort a COPY operation with an error message.
+pub async fn RawConn::send_copy_fail(
+  self : RawConn,
+  message : String,
+) -> Unit raise WireError {
+  self.send(CopyFail::{ message })
+}
+
+///|
+/// Execute `COPY ... FROM STDIN` with text-format rows.
+///
+/// Sends the COPY command, waits for `CopyInResponse`, streams each row
+/// as a `CopyData` message, then sends `CopyDone` and reads the completion.
+pub async fn RawConn::copy_in(
+  self : RawConn,
+  sql : String,
+  rows : Array[String],
+) -> Unit raise WireError {
+  self.lock()
+  self.send(Query::{ sql })
+
+  // Read until CopyInResponse
+  for ;; {
+    let msg = self.receive()
+    match msg {
+      NoticeResponse(_) => continue
+      CopyInResponse(_) => break
+      ErrorResponse(e) => {
+        let msg = e.message().unwrap_or("unknown")
+        self.end_query()
+        raise WireError::PgServer(msg)
+      }
+      _ => {
+        self.end_query()
+        raise WireError::InvalidMessage(
+          "copy_in: expected CopyInResponse, got " + msg.describe(),
+        )
+      }
+    }
+  }
+
+  // Stream rows
+  for row in rows {
+    self.send(CopyData::{ data: @utf8.encode(row) })
+  }
+  // Signal completion
+  self.send(CopyDone::{  })
+
+  // Read CommandComplete + ReadyForQuery
+  for ;; {
+    let msg = self.receive()
+    match msg {
+      NoticeResponse(_) => continue
+      CommandComplete(_) => continue
+      ReadyForQuery(rfq) => {
+        self.tx_status = rfq.status
+        break
+      }
+      ErrorResponse(e) => {
+        let msg = e.message().unwrap_or("unknown")
+        self.end_query()
+        raise WireError::PgServer(msg)
+      }
+      _ => continue
+    }
+  }
+
+  self.unlock()
 }
 
 // ---------------------------------------------------------------------------

@@ -7,9 +7,68 @@ pub(open) trait Tx: QueryExecutor {
 }
 
 ///|
+/// Transaction isolation level.
+pub(all) enum IsolationLevel {
+  ReadCommitted
+  RepeatableRead
+  Serializable
+}
+
+///|
+fn IsolationLevel::to_sql(self : IsolationLevel) -> String {
+  match self {
+    ReadCommitted => "READ COMMITTED"
+    RepeatableRead => "REPEATABLE READ"
+    Serializable => "SERIALIZABLE"
+  }
+}
+
+///|
+/// Options for `BEGIN` — mirrors PostgreSQL's `BEGIN ...` parameters.
+pub(all) struct TxOptions {
+  isolation_level : IsolationLevel?
+  read_only : Bool?
+  deferrable : Bool?
+}
+
+///|
+pub fn TxOptions::default() -> TxOptions {
+  {
+    isolation_level: None,
+    read_only: None,
+    deferrable: None,
+  }
+}
+
+///|
+/// Build a `BEGIN` SQL string from options.
+pub fn build_begin_sql(opts : TxOptions) -> String {
+  let parts : Array[String] = []
+  match opts.isolation_level {
+    Some(level) => parts.push("ISOLATION LEVEL \{level.to_sql()}")
+    None => ()
+  }
+  match opts.read_only {
+    Some(true) => parts.push("READ ONLY")
+    Some(false) => parts.push("READ WRITE")
+    None => ()
+  }
+  match opts.deferrable {
+    Some(true) => parts.push("DEFERRABLE")
+    Some(false) => parts.push("NOT DEFERRABLE")
+    None => ()
+  }
+  if parts.is_empty() {
+    "BEGIN"
+  } else {
+    "BEGIN \{parts.join(" ")}"
+  }
+}
+
+///|
 /// Types that can start a transaction.
 pub(open) trait TxBeginner {
-  async fn begin_tx(Self) -> &Tx raise PgError
+  async fn begin_tx(Self, opts? : TxOptions) -> &Tx raise PgError
 }
 
 ///|
@@ -19,8 +78,14 @@ pub(all) struct DbTx {
 }
 
 ///|
-pub impl TxBeginner for Connection with fn begin_tx(self : Connection) -> &Tx raise PgError {
-  Connection::execute(self, "BEGIN") |> ignore
+pub impl TxBeginner for Connection with fn begin_tx(
+  self : Connection,
+  opts? : TxOptions,
+) -> &Tx raise PgError {
+  Connection::execute(self, build_begin_sql(match opts {
+    Some(o) => o
+    None => TxOptions::default()
+  })) |> ignore
   DbTx::{ conn: self }
 }
 

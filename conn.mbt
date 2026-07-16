@@ -172,6 +172,24 @@ pub fn Connection::close(self : Connection) -> Unit {
 }
 
 ///|
+/// Execute `COPY ... FROM STDIN` with the given rows.
+///
+/// Each element of `rows` is one line of COPY data (tab-separated values
+/// ending with newline, matching the default `COPY` text format).
+///
+/// Returns `ExecResult` with the number of rows copied.
+pub async fn Connection::copy_in(
+  self : Connection,
+  sql : String,
+  rows : Array[String],
+) -> ExecResult raise PgError {
+  self.conn.copy_in(sql, rows) catch {
+    e => raise map_wire_error(e)
+  }
+  ExecResult::{ tag: @wire.CommandTag::new("COPY 0") }
+}
+
+///|
 /// Return the server version as an integer (e.g. 180004 for 18.0.4).
 pub fn Connection::server_version(self : Connection) -> Int {
   match self.conn.param(@wire.PARAM_SERVER_VERSION) {

@@ -4,20 +4,37 @@ async test "connect_plain" {
 }
 
 ///|
-/// Requires pg_hba.conf md5 entry — may fail in CI.
 async test "connect_md5" {
-  let _ = connect("postgres://moonpg_md5:md5_pass@localhost:5432/moonpg_test").close() catch {
-    _ => () // MD5 auth not configured on this server (e.g. CI)
-  }
+  connect("postgres://moonpg_md5:md5_pass@localhost:5432/moonpg_test").close()
 }
 
 ///|
-/// SCRAM has a pre-existing bug — skip for now.
 async test "connect_scram" {
-  let _ = connect(
+  let conn = connect(
     "postgres://moonpg_scram:scram_pass@localhost:5432/moonpg_test",
-  ).close() catch {
-    _ => () // Known SCRAM bug — expected to fail for now.
+  )
+  conn.close()
+}
+
+///|
+async test "connect_ssl_prefer" {
+  // sslmode=prefer against non-TLS server should gracefully fall back to plain.
+  connect(
+    "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test?sslmode=prefer",
+  ).close()
+}
+
+///|
+async test "connect_ssl_require_non_tls_server" {
+  // sslmode=require against non-TLS server should raise.
+  try {
+    connect(
+      "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test?sslmode=require",
+    ).close()
+    fail("expected sslmode=require to raise")
+  } catch {
+    WireError::Connect(_) => ()
+    e => fail("expected WireError::Connect, got: \{to_repr(e)}")
   }
 }
 

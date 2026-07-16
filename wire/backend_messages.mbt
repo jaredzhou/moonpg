@@ -112,6 +112,11 @@ pub(all) enum BackendMessage {
   ParameterDescription(ParameterDescription)
   NoData(NoData)
   PortalSuspended(PortalSuspended)
+  CopyInResponse(CopyInResponse)
+  CopyOutResponse(CopyOutResponse)
+  CopyBothResponse(CopyBothResponse)
+  CopyData(CopyData)
+  CopyDone(CopyDone)
   // Catch-all for messages not yet implemented
   Unknown(Byte, BytesView)
 }
@@ -140,6 +145,11 @@ pub fn BackendMessage::describe(self : BackendMessage) -> String {
     ParameterDescription(m) => m.describe()
     NoData(m) => m.describe()
     PortalSuspended(m) => m.describe()
+    CopyInResponse(m) => m.describe()
+    CopyOutResponse(m) => m.describe()
+    CopyBothResponse(m) => m.describe()
+    CopyData(m) => m.describe()
+    CopyDone(m) => m.describe()
     Unknown(b, _) => "Unknown(type=\{b.to_int()})"
   }
 }
@@ -950,3 +960,150 @@ pub impl Message for PortalSuspended with fn decode(_payload) -> PortalSuspended
 pub impl Message for PortalSuspended with fn describe(_self) -> String {
   "PortalSuspended"
 }
+
+// ---------------------------------------------------------------------------
+// COPY protocol — backend messages
+// ---------------------------------------------------------------------------
+
+///|
+/// PostgreSQL `CopyInResponse` (B) — server is ready to receive COPY data.
+pub(all) struct CopyInResponse {
+  overall_format : Int
+  column_formats : Array[Int]
+}
+
+///|
+pub impl Message for CopyInResponse with fn encode(self) -> Bytes {
+  let buf = BytesMut::new()
+  buf.append_byte(MSG_COPY_IN_RESPONSE)
+  let body = BytesMut::new()
+  body.append_byte(self.overall_format.to_byte())
+  body.append_int_be(self.column_formats.length())
+  for f in self.column_formats {
+    body.append_int_be(f)
+  }
+  buf.append_int_be(4 + body.to_bytes().length())
+  buf.append_bytes(body.to_bytes())
+  buf.to_bytes()
+}
+
+///|
+/// Decode `CopyInResponse`. Format: Int8 overall, Int16 ncols, Int16[ncols].
+pub impl Message for CopyInResponse with fn decode(
+  payload : BytesView,
+) -> CopyInResponse raise WireError {
+  guard payload is [overall_fmt, i16be(ncols), ..rest] else {
+    raise WireError::InvalidMessage("invalid CopyInResponse")
+  }
+  let overall_format = overall_fmt.to_int()
+  let col_formats : Array[Int] = []
+  let mut r = rest
+  for _ in 0..<ncols {
+    guard r is [i16be(f), ..r2] else {
+      raise WireError::InvalidMessage("invalid CopyInResponse column format")
+    }
+    col_formats.push(f)
+    r = r2
+  }
+  CopyInResponse::{ overall_format, column_formats: col_formats }
+}
+
+///|
+pub impl Message for CopyInResponse with fn describe(_self) -> String {
+  "CopyInResponse"
+}
+
+///|
+/// PostgreSQL `CopyOutResponse` (B) — server is sending COPY data.
+pub(all) struct CopyOutResponse {
+  overall_format : Int
+  column_formats : Array[Int]
+}
+
+///|
+pub impl Message for CopyOutResponse with fn encode(self) -> Bytes {
+  let buf = BytesMut::new()
+  buf.append_byte(MSG_COPY_OUT_RESPONSE)
+  let body = BytesMut::new()
+  body.append_byte(self.overall_format.to_byte())
+  body.append_int_be(self.column_formats.length())
+  for f in self.column_formats {
+    body.append_int_be(f)
+  }
+  buf.append_int_be(4 + body.to_bytes().length())
+  buf.append_bytes(body.to_bytes())
+  buf.to_bytes()
+}
+
+///|
+pub impl Message for CopyOutResponse with fn decode(
+  payload : BytesView,
+) -> CopyOutResponse raise WireError {
+  guard payload is [overall_fmt, i16be(ncols), ..rest] else {
+    raise WireError::InvalidMessage("invalid CopyOutResponse")
+  }
+  let overall_format = overall_fmt.to_int()
+  let col_formats : Array[Int] = []
+  let mut r = rest
+  for _ in 0..<ncols {
+    guard r is [i16be(f), ..r2] else {
+      raise WireError::InvalidMessage("invalid CopyOutResponse column format")
+    }
+    col_formats.push(f)
+    r = r2
+  }
+  CopyOutResponse::{ overall_format, column_formats: col_formats }
+}
+
+///|
+pub impl Message for CopyOutResponse with fn describe(_self) -> String {
+  "CopyOutResponse"
+}
+
+///|
+/// PostgreSQL `CopyBothResponse` (B) — server is ready for both COPY directions.
+pub(all) struct CopyBothResponse {
+  overall_format : Int
+  column_formats : Array[Int]
+}
+
+///|
+pub impl Message for CopyBothResponse with fn encode(self) -> Bytes {
+  let buf = BytesMut::new()
+  buf.append_byte(MSG_COPY_BOTH_RESPONSE)
+  let body = BytesMut::new()
+  body.append_byte(self.overall_format.to_byte())
+  body.append_int_be(self.column_formats.length())
+  for f in self.column_formats {
+    body.append_int_be(f)
+  }
+  buf.append_int_be(4 + body.to_bytes().length())
+  buf.append_bytes(body.to_bytes())
+  buf.to_bytes()
+}
+
+///|
+pub impl Message for CopyBothResponse with fn decode(
+  payload : BytesView,
+) -> CopyBothResponse raise WireError {
+  guard payload is [overall_fmt, i16be(ncols), ..rest] else {
+    raise WireError::InvalidMessage("invalid CopyBothResponse")
+  }
+  let overall_format = overall_fmt.to_int()
+  let col_formats : Array[Int] = []
+  let mut r = rest
+  for _ in 0..<ncols {
+    guard r is [i16be(f), ..r2] else {
+      raise WireError::InvalidMessage("invalid CopyBothResponse column format")
+    }
+    col_formats.push(f)
+    r = r2
+  }
+  CopyBothResponse::{ overall_format, column_formats: col_formats }
+}
+
+///|
+pub impl Message for CopyBothResponse with fn describe(_self) -> String {
+  "CopyBothResponse"
+}
+

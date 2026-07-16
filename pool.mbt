@@ -42,6 +42,7 @@ pub(all) struct PoolConfig {
   min_idle : Int
   max_idle_sec : Int
   max_lifetime_sec : Int
+  health_check : Bool
 }
 
 ///|
@@ -51,8 +52,9 @@ pub fn PoolConfig::new(
   min_idle? : Int = 0,
   max_idle_sec? : Int = 0,
   max_lifetime_sec? : Int = 0,
+  health_check? : Bool = false,
 ) -> PoolConfig {
-  { conninfo, max_conns, min_idle, max_idle_sec, max_lifetime_sec }
+  { conninfo, max_conns, min_idle, max_idle_sec, max_lifetime_sec, health_check }
 }
 
 // ---------------------------------------------------------------------------
@@ -77,6 +79,7 @@ pub(all) struct Pool {
   max_conns : Int
   max_idle_sec : Int
   max_lifetime_sec : Int
+  health_check : Bool
   count : Ref[Int]
 }
 
@@ -139,6 +142,7 @@ pub async fn Pool::new(config : PoolConfig) -> Pool raise PgError {
     max_conns: config.max_conns,
     max_idle_sec: config.max_idle_sec,
     max_lifetime_sec: config.max_lifetime_sec,
+    health_check: config.health_check,
     count: Ref(0),
   }
   for _ in 0..<config.min_idle {
@@ -202,12 +206,7 @@ pub async fn Pool::acquire(self : Pool) -> PoolConn raise PgError {
         self.count.val = self.count.val - 1
         self.acquire()
       } else {
-        PoolConn::{
-          conn: idle.conn,
-          pool: self,
-          created_at: idle.created_at,
-          released: Ref(false),
-        }
+        self.checkout(idle)
       }
     None =>
       if self.count.val < self.max_conns {
@@ -224,14 +223,29 @@ pub async fn Pool::acquire(self : Pool) -> PoolConn raise PgError {
           self.count.val = self.count.val - 1
           self.acquire()
         } else {
-          PoolConn::{
-            conn: idle.conn,
-            pool: self,
-            created_at: idle.created_at,
-            released: Ref(false),
-          }
+          self.checkout(idle)
         }
       }
+  }
+}
+
+///|
+/// Validate and optionally health-check an idle connection before checkout.
+async fn Pool::checkout(self : Pool, idle : IdleConn) -> PoolConn raise PgError {
+  if self.health_check {
+    try idle.conn.execute("SELECT 1") |> ignore catch {
+      _ => {
+        idle.conn.close()
+        self.count.val = self.count.val - 1
+        return self.acquire()
+      }
+    }
+  }
+  PoolConn::{
+    conn: idle.conn,
+    pool: self,
+    created_at: idle.created_at,
+    released: Ref(false),
   }
 }
 
@@ -245,7 +259,15 @@ pub fn PoolConn::release(self : PoolConn) -> Unit {
     return
   }
   self.released.val = true
+  // Drop connection if it has exceeded its lifetime or is in a bad state.
+  let now = @async.now()
   if self.conn.status() != ConnStatus::OK {
+    self.conn.close()
+    self.pool.count.val = self.pool.count.val - 1
+    return
+  }
+  if self.pool.max_lifetime_sec > 0 &&
+    now - self.created_at > self.pool.max_lifetime_sec.to_int64() * 1000L {
     self.conn.close()
     self.pool.count.val = self.pool.count.val - 1
     return
@@ -253,7 +275,7 @@ pub fn PoolConn::release(self : PoolConn) -> Unit {
   let idle = IdleConn::{
     conn: self.conn,
     created_at: self.created_at,
-    idle_since: @async.now(),
+    idle_since: now,
   }
   let ok = self.pool.queue.try_put(idle) catch {
     _ => {
@@ -376,8 +398,14 @@ pub impl Tx for PoolDbTx with fn rollback(self : PoolDbTx) -> Unit raise PgError
 ///|
 /// Begin a transaction on this pooled connection.
 /// Caller must call `pc.release()` after `tx.commit()` / `tx.rollback()`.
-pub impl TxBeginner for PoolConn with fn begin_tx(self : PoolConn) -> &Tx raise PgError {
-  self.conn.execute("BEGIN") |> ignore
+pub impl TxBeginner for PoolConn with fn begin_tx(
+  self : PoolConn,
+  opts? : TxOptions,
+) -> &Tx raise PgError {
+  self.conn.execute(build_begin_sql(match opts {
+    Some(o) => o
+    None => TxOptions::default()
+  })) |> ignore
   DbTx::{ conn: self.conn }
 }
 
@@ -388,9 +416,16 @@ pub impl TxBeginner for PoolConn with fn begin_tx(self : PoolConn) -> &Tx raise 
 ///|
 /// Acquire a connection from the pool and begin a transaction.
 /// Connection is returned to the pool on `commit()` or `rollback()`.
-pub impl TxBeginner for Pool with fn begin_tx(self : Pool) -> &Tx raise PgError {
+pub impl TxBeginner for Pool with fn begin_tx(
+  self : Pool,
+  opts? : TxOptions,
+) -> &Tx raise PgError {
   let pc = self.acquire()
-  try pc.conn.execute("BEGIN") |> ignore catch {
+  let sql = build_begin_sql(match opts {
+    Some(o) => o
+    None => TxOptions::default()
+  })
+  try pc.conn.execute(sql) |> ignore catch {
     e => {
       pc.close()
       raise e

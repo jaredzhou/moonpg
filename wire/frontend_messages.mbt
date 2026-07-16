@@ -661,3 +661,81 @@ pub impl Message for Flush with fn decode(_payload) -> Flush raise WireError {
 pub impl Message for Flush with fn describe(_self) -> String {
   "Flush"
 }
+
+// ---------------------------------------------------------------------------
+// COPY protocol — frontend messages
+// ---------------------------------------------------------------------------
+
+///|
+/// PostgreSQL `CopyData` (F) — data row for `COPY ... FROM STDIN`.
+pub(all) struct CopyData {
+  data : Bytes
+}
+
+///|
+pub impl Message for CopyData with fn encode(self) -> Bytes {
+  let buf = BytesMut::new()
+  buf.append_byte(MSG_COPY_DATA)
+  buf.append_int_be(4 + self.data.length())
+  buf.append_bytes(self.data)
+  buf.to_bytes()
+}
+
+///|
+pub impl Message for CopyData with fn decode(_payload) -> CopyData raise WireError {
+  raise WireError::InvalidMessage("CopyData decode not implemented (frontend)")
+}
+
+///|
+pub impl Message for CopyData with fn describe(_self) -> String {
+  "CopyData"
+}
+
+///|
+/// PostgreSQL `CopyDone` (F) — signal end of COPY data.
+pub(all) struct CopyDone {}
+
+///|
+pub impl Message for CopyDone with fn encode(_self) -> Bytes {
+  let buf = BytesMut::new()
+  buf.append_byte(MSG_COPY_DONE)
+  buf.append_int_be(4)
+  buf.to_bytes()
+}
+
+///|
+pub impl Message for CopyDone with fn decode(_payload) -> CopyDone raise WireError {
+  CopyDone::{  }
+}
+
+///|
+pub impl Message for CopyDone with fn describe(_self) -> String {
+  "CopyDone"
+}
+
+///|
+/// PostgreSQL `CopyFail` (F) — abort COPY with an error message.
+pub(all) struct CopyFail {
+  message : String
+}
+
+///|
+pub impl Message for CopyFail with fn encode(self) -> Bytes {
+  let msg_bytes = @utf8.encode(self.message)
+  let buf = BytesMut::new()
+  buf.append_byte(MSG_COPY_FAIL)
+  buf.append_int_be(4 + msg_bytes.length() + 1)
+  buf.append_bytes(msg_bytes)
+  buf.append_byte(b'\x00')
+  buf.to_bytes()
+}
+
+///|
+pub impl Message for CopyFail with fn decode(_payload) -> CopyFail raise WireError {
+  raise WireError::InvalidMessage("CopyFail decode not implemented (frontend)")
+}
+
+///|
+pub impl Message for CopyFail with fn describe(_self) -> String {
+  "CopyFail"
+}
