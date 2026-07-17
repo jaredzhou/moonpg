@@ -541,7 +541,7 @@ async test "copy_in" {
   c.execute("CREATE TABLE \{tbl} (id INTEGER, name TEXT, val REAL)") |> ignore
 
   let rows = ["1\tAlice\t3.14\n", "2\tBob\t2.71\n", "3\tCarol\t1.41\n"]
-  c.copy_in("COPY \{tbl} FROM STDIN", rows) |> ignore
+  c.copy_in("COPY \{tbl} FROM STDIN", rows.iter()) |> ignore
 
   let result = c.query("SELECT id, name, val FROM \{tbl} ORDER BY id")
   assert_true(result.has_next())
@@ -553,4 +553,211 @@ async test "copy_in" {
   let r2 = result.get_row()
   assert_eq(r2.get(0), 2)
   result.close()
+}
+
+///|
+async test "copy_writer_streaming" {
+  let tbl = "moonpg_copy_writer"
+  let c = connect(test_conninfo)
+  c.execute("DROP TABLE IF EXISTS \{tbl}") |> ignore
+  c.execute("CREATE TABLE \{tbl} (name TEXT, age INTEGER)") |> ignore
+
+  // Streaming: write one row at a time
+  let w = c.begin_copy(tbl, ["name", "age"])
+  w.write_row(["Alice", 30])
+  w.write_row(["Bob", 25])
+  w.finish() |> ignore
+
+  // Verify via a new connection
+  let c2 = connect(test_conninfo)
+  defer c2.close()
+  let result = c2.query("SELECT name, age FROM \{tbl} ORDER BY age")
+  assert_true(result.has_next())
+  let r1 = result.get_row()
+  assert_eq(r1.get(0), "Bob")
+  assert_eq(r1.get(1), 25)
+  assert_true(result.has_next())
+  let r2 = result.get_row()
+  assert_eq(r2.get(0), "Alice")
+  assert_eq(r2.get(1), 30)
+  result.close()
+}
+
+// ---------------------------------------------------------------------------
+// LISTEN / NOTIFY
+// ---------------------------------------------------------------------------
+
+///|
+async test "listen_notify_queue" {
+  @async.with_task_group() <| group => {
+    let c1 = connect(test_conninfo)
+    let listener = c1.listen("moonpg_test_channel", group)
+    println("Listening on channel: moonpg_test_channel")
+    // Notify from another connection after a short delay
+    group.spawn_bg() <| () => {
+      let c2 = connect(test_conninfo)
+      c2.notify("moonpg_test_channel", payload="hello")
+      c2.close()
+    }
+
+    // Timeout guard: abort test after 5s
+    // group.spawn_bg() <| () => {
+    //   @async.sleep(5000)
+    //   group.return_immediately(())
+    // }
+
+    let notif = listener.recv()
+    println(notif.payload)
+    assert_eq(notif.channel, "moonpg_test_channel")
+    assert_eq(notif.payload, "hello")
+    group.return_immediately(())
+  }
+}
+
+// ---------------------------------------------------------------------------
+// deallocate
+// ---------------------------------------------------------------------------
+
+///|
+async test "deallocate_unnamed_statement" {
+  let c = connect(test_conninfo)
+  defer c.close()
+
+  // Execute parameterized SQL to create an unnamed prepared statement
+  c.execute("SELECT $1::integer", params=[42]) |> ignore
+
+  // Deallocate unnamed statement should succeed
+  c.deallocate("")
+}
+
+// ---------------------------------------------------------------------------
+// Binary result format — end-to-end with FromRaw
+// ---------------------------------------------------------------------------
+
+///|
+async test "binary_result_format_roundtrip" {
+  fresh_table()
+  let c = connect(conninfo)
+  defer c.close()
+
+  c.execute(
+    (
+      #|INSERT INTO moonpg_types (i4, i8, f8, flag, name, email)
+      #|VALUES ($1, $2, $3, $4, $5, $6)
+    ),
+    params=[42, 9_000_000_000L, 3.14, true, "binary-test", "b@t.com"],
+  ) |> ignore
+
+  let raw = @wire.connect(conninfo)
+  defer raw.close()
+  let reader = raw.execute_params(
+    "SELECT i4, i8, f8, flag, name, email FROM moonpg_types",
+    [],
+    [],
+    [],
+    [1],
+  )
+
+  let cols = reader.columns()
+  assert_eq(cols.length(), 6, msg="6 columns")
+  for col in cols {
+    assert_eq(col.format, 1, msg="column \{col.name} should be binary format")
+  }
+
+  if reader.has_next() {
+    let raw_row = reader.data_row()
+    let row = row_from_raw(raw_row, cols)
+
+    assert_eq(row.get(0), 42, msg="binary i4")
+    assert_eq(row.get(1), 9_000_000_000L, msg="binary i8")
+    let f8 : Double = row.get(2)
+    assert_true((f8 - 3.14).abs() < 1.0e-9, msg="binary f8")
+    assert_eq(row.get(3), true, msg="binary flag")
+    assert_eq(row.get(4), "binary-test", msg="binary name")
+    assert_eq(row.get(5), "b@t.com", msg="binary email")
+  } else {
+    fail("expected a row")
+  }
+
+  let _ = reader.close()
+}
+
+///|
+async test "binary_result_format_nullable" {
+  fresh_table()
+  let c = connect(conninfo)
+  defer c.close()
+
+  let null_email : String? = None
+  c.execute(
+    "INSERT INTO moonpg_types (i4, i8, f8, flag, name, email) VALUES ($1, $2, $3, $4, $5, $6)",
+    params=[1, 2L, 1.0, false, "null-test", null_email],
+  ) |> ignore
+
+  let raw = @wire.connect(conninfo)
+  defer raw.close()
+  let reader = raw.execute_params(
+    "SELECT i4, flag, email FROM moonpg_types WHERE name = 'null-test'",
+    [],
+    [],
+    [],
+    [1],
+  )
+
+  if reader.has_next() {
+    let raw_row = reader.data_row()
+    let cols = reader.columns()
+    let row = row_from_raw(raw_row, cols)
+
+    assert_eq(row.get(0), 1, msg="binary i4")
+    assert_eq(row.get(1), false, msg="binary flag")
+    // NULL email → Option[String] = None
+    let email : String? = row.get(2)
+    assert_true(email == None, msg="binary null → None")
+  } else {
+    fail("expected a row")
+  }
+
+  let _ = reader.close()
+}
+
+///|
+async test "binary_result_format_bytea" {
+  let c = connect(conninfo)
+  defer c.close()
+
+  c.execute("DROP TABLE IF EXISTS moonpg_bytea_test") |> ignore
+  c.execute("CREATE TABLE moonpg_bytea_test (data BYTEA)") |> ignore
+
+  // Insert via decode() for reliable hex → bytea (avoids escape issues)
+  c.execute(
+    "INSERT INTO moonpg_bytea_test (data) VALUES (decode('000102DEADBEEFFF', 'hex'))",
+  ) |> ignore
+
+  let input : Bytes = b"\x00\x01\x02\xDE\xAD\xBE\xEF\xFF"
+
+  let raw = @wire.connect(conninfo)
+  defer raw.close()
+  let reader = raw.execute_params(
+    "SELECT data FROM moonpg_bytea_test",
+    [],
+    [],
+    [],
+    [1],
+  )
+
+  let cols = reader.columns()
+  assert_eq(cols.length(), 1, msg="1 column")
+  assert_eq(cols[0].format, 1, msg="bytea column binary format")
+
+  if reader.has_next() {
+    let raw_row = reader.data_row()
+    let row = row_from_raw(raw_row, cols)
+    let result : Bytes = row.get(0)
+    assert_eq(result, input, msg="binary bytea roundtrip")
+  } else {
+    fail("expected a row")
+  }
+
+  let _ = reader.close()
 }

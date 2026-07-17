@@ -21,8 +21,13 @@ pub(all) struct Config {
   database : String?
   password : String?
   sslmode : String
+  sslrootcert : String?
+  sslcert : String?
+  sslkey : String?
   application_name : String?
   connect_timeout : Int
+  statement_timeout : Int
+  target_session_attrs : String
   trace : Bool
 }
 
@@ -40,8 +45,13 @@ pub fn Config::new(
   database? : String? = None,
   password? : String? = None,
   sslmode? : String = "disable",
+  sslrootcert? : String? = None,
+  sslcert? : String? = None,
+  sslkey? : String? = None,
   application_name? : String? = None,
   connect_timeout? : Int = 0,
+  statement_timeout? : Int = 0,
+  target_session_attrs? : String = "any",
   trace? : Bool = false,
 ) -> Config {
   {
@@ -52,8 +62,13 @@ pub fn Config::new(
     database,
     password,
     sslmode,
+    sslrootcert,
+    sslcert,
+    sslkey,
     application_name,
     connect_timeout,
+    statement_timeout,
+    target_session_attrs,
     trace,
   }
 }
@@ -278,8 +293,13 @@ fn with_param(config : Config, key : String, value : String) -> Config {
     "dbname" | "database" => { ..config, database: Some(value) }
     "password" => { ..config, password: Some(value) }
     "sslmode" => { ..config, sslmode: value }
+    "sslrootcert" => { ..config, sslrootcert: Some(value) }
+    "sslcert" => { ..config, sslcert: Some(value) }
+    "sslkey" => { ..config, sslkey: Some(value) }
     "application_name" => { ..config, application_name: Some(value) }
     "connect_timeout" => { ..config, connect_timeout: parse_int(value) }
+    "statement_timeout" => { ..config, statement_timeout: parse_int(value) }
+    "target_session_attrs" => { ..config, target_session_attrs: value }
     _ => config
   }
 }

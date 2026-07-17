@@ -231,6 +231,7 @@ pub(open) trait ToValue {
 ///
 /// The basic implementations raise `PgError::QueryError` on `Null`; use
 /// `Option[T]` for nullable columns.
+///|
 pub(open) trait FromRaw {
   fn from_raw(RawValue) -> Self raise PgError
 }
@@ -248,62 +249,48 @@ pub fn[T] raise_binary() -> T raise PgError {
 }
 
 ///|
-/// Helper: build `Bytes` from a byte array literal.
-fn bytes_of(vals : Array[Byte]) -> Bytes {
-  let buf = @buffer.Buffer(size_hint=vals.length())
-  for b in vals {
-    buf.write_byte(b)
-  }
-  buf.to_bytes()
-}
-
-///|
 test "decode_int4_positive" {
   // 42 = 0x0000002A in big-endian
-  let b = bytes_of([b'\x00', b'\x00', b'\x00', b'\x2A'])
+  let b = b"\x00\x00\x00\x2A"
   assert_eq(decode_int4(b), 42, msg="int4 positive")
 }
 
 ///|
 test "decode_int4_negative" {
   // -1 = 0xFFFFFFFF in big-endian
-  let b = bytes_of([b'\xFF', b'\xFF', b'\xFF', b'\xFF'])
+  let b = b"\xFF\xFF\xFF\xFF"
   assert_eq(decode_int4(b), -1, msg="int4 negative")
 }
 
 ///|
 test "decode_int4_zero" {
-  let b = bytes_of([b'\x00', b'\x00', b'\x00', b'\x00'])
+  let b = b"\x00\x00\x00\x00"
   assert_eq(decode_int4(b), 0, msg="int4 zero")
 }
 
 ///|
 test "decode_int8_positive" {
   // 1234567890123 = 0x0000011F71FB04CB
-  let b = bytes_of([
-    b'\x00', b'\x00', b'\x01', b'\x1F', b'\x71', b'\xFB', b'\x04', b'\xCB',
-  ])
+  let b = b"\x00\x00\x01\x1F\x71\xFB\x04\xCB"
   assert_eq(decode_int8(b), 1234567890123L, msg="int8 positive")
 }
 
 ///|
 test "decode_int8_negative" {
   // -9223372036854775808 = 0x8000000000000000
-  let b = bytes_of([
-    b'\x80', b'\x00', b'\x00', b'\x00', b'\x00', b'\x00', b'\x00', b'\x00',
-  ])
+  let b = b"\x80\x00\x00\x00\x00\x00\x00\x00"
   assert_eq(decode_int8(b), -9223372036854775808L, msg="int8 minimum")
 }
 
 ///|
 test "decode_bool_true" {
-  let b = bytes_of([b'\x01'])
+  let b = b"\x01"
   assert_eq(decode_bool(b), true, msg="bool true")
 }
 
 ///|
 test "decode_bool_false" {
-  let b = bytes_of([b'\x00'])
+  let b = b"\x00"
   assert_eq(decode_bool(b), false, msg="bool false")
 }
 
@@ -334,18 +321,18 @@ test "encode_decode_int8_roundtrip" {
 ///|
 /// End-to-end: binary-format FromRaw for basic types.
 test "from_raw_binary_int" {
-  let b = bytes_of([b'\x00', b'\x00', b'\x00', b'\x2A']) // 42
+  let b = b"\x00\x00\x00\x2A" // 42
   let v : Int = FromRaw::from_raw(RawValue::Bytes(Binary, b))
   assert_eq(v, 42, msg="from_raw binary Int")
 }
 
 ///|
 test "from_raw_binary_bool" {
-  let v : Bool = FromRaw::from_raw(RawValue::Bytes(Binary, bytes_of([b'\x01'])))
+  let v : Bool = FromRaw::from_raw(RawValue::Bytes(Binary, b"\x01"))
   assert_eq(v, true, msg="from_raw binary Bool true")
 
   let v2 : Bool = FromRaw::from_raw(
-    RawValue::Bytes(Binary, bytes_of([b'\x00'])),
+    RawValue::Bytes(Binary, b"\x00"),
   )
   assert_eq(v2, false, msg="from_raw binary Bool false")
 }
@@ -361,7 +348,7 @@ test "from_raw_binary_string" {
 ///|
 test "from_raw_binary_nullable" {
   // Non-null binary value
-  let b = bytes_of([b'\x00', b'\x00', b'\x00', b'\x07']) // 7
+  let b = b"\x00\x00\x00\x07" // 7
   let v : Int? = FromRaw::from_raw(RawValue::Bytes(Binary, b))
   match v {
     Some(x) => assert_eq(x, 7, msg="nullable binary non-null")

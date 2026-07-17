@@ -172,21 +172,222 @@ pub fn Connection::close(self : Connection) -> Unit {
 }
 
 ///|
-/// Execute `COPY ... FROM STDIN` with the given rows.
+/// Return the backend process ID assigned by PostgreSQL.
+pub fn Connection::backend_pid(self : Connection) -> Int {
+  self.conn.backend_pid()
+}
+
+///|
+/// Return a server parameter value (e.g. `"server_version"`, `"TimeZone"`).
 ///
-/// Each element of `rows` is one line of COPY data (tab-separated values
-/// ending with newline, matching the default `COPY` text format).
+/// Returns `None` if the parameter was not reported by the server during
+/// startup.
+pub fn Connection::param(self : Connection, key : String) -> String? {
+  self.conn.param(key)
+}
+
+///|
+/// Return `true` if the connection has been closed.
+pub fn Connection::is_closed(self : Connection) -> Bool {
+  self.conn.is_closed()
+}
+
+///|
+/// Deallocate a prepared statement.
 ///
-/// Returns `ExecResult` with the number of rows copied.
+/// Sends `Close(S)` + `Flush` and waits for `CloseComplete`.  Returns
+/// silently on success — raises `PgError` if the statement doesn't exist
+/// or the connection is broken.
+///
+/// Passing an empty string closes the unnamed statement.
+pub async fn Connection::deallocate(
+  self : Connection,
+  name : String,
+) -> Unit raise PgError {
+  self.conn.close_statement(name) catch {
+    e => raise map_wire_error(e)
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Listener — async notification receiver
+// ---------------------------------------------------------------------------
+
+///|
+/// Receiver for PostgreSQL notifications.
+///
+/// Created by `Connection::listen`.  Call `recv()` to block until a
+/// notification arrives.
+pub(all) struct Listener {
+  q : @aqueue.Queue[@wire.NotificationResponse]
+}
+
+///|
+/// Block until a notification arrives.
+pub async fn Listener::recv(self : Listener) -> @wire.NotificationResponse raise PgError {
+  self.q.get() catch {
+    _ => raise PgError::ConnectionError("listen connection closed")
+  }
+}
+
+///|
+/// Start listening for notifications on the given channel.
+///
+/// Executes `LISTEN channel`, spawns a background receive loop on `group`,
+/// and returns a `Listener`.  The connection is dedicated to listening.
+///
+/// ```moonbit nocheck
+/// @async.with_task_group() <| group => {
+///   let listener = conn.listen("events", group)
+///   for ;; {
+///     let notif = listener.recv()
+///     group.spawn_bg() <| () => { handle(notif) }
+///   }
+/// }
+/// ```
+pub async fn[X] Connection::listen(
+  self : Connection,
+  channel : String,
+  group : @async.TaskGroup[X],
+) -> Listener raise PgError {
+  self.execute("LISTEN " + channel) |> ignore
+  let q = @aqueue.Queue(kind=@aqueue.Unbounded)
+  let conn = self.conn
+
+  group.spawn_loop(no_wait=false) <| () => {
+    let msg = conn.receive() catch {
+      _ => raise @async.BreakFromSpawnLoop
+    }
+    match msg {
+      @wire.NotificationResponse(n) =>
+        ignore(q.try_put(n) catch { _ => false })
+      _ => ()
+    }
+  }
+
+  Listener::{ q }
+}
+
+///|
+/// Stop listening for notifications on the given channel.
+///
+/// Passing `"*"` unlistens from all channels.
+pub async fn Connection::unlisten(
+  self : Connection,
+  channel : String,
+) -> Unit raise PgError {
+  let _ = self.execute("UNLISTEN " + channel)
+}
+
+///|
+/// Send a notification on the given channel.
+///
+/// An optional `payload` string can be included.
+pub async fn Connection::notify(
+  self : Connection,
+  channel : String,
+  payload? : String,
+) -> Unit raise PgError {
+  match payload {
+    None => {
+      let _ = self.execute("NOTIFY " + channel)
+    }
+    Some(p) => {
+      let _ = self.execute("NOTIFY " + channel + ", '" + p + "'")
+    }
+  }
+}
+
+///|
+/// Execute `COPY ... FROM STDIN` with rows from an iterator.
+///
+/// Each element is one line of COPY data (tab-separated, newline-terminated).
+/// Rows are pulled one at a time — only a single row is held in memory.
+///
+/// ```moonbit nocheck
+/// conn.copy_in("COPY t FROM STDIN", my_rows.iter())
+/// ```
 pub async fn Connection::copy_in(
   self : Connection,
   sql : String,
-  rows : Array[String],
+  rows : Iter[String],
 ) -> ExecResult raise PgError {
   self.conn.copy_in(sql, rows) catch {
     e => raise map_wire_error(e)
   }
   ExecResult::{ tag: @wire.CommandTag::new("COPY 0") }
+}
+
+// ---------------------------------------------------------------------------
+// Streaming COPY writer
+// ---------------------------------------------------------------------------
+
+///|
+/// Streaming writer for `COPY ... FROM STDIN`.
+///
+/// Created via `Connection::begin_copy`.  Rows are encoded and sent one at
+/// a time — only a single row is held in memory.
+///
+/// # Example
+/// ```
+/// let w = conn.begin_copy("users", ["name", "age"])
+/// w.write_row(["Alice", 30])
+/// w.write_row(["Bob", 25])
+/// let result = w.finish()
+/// ```
+pub(all) struct CopyWriter {
+  conn : @wire.RawConn
+}
+
+///|
+/// Begin a `COPY ... FROM STDIN` operation on the given table and columns.
+///
+/// Generates `COPY table ("col1", "col2") FROM STDIN`, sends the query,
+/// and returns a `CopyWriter` that accepts rows one at a time.
+pub async fn Connection::begin_copy(
+  self : Connection,
+  table : String,
+  columns : Array[String],
+) -> CopyWriter raise PgError {
+  let col_strs : Array[String] = []
+  for col in columns {
+    col_strs.push("\"" + col + "\"")
+  }
+  let sql = "COPY " + table + " (" + col_strs.join(", ") + ") FROM STDIN"
+  self.conn.begin_copy_in(sql) catch {
+    e => raise map_wire_error(e)
+  }
+  CopyWriter::{ conn: self.conn }
+}
+
+///|
+/// Write a single row to the COPY stream.
+///
+/// Each value is encoded to COPY text format (tab-separated, `\N` for NULL,
+/// backslash-escaped strings) and sent immediately — no batching in memory.
+pub async fn CopyWriter::write_row(
+  self : CopyWriter,
+  row : Array[&ToValue],
+) -> Unit raise PgError {
+  let parts : Array[String] = []
+  for v in row {
+    parts.push(encode_copy_text(v.to_value()))
+  }
+  let line = parts.join("\t") + "\n"
+  self.conn.send_copy_data(@utf8.encode(line)) catch {
+    e => raise map_wire_error(e)
+  }
+}
+
+///|
+/// Finish the COPY operation.
+///
+/// Sends `CopyDone`, reads the server completion, and returns the `ExecResult`.
+pub async fn CopyWriter::finish(self : CopyWriter) -> ExecResult raise PgError {
+  self.conn.end_copy_in() catch {
+    e => raise map_wire_error(e)
+  }
+  ExecResult::{ tag: @wire.CommandTag::new("COPY") }
 }
 
 ///|
@@ -288,6 +489,31 @@ pub impl QueryExecutor for Connection with fn execute(
   }
 }
 
+///|
+/// Build a `Row` from raw wire data and column descriptions, respecting the
+/// format code in each column.  Used by integration tests that request
+/// binary result format.
+pub fn row_from_raw(
+  raw_row : Array[Bytes?],
+  col_descs : Array[@wire.FieldDescription],
+) -> Row {
+  let values : Array[RawValue] = []
+  for i = 0; i < raw_row.length(); i = i + 1 {
+    match raw_row[i] {
+      None => values.push(RawValue::Null)
+      Some(bytes) => {
+        let format = if i < col_descs.length() && col_descs[i].format != 0 {
+          Format::Binary
+        } else {
+          Format::Text
+        }
+        values.push(RawValue::Bytes(format, bytes))
+      }
+    }
+  }
+  Row::{ values, col_descs }
+}
+
 // ---------------------------------------------------------------------------
 // internal helpers
 // ---------------------------------------------------------------------------
@@ -328,6 +554,60 @@ fn parse_server_version(s : String) -> Int {
       _ => ()
     }
     count = count + 1
+  }
+  result
+}
+
+///|
+/// Encode a `Value` to PostgreSQL COPY text format.
+///
+/// * `Null` → `\N`
+/// * `Bool` → `t` / `f`
+/// * Numbers → decimal string
+/// * `String` → backslash-escaped (\\, \t, \n)
+/// * `Bytes` → hex-encoded (e.g. `\xDEADBEEF`)
+fn encode_copy_text(v : Value) -> String {
+  match v {
+    Null => "\\N"
+    Bool(v) => if v { "t" } else { "f" }
+    Int(v) => v.to_string()
+    Int64(v) => v.to_string()
+    Float(v) => v.to_string()
+    String(v) => escape_copy_string(v)
+    Bytes(v) => "\\\\x" + encode_hex(v)
+  }
+}
+
+///|
+/// Escape special characters for COPY text format:
+/// `\` → `\\`, tab → `\t`, newline → `\n`.
+fn escape_copy_string(s : String) -> String {
+  let mut result = ""
+  for ch in s {
+    if ch == '\\' {
+      result = result + "\\\\"
+    } else if ch == '\t' {
+      result = result + "\\t"
+    } else if ch == '\n' {
+      result = result + "\\n"
+    } else if ch == '\r' {
+      result = result + "\\r"
+    } else {
+      result = result + ch.to_string()
+    }
+  }
+  result
+}
+
+///|
+/// Hex-encode bytes to a string (no prefix).
+fn encode_hex(data : Bytes) -> String {
+  let hex_digits = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "A", "B", "C", "D", "E", "F"]
+  let mut result = ""
+  for i = 0; i < data.length(); i = i + 1 {
+    let byte = data[i].to_int()
+    result = result + hex_digits[(byte >> 4) & 0xF]
+    result = result + hex_digits[byte & 0xF]
   }
   result
 }

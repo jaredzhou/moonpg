@@ -80,7 +80,12 @@ pub async fn connect_config(config : Config) -> RawConn raise WireError {
 
   // SSL negotiation (before StartupMessage)
   let ssl = config.sslmode
-  let stream = if ssl == "require" || ssl == "prefer" {
+  let wants_tls = match ssl {
+    "disable" => false
+    "allow" | "prefer" | "require" | "verify-ca" | "verify-full" => true
+    _ => false
+  }
+  let stream = if wants_tls {
     let ssl_req = SSLRequest::{}
     tcp.write(ssl_req.encode()) catch {
       e => raise WireError::IO("SSL request write: \{e}")
@@ -90,19 +95,23 @@ pub async fn connect_config(config : Config) -> RawConn raise WireError {
     }
     match resp[0] {
       b'S' => {
+        let trust = match config.sslrootcert {
+          Some(path) => @tls.CustomPemFile(path)
+          None => @tls.SystemRoot
+        }
         let tls = @tls.Tls::client(
           tcp,
           host=config.host,
-          trust=@tls.SystemRoot,
+          trust=trust,
         ) catch {
           e => raise WireError::Connect("TLS handshake: \{e}")
         }
         Stream::Tls(tls)
       }
       b'N' => {
-        if ssl == "require" {
+        if ssl == "require" || ssl == "verify-ca" || ssl == "verify-full" {
           raise WireError::Connect(
-            "sslmode=require but server does not support TLS",
+            "sslmode=\{ssl} but server does not support TLS",
           )
         }
         Stream::Plain(tcp)
@@ -141,6 +150,10 @@ pub async fn connect_config(config : Config) -> RawConn raise WireError {
   match config.application_name {
     Some(name) => startup_params.push(ConnParam::{ key: "application_name", value: name })
     None => ()
+  }
+  // statement_timeout (milliseconds, 0 = no timeout)
+  if config.statement_timeout > 0 {
+    startup_params.push(ConnParam::{ key: "statement_timeout", value: config.statement_timeout.to_string() })
   }
   let startup = StartupMessage::{ version: V3_2, params: startup_params }
   conn.send(startup)
@@ -186,6 +199,17 @@ pub async fn connect_config(config : Config) -> RawConn raise WireError {
         pid = m.pid
         secret_key = m.secret_key
       }
+      NegotiateProtocolVersion(m) => {
+        // PG 17+ server proposes a different minor protocol version.
+        // We requested V3_2 which is universally supported, so this
+        // should never arrive in practice.  Log and continue — the
+        // server will still honour our requested version.
+        if conn.trace {
+          println(
+            "Note: server proposed protocol minor version \{m.newest_minor_version}",
+          )
+        }
+      }
       ReadyForQuery(rfq) => {
         conn.tx_status = rfq.status
         break
@@ -200,6 +224,29 @@ pub async fn connect_config(config : Config) -> RawConn raise WireError {
         }
       _ => ()
     }
+  }
+
+  // Validate target_session_attrs
+  match config.target_session_attrs {
+    "any" => () // no-op
+    "read-write" | "primary" =>
+      match params_map.get("default_transaction_read_only") {
+        Some(v) if v == "on" =>
+          raise WireError::Connect(
+            "target_session_attrs=\{config.target_session_attrs} but connected to a read-only server",
+          )
+        _ => ()
+      }
+    "read-only" | "standby" =>
+      match params_map.get("default_transaction_read_only") {
+        Some(v) if v == "off" =>
+          raise WireError::Connect(
+            "target_session_attrs=\{config.target_session_attrs} but connected to a read-write server",
+          )
+        _ => ()
+      }
+    "prefer-standby" => ()
+    _ => () // unknown, silently accept
   }
 
   { ..conn, params: params_map, pid, secret_key, status: Idle }
@@ -459,6 +506,26 @@ async fn RawConn::receive_inner(
     b'c' =>
       CopyDone(
         CopyDone::decode(payload) catch {
+          WireError::InvalidMessage(m) => raise WireError::InvalidMessage(m)
+          _ => raise WireError::InvalidMessage("unexpected error")
+        },
+      )
+    // NotificationResponse ('A') — LISTEN/NOTIFY.
+    // These can arrive at any time.  Return to caller; receive() will
+    // queue and re-read transparently.
+    b'A' =>
+      NotificationResponse(
+        NotificationResponse::decode(payload) catch {
+          WireError::InvalidMessage(m) => raise WireError::InvalidMessage(m)
+          _ => raise WireError::InvalidMessage("unexpected error")
+        },
+      )
+    // NegotiateProtocolVersion ('v') — PG 17+ protocol negotiation.
+    // Can arrive during startup when client requests a newer protocol
+    // version than the server supports.
+    b'v' =>
+      NegotiateProtocolVersion(
+        NegotiateProtocolVersion::decode(payload) catch {
           WireError::InvalidMessage(m) => raise WireError::InvalidMessage(m)
           _ => raise WireError::InvalidMessage("unexpected error")
         },
@@ -768,14 +835,14 @@ pub async fn RawConn::send_copy_fail(
 }
 
 ///|
-/// Execute `COPY ... FROM STDIN` with text-format rows.
+/// Begin a `COPY ... FROM STDIN` operation.
 ///
-/// Sends the COPY command, waits for `CopyInResponse`, streams each row
-/// as a `CopyData` message, then sends `CopyDone` and reads the completion.
-pub async fn RawConn::copy_in(
+/// Sends the query, locks the connection, and reads until `CopyInResponse`.
+/// After this, use `send_copy_data` to stream rows and `end_copy_in` to
+/// finish.
+pub async fn RawConn::begin_copy_in(
   self : RawConn,
   sql : String,
-  rows : Array[String],
 ) -> Unit raise WireError {
   self.lock()
   self.send(Query::{ sql })
@@ -785,7 +852,7 @@ pub async fn RawConn::copy_in(
     let msg = self.receive()
     match msg {
       NoticeResponse(_) => continue
-      CopyInResponse(_) => break
+      CopyInResponse(_) => return
       ErrorResponse(e) => {
         let msg = e.message().unwrap_or("unknown")
         self.end_query()
@@ -794,16 +861,19 @@ pub async fn RawConn::copy_in(
       _ => {
         self.end_query()
         raise WireError::InvalidMessage(
-          "copy_in: expected CopyInResponse, got " + msg.describe(),
+          "begin_copy_in: expected CopyInResponse, got " + msg.describe(),
         )
       }
     }
   }
+}
 
-  // Stream rows
-  for row in rows {
-    self.send(CopyData::{ data: @utf8.encode(row) })
-  }
+///|
+/// Finish a `COPY ... FROM STDIN` operation.
+///
+/// Sends `CopyDone`, then reads `CommandComplete` + `ReadyForQuery` and
+/// unlocks the connection.  Pairs with `begin_copy_in`.
+pub async fn RawConn::end_copy_in(self : RawConn) -> Unit raise WireError {
   // Signal completion
   self.send(CopyDone::{  })
 
@@ -827,6 +897,24 @@ pub async fn RawConn::copy_in(
   }
 
   self.unlock()
+}
+
+///|
+/// Execute `COPY ... FROM STDIN` with rows from an iterator.
+///
+/// Convenience wrapper around `begin_copy_in` + `send_copy_data` loop +
+/// `end_copy_in`.  Rows are pulled from the iterator one at a time — only
+/// a single row is held in memory.
+pub async fn RawConn::copy_in(
+  self : RawConn,
+  sql : String,
+  rows : Iter[String],
+) -> Unit raise WireError {
+  self.begin_copy_in(sql)
+  for row in rows {
+    self.send(CopyData::{ data: @utf8.encode(row) })
+  }
+  self.end_copy_in()
 }
 
 // ---------------------------------------------------------------------------

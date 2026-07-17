@@ -158,3 +158,54 @@ test "uri_query_override" {
   assert_eq(c.user, "b")
   assert_true(c.database == Some("db2"))
 }
+
+///|
+test "kv_sslrootcert" {
+  let c = Config::from_connstr("sslrootcert=/etc/ssl/ca.pem")
+  assert_true(c.sslrootcert == Some("/etc/ssl/ca.pem"))
+}
+
+///|
+test "kv_sslcert_and_sslkey" {
+  let c = Config::from_connstr(
+    "sslcert=/etc/ssl/client.pem sslkey=/etc/ssl/client.key",
+  )
+  assert_true(c.sslcert == Some("/etc/ssl/client.pem"))
+  assert_true(c.sslkey == Some("/etc/ssl/client.key"))
+}
+
+///|
+test "uri_sslrootcert" {
+  let c = Config::from_connstr(
+    "postgresql://localhost?sslrootcert=/tmp/ca.pem&sslmode=verify-ca",
+  )
+  assert_eq(c.sslmode, "verify-ca")
+  assert_true(c.sslrootcert == Some("/tmp/ca.pem"))
+}
+
+///|
+test "kv_statement_timeout" {
+  let c = Config::from_connstr("statement_timeout=5000")
+  assert_eq(c.statement_timeout, 5000)
+}
+
+///|
+test "kv_target_session_attrs" {
+  let c = Config::from_connstr("target_session_attrs=read-write")
+  assert_eq(c.target_session_attrs, "read-write")
+}
+
+///|
+test "target_session_attrs_default" {
+  let c = Config::new("user")
+  assert_eq(c.target_session_attrs, "any")
+}
+
+///|
+test "ssl_defaults" {
+  let c = Config::new("user")
+  assert_eq(c.sslmode, "disable")
+  assert_true(c.sslrootcert == None)
+  assert_true(c.sslcert == None)
+  assert_true(c.sslkey == None)
+}

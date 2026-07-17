@@ -584,3 +584,85 @@ async test "pool_reuse_across_operations" {
   rows.close()
   pool.close()
 }
+
+// ---------------------------------------------------------------------------
+// Pool::maintain — background maintenance
+// ---------------------------------------------------------------------------
+
+///|
+async test "pool_maintain_refills_min_idle" {
+  let cfg = PoolConfig::new(pool_test_conninfo, max_conns=5, min_idle=3)
+  let pool = Pool::new(cfg)
+  defer pool.close()
+
+  assert_eq(pool.idle(), 3)
+
+  // Acquire all idle connections
+  let p1 = pool.acquire()
+  let p2 = pool.acquire()
+  let p3 = pool.acquire()
+  assert_eq(pool.idle(), 0)
+
+  p1.release()
+  assert_eq(pool.idle(), 1)
+
+  // maintain() should refill back to min_idle=3
+  pool.maintain()
+  assert_eq(pool.idle(), 3)
+
+  p2.release()
+  p3.release()
+}
+
+// ---------------------------------------------------------------------------
+// PoolStats
+// ---------------------------------------------------------------------------
+
+///|
+async test "pool_stats_counters" {
+  let cfg = PoolConfig::new(pool_test_conninfo, max_conns=4, min_idle=0)
+  let pool = Pool::new(cfg)
+  defer pool.close()
+
+  let s0 = pool.stats()
+  assert_eq(s0.total_connections, 0)
+  assert_eq(s0.idle_connections, 0)
+  assert_eq(s0.active_connections, 0)
+
+  let pc = pool.acquire()
+  let s1 = pool.stats()
+  assert_eq(s1.total_connections, 1)
+  assert_eq(s1.idle_connections, 0)
+  assert_eq(s1.active_connections, 1)
+  assert_eq(s1.acquire_count, 1L)
+
+  pc.release()
+  let s2 = pool.stats()
+  assert_eq(s2.total_connections, 1)
+  assert_eq(s2.idle_connections, 1)
+  assert_eq(s2.active_connections, 0)
+}
+
+///|
+async test "pool_stats_acquire_wait" {
+  let cfg = PoolConfig::new(pool_test_conninfo, max_conns=2, min_idle=2)
+  let pool = Pool::new(cfg)
+  defer pool.close()
+
+  let p1 = pool.acquire()
+  let p2 = pool.acquire()
+
+  // Third acquire will wait until one is released
+  @async.with_task_group() <| group => {
+    group.spawn_bg() <| () => {
+      @async.sleep(200)
+      p1.release()
+    }
+    let p3 = pool.acquire()
+    p3.release()
+  }
+
+  let stats = pool.stats()
+  assert_true(stats.acquire_wait_count >= 1L)
+  p2.release()
+}

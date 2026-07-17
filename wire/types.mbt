@@ -191,3 +191,7 @@ pub const MSG_COPY_DONE : Byte = b'c'
 ///|
 /// `CopyFail` is frontend-only (server never sends it).
 pub const MSG_COPY_FAIL : Byte = b'f'
+
+///|
+/// NegotiateProtocolVersion ('v') — PG 17+ protocol version negotiation.
+pub const MSG_NEGOTIATE_PROTOCOL_VERSION : Byte = b'v'

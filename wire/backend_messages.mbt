@@ -117,6 +117,8 @@ pub(all) enum BackendMessage {
   CopyBothResponse(CopyBothResponse)
   CopyData(CopyData)
   CopyDone(CopyDone)
+  NotificationResponse(NotificationResponse)
+  NegotiateProtocolVersion(NegotiateProtocolVersion)
   // Catch-all for messages not yet implemented
   Unknown(Byte, BytesView)
 }
@@ -150,6 +152,8 @@ pub fn BackendMessage::describe(self : BackendMessage) -> String {
     CopyBothResponse(m) => m.describe()
     CopyData(m) => m.describe()
     CopyDone(m) => m.describe()
+    NotificationResponse(m) => m.describe()
+    NegotiateProtocolVersion(m) => m.describe()
     Unknown(b, _) => "Unknown(type=\{b.to_int()})"
   }
 }
@@ -1105,5 +1109,122 @@ pub impl Message for CopyBothResponse with fn decode(
 ///|
 pub impl Message for CopyBothResponse with fn describe(_self) -> String {
   "CopyBothResponse"
+}
+
+// ---------------------------------------------------------------------------
+// NotificationResponse ('A') — LISTEN / NOTIFY
+// ---------------------------------------------------------------------------
+
+///|
+/// PostgreSQL `NotificationResponse` (B).
+///
+/// Sent when a `NOTIFY` command is executed for a channel the client is
+/// listening on (via `LISTEN`).  Can arrive at any time — even during
+/// a query — so the driver queues them transparently.
+pub(all) struct NotificationResponse {
+  /// Process ID of the notifying backend.
+  pid : Int
+  /// Channel name that was notified.
+  channel : String
+  /// Optional payload string (empty string if no payload was given).
+  payload : String
+}
+
+///|
+pub impl Message for NotificationResponse with fn encode(self) -> Bytes {
+  let buf = BytesMut::new()
+  buf.append_byte(MSG_NOTIFICATION_RESPONSE)
+  buf.append_int_be(0) // placeholder
+  buf.append_int_be(self.pid)
+  buf.append_string_null(self.channel)
+  buf.append_string_null(self.payload)
+  let total = buf.len() - 1
+  buf.set_int_be(1, total)
+  buf.to_bytes()
+}
+
+///|
+pub impl Message for NotificationResponse with fn decode(
+  payload : BytesView,
+) -> NotificationResponse raise WireError {
+  guard payload is [i32be(pid), .. rest] else {
+    raise WireError::InvalidMessage("NotificationResponse: truncated pid")
+  }
+  let (channel, r1) = read_cstring(rest[:])
+  let (payload_str, _) = read_cstring(r1)
+  NotificationResponse::{ pid, channel, payload: payload_str }
+}
+
+///|
+pub impl Message for NotificationResponse with fn describe(self) -> String {
+  "NotificationResponse(ch=\{self.channel}, payload=\{self.payload})"
+}
+
+// ---------------------------------------------------------------------------
+// NegotiateProtocolVersion ('v') — PG 17+ protocol negotiation
+// ---------------------------------------------------------------------------
+
+///|
+/// PostgreSQL `NegotiateProtocolVersion` (B).
+///
+/// Sent when the client requests a protocol version newer than the server
+/// supports within the same major version. The client should re-send its
+/// `StartupMessage` with the version offered by the server.
+pub(all) struct NegotiateProtocolVersion {
+  /// The newest minor version the server supports for the requested major version.
+  newest_minor_version : Int
+  /// Optionally, a list of protocol options not available to the client.
+  options : Array[String]
+}
+
+///|
+pub impl Message for NegotiateProtocolVersion with fn encode(self) -> Bytes {
+  let buf = BytesMut::new()
+  buf.append_byte(MSG_NEGOTIATE_PROTOCOL_VERSION)
+  buf.append_int_be(0) // placeholder
+  buf.append_int_be(self.newest_minor_version)
+  let n = self.options.length()
+  buf.append_byte(((n >> 8) & 0xFF).to_byte())
+  buf.append_byte((n & 0xFF).to_byte())
+  for option in self.options {
+    buf.append_string_null(option)
+  }
+  let total = buf.len() - 1
+  buf.set_int_be(1, total)
+  buf.to_bytes()
+}
+
+///|
+pub impl Message for NegotiateProtocolVersion with fn decode(
+  payload : BytesView,
+) -> NegotiateProtocolVersion raise WireError {
+  guard payload is [i32be(minor), .. rest] else {
+    raise WireError::InvalidMessage(
+      "NegotiateProtocolVersion: truncated minor version",
+    )
+  }
+  // Read option count (int16be). Must use pattern match on rest.
+  let (nopts, r0) = match rest {
+    [b0, b1, .. r] => {
+      let count = (b0.to_int() << 8) | b1.to_int()
+      (count, r)
+    }
+    _ => (0, rest)
+  }
+  let options : Array[String] = []
+  for r = r0 {
+    if options.length() >= nopts {
+      break
+    }
+    let (opt, r1) = read_cstring(r[:])
+    options.push(opt)
+    continue r1
+  }
+  NegotiateProtocolVersion::{ newest_minor_version: minor, options }
+}
+
+///|
+pub impl Message for NegotiateProtocolVersion with fn describe(self) -> String {
+  "NegotiateProtocolVersion(minor=\{self.newest_minor_version}, options=\{self.options.length()})"
 }
 

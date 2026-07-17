@@ -43,6 +43,7 @@ pub(all) struct PoolConfig {
   max_idle_sec : Int
   max_lifetime_sec : Int
   health_check : Bool
+  maintenance_interval_sec : Int
 }
 
 ///|
@@ -53,8 +54,30 @@ pub fn PoolConfig::new(
   max_idle_sec? : Int = 0,
   max_lifetime_sec? : Int = 0,
   health_check? : Bool = false,
+  maintenance_interval_sec? : Int = 0,
 ) -> PoolConfig {
-  { conninfo, max_conns, min_idle, max_idle_sec, max_lifetime_sec, health_check }
+  { conninfo, max_conns, min_idle, max_idle_sec, max_lifetime_sec, health_check, maintenance_interval_sec }
+}
+
+// ---------------------------------------------------------------------------
+// PoolStats
+// ---------------------------------------------------------------------------
+
+///|
+/// Snapshot of pool statistics.
+pub(all) struct PoolStats {
+  /// Total connections (idle + active).
+  total_connections : Int
+  /// Connections sitting idle in the pool.
+  idle_connections : Int
+  /// Connections currently checked out.
+  active_connections : Int
+  /// Total number of `acquire()` calls.
+  acquire_count : Int64
+  /// Number of acquires that had to wait because the pool was exhausted.
+  acquire_wait_count : Int64
+  /// Cumulative milliseconds spent waiting in `acquire()`.
+  acquire_wait_duration_ms : Int64
 }
 
 // ---------------------------------------------------------------------------
@@ -77,10 +100,17 @@ pub(all) struct Pool {
   queue : @aqueue.Queue[IdleConn]
   conninfo : String
   max_conns : Int
+  min_idle : Int
   max_idle_sec : Int
   max_lifetime_sec : Int
   health_check : Bool
+  maintenance_interval_sec : Int
   count : Ref[Int]
+  idle_count : Ref[Int]
+  running : Ref[Bool]
+  acquire_count : Ref[Int64]
+  acquire_wait_count : Ref[Int64]
+  acquire_wait_duration : Ref[Int64]
 }
 
 ///|
@@ -140,16 +170,24 @@ pub async fn Pool::new(config : PoolConfig) -> Pool raise PgError {
     queue: @aqueue.Queue(kind=@aqueue.Unbounded),
     conninfo: config.conninfo,
     max_conns: config.max_conns,
+    min_idle: config.min_idle,
     max_idle_sec: config.max_idle_sec,
     max_lifetime_sec: config.max_lifetime_sec,
     health_check: config.health_check,
+    maintenance_interval_sec: config.maintenance_interval_sec,
     count: Ref(0),
+    idle_count: Ref(0),
+    running: Ref(false),
+    acquire_count: Ref(0L),
+    acquire_wait_count: Ref(0L),
+    acquire_wait_duration: Ref(0L),
   }
+  // Pre-fill idle connections up to min_idle
   for _ in 0..<config.min_idle {
     let conn = connect(pool.conninfo)
     let now = @async.now()
     pool.count.val = pool.count.val + 1
-    let _ = pool.queue.try_put(IdleConn::{
+    let ok = pool.queue.try_put(IdleConn::{
       conn,
       created_at: now,
       idle_since: now,
@@ -160,6 +198,9 @@ pub async fn Pool::new(config : PoolConfig) -> Pool raise PgError {
         false
       }
     }
+    if ok {
+      pool.idle_count.val = pool.idle_count.val + 1
+    }
   }
   pool
 }
@@ -167,6 +208,130 @@ pub async fn Pool::new(config : PoolConfig) -> Pool raise PgError {
 ///|
 pub fn Pool::total(self : Pool) -> Int {
   self.count.val
+}
+
+///|
+/// Number of idle connections currently in the pool.
+pub fn Pool::idle(self : Pool) -> Int {
+  self.idle_count.val
+}
+
+///|
+/// Return a snapshot of pool statistics.
+pub fn Pool::stats(self : Pool) -> PoolStats {
+  PoolStats::{
+    total_connections: self.count.val,
+    idle_connections: self.idle_count.val,
+    active_connections: self.count.val - self.idle_count.val,
+    acquire_count: self.acquire_count.val,
+    acquire_wait_count: self.acquire_wait_count.val,
+    acquire_wait_duration_ms: self.acquire_wait_duration.val,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Background maintenance
+// ---------------------------------------------------------------------------
+
+///|
+/// Start background maintenance.
+///
+/// Periodically cleans expired idle connections and refills up to `min_idle`.
+/// Runs until `Pool::close()` is called.  Call this once after creating the
+/// pool.
+///
+/// When `maintenance_interval_sec` is 0 (the default) this is a no-op —
+/// maintenance happens lazily during `acquire()` / `release()` instead.
+pub async fn Pool::start_maintenance(self : Pool) -> Unit {
+  if self.maintenance_interval_sec <= 0 {
+    return
+  }
+  self.running.val = true
+  @async.with_task_group() <| group => {
+    group.spawn_loop(no_wait=true) <| () => {
+      @async.sleep(self.maintenance_interval_sec * 1000)
+      if !self.running.val {
+        raise @async.BreakFromSpawnLoop
+      }
+      self.maintain()
+    }
+  }
+}
+
+///|
+/// Run one round of maintenance:
+///
+/// 1. Drain all idle connections from the queue, closing expired ones.
+/// 2. Put the good ones back.
+/// 3. Create new connections if idle count is below `min_idle`.
+///
+/// Called automatically by the background maintenance loop; may also be
+/// called manually.
+pub async fn Pool::maintain(self : Pool) -> Unit {
+  // --- drain & filter -------------------------------------------------------
+  let good : Array[IdleConn] = []
+  for ;; {
+    let maybe : IdleConn? = self.queue.try_get() catch { _ => break }
+    match maybe {
+      None => break
+      Some(idle) => {
+        self.idle_count.val = self.idle_count.val - 1
+        if self.expired(idle) {
+          idle.conn.close()
+          self.count.val = self.count.val - 1
+        } else {
+          good.push(idle)
+        }
+      }
+    }
+  }
+  // --- put good ones back ---------------------------------------------------
+  for idle in good {
+    let ok = self.queue.try_put(idle) catch {
+      _ => {
+        idle.conn.close()
+        self.count.val = self.count.val - 1
+        false
+      }
+    }
+    if ok {
+      self.idle_count.val = self.idle_count.val + 1
+    } else {
+      idle.conn.close()
+      self.count.val = self.count.val - 1
+    }
+  }
+  // --- refill to min_idle ---------------------------------------------------
+  if self.min_idle > 0 {
+    for _ in 0..<(self.min_idle - self.idle_count.val) {
+      if self.count.val >= self.max_conns {
+        break
+      }
+      let conn = connect(self.conninfo) catch {
+        _ => break // stop refilling on error
+      }
+      self.count.val = self.count.val + 1
+      let now = @async.now()
+      let ok = self.queue.try_put(IdleConn::{
+        conn,
+        created_at: now,
+        idle_since: now,
+      }) catch {
+        _ => {
+          conn.close()
+          self.count.val = self.count.val - 1
+          break
+        }
+      }
+      if ok {
+        self.idle_count.val = self.idle_count.val + 1
+      } else {
+        conn.close()
+        self.count.val = self.count.val - 1
+        break
+      }
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -196,11 +361,13 @@ fn Pool::expired(self : Pool, idle : IdleConn) -> Bool {
 
 ///|
 pub async fn Pool::acquire(self : Pool) -> PoolConn raise PgError {
+  self.acquire_count.val = self.acquire_count.val + 1L
   let maybe_idle : IdleConn? = self.queue.try_get() catch {
     _ => raise PgError::ConnectionError("pool closed")
   }
   match maybe_idle {
-    Some(idle) =>
+    Some(idle) => {
+      self.idle_count.val = self.idle_count.val - 1
       if self.expired(idle) {
         idle.conn.close()
         self.count.val = self.count.val - 1
@@ -208,6 +375,7 @@ pub async fn Pool::acquire(self : Pool) -> PoolConn raise PgError {
       } else {
         self.checkout(idle)
       }
+    }
     None =>
       if self.count.val < self.max_conns {
         self.count.val = self.count.val + 1
@@ -215,9 +383,13 @@ pub async fn Pool::acquire(self : Pool) -> PoolConn raise PgError {
         let conn = connect(self.conninfo)
         PoolConn::{ conn, pool: self, created_at: now, released: Ref(false) }
       } else {
+        let wait_start = @async.now()
+        self.acquire_wait_count.val = self.acquire_wait_count.val + 1L
         let idle : IdleConn = self.queue.get() catch {
           _ => raise PgError::ConnectionError("pool closed while waiting")
         }
+        self.acquire_wait_duration.val = self.acquire_wait_duration.val + @async.now() - wait_start
+        self.idle_count.val = self.idle_count.val - 1
         if idle.conn.status() != ConnStatus::OK || self.expired(idle) {
           idle.conn.close()
           self.count.val = self.count.val - 1
@@ -284,7 +456,9 @@ pub fn PoolConn::release(self : PoolConn) -> Unit {
       return
     }
   }
-  if !ok {
+  if ok {
+    self.pool.idle_count.val = self.pool.idle_count.val + 1
+  } else {
     idle.conn.close()
     self.pool.count.val = self.pool.count.val - 1
   }
@@ -299,11 +473,15 @@ pub fn PoolConn::close(self : PoolConn) -> Unit {
 
 ///|
 pub fn Pool::close(self : Pool) -> Unit {
+  self.running.val = false
   self.queue.close()
   for ;; {
     let maybe : IdleConn? = self.queue.try_get() catch { _ => break }
     match maybe {
-      Some(idle) => idle.conn.close()
+      Some(idle) => {
+        idle.conn.close()
+        self.idle_count.val = self.idle_count.val - 1
+      }
       None => break
     }
   }
