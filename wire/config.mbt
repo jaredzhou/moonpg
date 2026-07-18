@@ -214,7 +214,9 @@ fn parse_kv(s : String) -> Config raise WireError {
 /// Returns `(keyword, rest_past_=)`.
 fn scan_keyword(s : StringView) -> (String, StringView) raise WireError {
   guard s.find("=") is Some(index) else {
-    raise WireError::Parse("invalid connection string: expected '=' after '\{s}'")
+    raise WireError::Parse(
+      "invalid connection string: expected '=' after '\{s}'",
+    )
   }
   // Skip optional whitespace between keyword and `=`.
   let key = s[0:index].trim().to_owned()

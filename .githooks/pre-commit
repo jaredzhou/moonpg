@@ -1,3 +1,14 @@
 #!/bin/sh
+set -e
 
-moon check
+echo "==> moon fmt --check"
+moon fmt --check
+
+echo "==> moon info"
+moon info
+
+echo "==> moon check --deny-warn"
+moon check --deny-warn
+
+echo "==> moon test --deny-warn"
+moon test --deny-warn

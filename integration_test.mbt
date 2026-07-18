@@ -594,22 +594,18 @@ async test "listen_notify_queue" {
     let listener = c1.listen("moonpg_test_channel", group)
     println("Listening on channel: moonpg_test_channel")
     // Notify from another connection after a short delay
-    group.spawn_bg() <| () => {
+    let c2_task = group.spawn(() => {
       let c2 = connect(test_conninfo)
       c2.notify("moonpg_test_channel", payload="hello")
       c2.close()
-    }
-
-    // Timeout guard: abort test after 5s
-    // group.spawn_bg() <| () => {
-    //   @async.sleep(5000)
-    //   group.return_immediately(())
-    // }
+    })
 
     let notif = listener.recv()
     println(notif.payload)
     assert_eq(notif.channel, "moonpg_test_channel")
     assert_eq(notif.payload, "hello")
+    // Wait for c2 to finish before shutting down to avoid cancellation race.
+    let _ = c2_task.wait()
     group.return_immediately(())
   }
 }
@@ -646,7 +642,8 @@ async test "binary_result_format_roundtrip" {
       #|VALUES ($1, $2, $3, $4, $5, $6)
     ),
     params=[42, 9_000_000_000L, 3.14, true, "binary-test", "b@t.com"],
-  ) |> ignore
+  )
+  |> ignore
 
   let raw = @wire.connect(conninfo)
   defer raw.close()
@@ -692,7 +689,8 @@ async test "binary_result_format_nullable" {
   c.execute(
     "INSERT INTO moonpg_types (i4, i8, f8, flag, name, email) VALUES ($1, $2, $3, $4, $5, $6)",
     params=[1, 2L, 1.0, false, "null-test", null_email],
-  ) |> ignore
+  )
+  |> ignore
 
   let raw = @wire.connect(conninfo)
   defer raw.close()
@@ -732,7 +730,8 @@ async test "binary_result_format_bytea" {
   // Insert via decode() for reliable hex → bytea (avoids escape issues)
   c.execute(
     "INSERT INTO moonpg_bytea_test (data) VALUES (decode('000102DEADBEEFFF', 'hex'))",
-  ) |> ignore
+  )
+  |> ignore
 
   let input : Bytes = b"\x00\x01\x02\xDE\xAD\xBE\xEF\xFF"
 

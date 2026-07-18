@@ -84,14 +84,20 @@ pc.release()
 
 ```moonbit nocheck
 // System CA (default)
+
+///|
 let conn = @moonpg.connect("postgres://user:pw@host/db?sslmode=require")
 
 // Custom CA certificate
+
+///|
 let conn = @moonpg.connect(
   "postgres://user:pw@host/db?sslmode=verify-ca&sslrootcert=/etc/certs/ca.pem",
 )
 
 // Client certificate
+
+///|
 let conn = @moonpg.connect(
   "postgres://user:pw@host/db?sslmode=require&sslcert=/etc/certs/client.pem&sslkey=/etc/certs/client.key",
 )

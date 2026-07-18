@@ -8,8 +8,8 @@
 /// A bidirectional stream that can be closed.
 ///
 /// Supertrait of `@io.Reader + @io.Writer` with an explicit `close` method.
-pub(open) trait Transport : @io.Reader + @io.Writer {
-  close(Self) -> Unit
+pub(open) trait Transport: @io.Reader + @io.Writer {
+  fn close(Self) -> Unit
 }
 
 ///|
@@ -25,7 +25,7 @@ pub(all) enum Stream {
 // ---------------------------------------------------------------------------
 
 ///|
-pub impl @io.Reader for Stream with _get_internal_buffer(self : Stream) {
+pub impl @io.Reader for Stream with fn _get_internal_buffer(self : Stream) {
   match self {
     Plain(tcp) => tcp._get_internal_buffer()
     Tls(tls) => tls._get_internal_buffer()
@@ -33,7 +33,7 @@ pub impl @io.Reader for Stream with _get_internal_buffer(self : Stream) {
 }
 
 ///|
-pub impl @io.Reader for Stream with _direct_read(
+pub impl @io.Reader for Stream with fn _direct_read(
   self : Stream,
   buf : FixedArray[Byte],
   offset~ : Int,
@@ -51,7 +51,7 @@ pub impl @io.Reader for Stream with _direct_read(
 // ---------------------------------------------------------------------------
 
 ///|
-pub impl @io.Writer for Stream with write_once(
+pub impl @io.Writer for Stream with fn write_once(
   self : Stream,
   buf : Bytes,
   offset~ : Int,
@@ -69,7 +69,7 @@ pub impl @io.Writer for Stream with write_once(
 // ---------------------------------------------------------------------------
 
 ///|
-pub impl Transport for Stream with close(self : Stream) -> Unit {
+pub impl Transport for Stream with fn close(self : Stream) -> Unit {
   match self {
     Plain(tcp) => tcp.close()
     Tls(tls) => tls.close()

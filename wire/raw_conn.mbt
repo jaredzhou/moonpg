@@ -62,10 +62,9 @@ pub async fn connect_config(config : Config) -> RawConn raise WireError {
     e => raise WireError::IO("resolve \{config.host}:\{config.port}: \{e}")
   }
   let tcp = if config.connect_timeout > 0 {
-    @async.with_timeout(
-      config.connect_timeout * 1000,
-      () => { @socket.Tcp::connect(addr) },
-    ) catch {
+    @async.with_timeout(config.connect_timeout * 1000, () => {
+      @socket.Tcp::connect(addr)
+    }) catch {
       @async.TimeoutError =>
         raise WireError::Connect(
           "connection timed out after \{config.connect_timeout}s",
@@ -86,7 +85,7 @@ pub async fn connect_config(config : Config) -> RawConn raise WireError {
     _ => false
   }
   let stream = if wants_tls {
-    let ssl_req = SSLRequest::{}
+    let ssl_req = SSLRequest::{  }
     tcp.write(ssl_req.encode()) catch {
       e => raise WireError::IO("SSL request write: \{e}")
     }
@@ -99,11 +98,7 @@ pub async fn connect_config(config : Config) -> RawConn raise WireError {
           Some(path) => @tls.CustomPemFile(path)
           None => @tls.SystemRoot
         }
-        let tls = @tls.Tls::client(
-          tcp,
-          host=config.host,
-          trust=trust,
-        ) catch {
+        let tls = @tls.Tls::client(tcp, host=config.host, trust~) catch {
           e => raise WireError::Connect("TLS handshake: \{e}")
         }
         Stream::Tls(tls)
@@ -116,11 +111,8 @@ pub async fn connect_config(config : Config) -> RawConn raise WireError {
         }
         Stream::Plain(tcp)
       }
-      b => {
-        raise WireError::Connect(
-          "unexpected SSL response byte: \{b.to_int()}",
-        )
-      }
+      b =>
+        raise WireError::Connect("unexpected SSL response byte: \{b.to_int()}")
     }
   } else {
     Stream::Plain(tcp)
@@ -148,12 +140,16 @@ pub async fn connect_config(config : Config) -> RawConn raise WireError {
   startup_params.push(ConnParam::{ key: "database", value: db })
   // application_name
   match config.application_name {
-    Some(name) => startup_params.push(ConnParam::{ key: "application_name", value: name })
+    Some(name) =>
+      startup_params.push(ConnParam::{ key: "application_name", value: name })
     None => ()
   }
   // statement_timeout (milliseconds, 0 = no timeout)
   if config.statement_timeout > 0 {
-    startup_params.push(ConnParam::{ key: "statement_timeout", value: config.statement_timeout.to_string() })
+    startup_params.push(ConnParam::{
+      key: "statement_timeout",
+      value: config.statement_timeout.to_string(),
+    })
   }
   let startup = StartupMessage::{ version: V3_2, params: startup_params }
   conn.send(startup)
@@ -199,7 +195,7 @@ pub async fn connect_config(config : Config) -> RawConn raise WireError {
         pid = m.pid
         secret_key = m.secret_key
       }
-      NegotiateProtocolVersion(m) => {
+      NegotiateProtocolVersion(m) =>
         // PG 17+ server proposes a different minor protocol version.
         // We requested V3_2 which is universally supported, so this
         // should never arrive in practice.  Log and continue — the
@@ -209,7 +205,6 @@ pub async fn connect_config(config : Config) -> RawConn raise WireError {
             "Note: server proposed protocol minor version \{m.newest_minor_version}",
           )
         }
-      }
       ReadyForQuery(rfq) => {
         conn.tx_status = rfq.status
         break
@@ -816,7 +811,7 @@ pub async fn RawConn::send_copy_data(
   self : RawConn,
   data : Bytes,
 ) -> Unit raise WireError {
-  self.send(CopyData::{ data })
+  self.send(CopyData::{ data, })
 }
 
 ///|
@@ -831,7 +826,7 @@ pub async fn RawConn::send_copy_fail(
   self : RawConn,
   message : String,
 ) -> Unit raise WireError {
-  self.send(CopyFail::{ message })
+  self.send(CopyFail::{ message, })
 }
 
 ///|
@@ -845,7 +840,7 @@ pub async fn RawConn::begin_copy_in(
   sql : String,
 ) -> Unit raise WireError {
   self.lock()
-  self.send(Query::{ sql })
+  self.send(Query::{ sql, })
 
   // Read until CopyInResponse
   for ;; {

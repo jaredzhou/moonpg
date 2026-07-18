@@ -10,10 +10,17 @@ async test "connect_md5" {
 
 ///|
 async test "connect_scram" {
-  let conn = connect(
-    "postgres://moonpg_scram:scram_pass@localhost:5432/moonpg_test",
-  )
-  conn.close()
+  try {
+    let conn = connect(
+      "postgres://moonpg_scram:scram_pass@localhost:5432/moonpg_test",
+    )
+    conn.close()
+  } catch {
+    WireError::InvalidMessage(m) => fail("SCRAM InvalidMessage: \{m}")
+    WireError::Auth(m) => fail("SCRAM Auth: \{m}")
+    WireError::Connect(m) => fail("SCRAM Connect: \{m}")
+    _ => fail("SCRAM other error")
+  }
 }
 
 ///|

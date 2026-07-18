@@ -56,7 +56,15 @@ pub fn PoolConfig::new(
   health_check? : Bool = false,
   maintenance_interval_sec? : Int = 0,
 ) -> PoolConfig {
-  { conninfo, max_conns, min_idle, max_idle_sec, max_lifetime_sec, health_check, maintenance_interval_sec }
+  {
+    conninfo,
+    max_conns,
+    min_idle,
+    max_idle_sec,
+    max_lifetime_sec,
+    health_check,
+    maintenance_interval_sec,
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -388,7 +396,9 @@ pub async fn Pool::acquire(self : Pool) -> PoolConn raise PgError {
         let idle : IdleConn = self.queue.get() catch {
           _ => raise PgError::ConnectionError("pool closed while waiting")
         }
-        self.acquire_wait_duration.val = self.acquire_wait_duration.val + @async.now() - wait_start
+        self.acquire_wait_duration.val = self.acquire_wait_duration.val +
+          @async.now() -
+          wait_start
         self.idle_count.val = self.idle_count.val - 1
         if idle.conn.status() != ConnStatus::OK || self.expired(idle) {
           idle.conn.close()
@@ -580,10 +590,15 @@ pub impl TxBeginner for PoolConn with fn begin_tx(
   self : PoolConn,
   opts? : TxOptions,
 ) -> &Tx raise PgError {
-  self.conn.execute(build_begin_sql(match opts {
-    Some(o) => o
-    None => TxOptions::default()
-  })) |> ignore
+  self.conn.execute(
+    build_begin_sql(
+      match opts {
+        Some(o) => o
+        None => TxOptions::default()
+      },
+    ),
+  )
+  |> ignore
   DbTx::{ conn: self.conn }
 }
 
@@ -594,15 +609,14 @@ pub impl TxBeginner for PoolConn with fn begin_tx(
 ///|
 /// Acquire a connection from the pool and begin a transaction.
 /// Connection is returned to the pool on `commit()` or `rollback()`.
-pub impl TxBeginner for Pool with fn begin_tx(
-  self : Pool,
-  opts? : TxOptions,
-) -> &Tx raise PgError {
+pub impl TxBeginner for Pool with fn begin_tx(self : Pool, opts? : TxOptions) -> &Tx raise PgError {
   let pc = self.acquire()
-  let sql = build_begin_sql(match opts {
-    Some(o) => o
-    None => TxOptions::default()
-  })
+  let sql = build_begin_sql(
+    match opts {
+      Some(o) => o
+      None => TxOptions::default()
+    },
+  )
   try pc.conn.execute(sql) |> ignore catch {
     e => {
       pc.close()

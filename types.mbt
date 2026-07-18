@@ -147,12 +147,6 @@ pub impl FromRaw for Json with fn from_raw(v : RawValue) raise PgError {
 pub(all) struct Timestamp(Int64)
 
 ///|
-/// Return the Unix epoch time in microseconds.
-pub fn Timestamp::unix_micro(self : Timestamp) -> Int64 {
-  self.0
-}
-
-///|
 /// Offset between Unix epoch (1970-01-01) and PG epoch (2000-01-01)
 /// in microseconds: 30 years = 946,684,800,000,000 µs.
 let pg_epoch_offset : Int64 = 946684800000000L

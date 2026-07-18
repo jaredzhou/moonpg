@@ -993,17 +993,15 @@ pub impl Message for CopyInResponse with fn encode(self) -> Bytes {
 
 ///|
 /// Decode `CopyInResponse`. Format: Int8 overall, Int16 ncols, Int16[ncols].
-pub impl Message for CopyInResponse with fn decode(
-  payload : BytesView,
-) -> CopyInResponse raise WireError {
-  guard payload is [overall_fmt, i16be(ncols), ..rest] else {
+pub impl Message for CopyInResponse with fn decode(payload : BytesView) -> CopyInResponse raise WireError {
+  guard payload is [overall_fmt, i16be(ncols), .. rest] else {
     raise WireError::InvalidMessage("invalid CopyInResponse")
   }
   let overall_format = overall_fmt.to_int()
   let col_formats : Array[Int] = []
   let mut r = rest
   for _ in 0..<ncols {
-    guard r is [i16be(f), ..r2] else {
+    guard r is [i16be(f), .. r2] else {
       raise WireError::InvalidMessage("invalid CopyInResponse column format")
     }
     col_formats.push(f)
@@ -1040,17 +1038,15 @@ pub impl Message for CopyOutResponse with fn encode(self) -> Bytes {
 }
 
 ///|
-pub impl Message for CopyOutResponse with fn decode(
-  payload : BytesView,
-) -> CopyOutResponse raise WireError {
-  guard payload is [overall_fmt, i16be(ncols), ..rest] else {
+pub impl Message for CopyOutResponse with fn decode(payload : BytesView) -> CopyOutResponse raise WireError {
+  guard payload is [overall_fmt, i16be(ncols), .. rest] else {
     raise WireError::InvalidMessage("invalid CopyOutResponse")
   }
   let overall_format = overall_fmt.to_int()
   let col_formats : Array[Int] = []
   let mut r = rest
   for _ in 0..<ncols {
-    guard r is [i16be(f), ..r2] else {
+    guard r is [i16be(f), .. r2] else {
       raise WireError::InvalidMessage("invalid CopyOutResponse column format")
     }
     col_formats.push(f)
@@ -1087,17 +1083,15 @@ pub impl Message for CopyBothResponse with fn encode(self) -> Bytes {
 }
 
 ///|
-pub impl Message for CopyBothResponse with fn decode(
-  payload : BytesView,
-) -> CopyBothResponse raise WireError {
-  guard payload is [overall_fmt, i16be(ncols), ..rest] else {
+pub impl Message for CopyBothResponse with fn decode(payload : BytesView) -> CopyBothResponse raise WireError {
+  guard payload is [overall_fmt, i16be(ncols), .. rest] else {
     raise WireError::InvalidMessage("invalid CopyBothResponse")
   }
   let overall_format = overall_fmt.to_int()
   let col_formats : Array[Int] = []
   let mut r = rest
   for _ in 0..<ncols {
-    guard r is [i16be(f), ..r2] else {
+    guard r is [i16be(f), .. r2] else {
       raise WireError::InvalidMessage("invalid CopyBothResponse column format")
     }
     col_formats.push(f)
@@ -1144,9 +1138,7 @@ pub impl Message for NotificationResponse with fn encode(self) -> Bytes {
 }
 
 ///|
-pub impl Message for NotificationResponse with fn decode(
-  payload : BytesView,
-) -> NotificationResponse raise WireError {
+pub impl Message for NotificationResponse with fn decode(payload : BytesView) -> NotificationResponse raise WireError {
   guard payload is [i32be(pid), .. rest] else {
     raise WireError::InvalidMessage("NotificationResponse: truncated pid")
   }
@@ -1227,4 +1219,3 @@ pub impl Message for NegotiateProtocolVersion with fn decode(
 pub impl Message for NegotiateProtocolVersion with fn describe(self) -> String {
   "NegotiateProtocolVersion(minor=\{self.newest_minor_version}, options=\{self.options.length()})"
 }
-

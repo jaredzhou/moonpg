@@ -224,7 +224,9 @@ pub(all) struct Listener {
 
 ///|
 /// Block until a notification arrives.
-pub async fn Listener::recv(self : Listener) -> @wire.NotificationResponse raise PgError {
+pub async fn Listener::recv(
+  self : Listener,
+) -> @wire.NotificationResponse raise PgError {
   self.q.get() catch {
     _ => raise PgError::ConnectionError("listen connection closed")
   }
@@ -255,17 +257,14 @@ pub async fn[X] Connection::listen(
   let conn = self.conn
 
   group.spawn_loop(no_wait=false) <| () => {
-    let msg = conn.receive() catch {
-      _ => raise @async.BreakFromSpawnLoop
-    }
+    let msg = conn.receive() catch { _ => raise @async.BreakFromSpawnLoop }
     match msg {
-      @wire.NotificationResponse(n) =>
-        ignore(q.try_put(n) catch { _ => false })
+      @wire.NotificationResponse(n) => ignore(q.try_put(n) catch { _ => false })
       _ => ()
     }
   }
 
-  Listener::{ q }
+  Listener::{ q, }
 }
 
 ///|
@@ -602,7 +601,9 @@ fn escape_copy_string(s : String) -> String {
 ///|
 /// Hex-encode bytes to a string (no prefix).
 fn encode_hex(data : Bytes) -> String {
-  let hex_digits = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "A", "B", "C", "D", "E", "F"]
+  let hex_digits = [
+    "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "A", "B", "C", "D", "E", "F",
+  ]
   let mut result = ""
   for i = 0; i < data.length(); i = i + 1 {
     let byte = data[i].to_int()

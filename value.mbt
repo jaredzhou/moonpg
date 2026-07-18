@@ -231,6 +231,7 @@ pub(open) trait ToValue {
 ///
 /// The basic implementations raise `PgError::QueryError` on `Null`; use
 /// `Option[T]` for nullable columns.
+
 ///|
 pub(open) trait FromRaw {
   fn from_raw(RawValue) -> Self raise PgError
@@ -331,9 +332,7 @@ test "from_raw_binary_bool" {
   let v : Bool = FromRaw::from_raw(RawValue::Bytes(Binary, b"\x01"))
   assert_eq(v, true, msg="from_raw binary Bool true")
 
-  let v2 : Bool = FromRaw::from_raw(
-    RawValue::Bytes(Binary, b"\x00"),
-  )
+  let v2 : Bool = FromRaw::from_raw(RawValue::Bytes(Binary, b"\x00"))
   assert_eq(v2, false, msg="from_raw binary Bool false")
 }
 

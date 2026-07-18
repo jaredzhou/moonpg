@@ -33,11 +33,7 @@ pub(all) struct TxOptions {
 
 ///|
 pub fn TxOptions::default() -> TxOptions {
-  {
-    isolation_level: None,
-    read_only: None,
-    deferrable: None,
-  }
+  { isolation_level: None, read_only: None, deferrable: None }
 }
 
 ///|
@@ -82,10 +78,16 @@ pub impl TxBeginner for Connection with fn begin_tx(
   self : Connection,
   opts? : TxOptions,
 ) -> &Tx raise PgError {
-  Connection::execute(self, build_begin_sql(match opts {
-    Some(o) => o
-    None => TxOptions::default()
-  })) |> ignore
+  Connection::execute(
+    self,
+    build_begin_sql(
+      match opts {
+        Some(o) => o
+        None => TxOptions::default()
+      },
+    ),
+  )
+  |> ignore
   DbTx::{ conn: self }
 }
 

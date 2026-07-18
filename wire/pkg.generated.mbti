@@ -1,0 +1,559 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "jaredzhou/moonpg/wire"
+
+import {
+  "moonbitlang/async/io",
+  "moonbitlang/async/socket",
+  "moonbitlang/async/tls",
+  "moonbitlang/core/debug",
+  "moonbitlang/core/hashmap",
+}
+
+// Values
+pub const DEFAULT_PORT : Int = 5432
+
+pub const MSG_AUTHENTICATION : Byte = b'R'
+
+pub const MSG_BACKEND_KEY_DATA : Byte = b'K'
+
+pub const MSG_BIND : Byte = b'B'
+
+pub const MSG_BIND_COMPLETE : Byte = b'2'
+
+pub const MSG_CLOSE : Byte = b'C'
+
+pub const MSG_CLOSE_COMPLETE : Byte = b'3'
+
+pub const MSG_COMMAND_COMPLETE : Byte = b'C'
+
+pub const MSG_COPY_BOTH_RESPONSE : Byte = b'W'
+
+pub const MSG_COPY_DATA : Byte = b'd'
+
+pub const MSG_COPY_DONE : Byte = b'c'
+
+pub const MSG_COPY_FAIL : Byte = b'f'
+
+pub const MSG_COPY_IN_RESPONSE : Byte = b'G'
+
+pub const MSG_COPY_OUT_RESPONSE : Byte = b'H'
+
+pub const MSG_DATA_ROW : Byte = b'D'
+
+pub const MSG_DESCRIBE : Byte = b'D'
+
+pub const MSG_EMPTY_QUERY : Byte = b'I'
+
+pub const MSG_ERROR_RESPONSE : Byte = b'E'
+
+pub const MSG_EXECUTE : Byte = b'E'
+
+pub const MSG_FLUSH : Byte = b'H'
+
+pub const MSG_NEGOTIATE_PROTOCOL_VERSION : Byte = b'v'
+
+pub const MSG_NOTICE_RESPONSE : Byte = b'N'
+
+pub const MSG_NOTIFICATION_RESPONSE : Byte = b'A'
+
+pub const MSG_NO_DATA : Byte = b'n'
+
+pub const MSG_PARAMETER_DESCRIPTION : Byte = b't'
+
+pub const MSG_PARAMETER_STATUS : Byte = b'S'
+
+pub const MSG_PARSE : Byte = b'P'
+
+pub const MSG_PARSE_COMPLETE : Byte = b'1'
+
+pub const MSG_PASSWORD : Byte = b'p'
+
+pub const MSG_PORTAL_SUSPENDED : Byte = b's'
+
+pub const MSG_QUERY : Byte = b'Q'
+
+pub const MSG_READY_FOR_QUERY : Byte = b'Z'
+
+pub const MSG_ROW_DESCRIPTION : Byte = b'T'
+
+pub const MSG_SYNC : Byte = b'S'
+
+pub const MSG_TERMINATE : Byte = b'X'
+
+pub const PARAM_CLIENT_ENCODING : String = "client_encoding"
+
+pub const PARAM_SERVER_ENCODING : String = "server_encoding"
+
+pub const PARAM_SERVER_VERSION : String = "server_version"
+
+pub const PARAM_TIMEZONE : String = "TimeZone"
+
+pub const SSL_REQUEST_CODE : Int = 80877103
+
+pub fn compute_md5_password(String, String, Bytes) -> String
+
+pub async fn connect(String) -> RawConn raise WireError
+
+pub async fn connect_config(Config) -> RawConn raise WireError
+
+pub async fn handle_sasl_auth(RawConn, String, Array[String], String?) -> Unit raise WireError
+
+pub async fn handle_scram_auth(RawConn, String, String) -> Unit raise WireError
+
+// Errors
+pub suberror WireError {
+  PgServer(String)
+  Connect(String)
+  Auth(String)
+  Parse(String)
+  InvalidMessage(String)
+  IO(String)
+}
+
+// Types and methods
+pub(all) enum AuthMethod {
+  Ok
+  CleartextPassword
+  MD5Password
+  SASL
+  SASLContinue
+  SASLFinal
+} derive(Eq, @debug.Debug)
+pub fn AuthMethod::from_int(Int) -> Self raise WireError
+
+pub(all) struct AuthenticationCleartextPassword {
+}
+pub impl Message for AuthenticationCleartextPassword
+
+pub(all) struct AuthenticationMD5Password {
+  salt : Bytes
+}
+pub impl Message for AuthenticationMD5Password
+
+pub(all) struct AuthenticationOk {
+}
+pub impl Message for AuthenticationOk
+
+pub(all) struct AuthenticationSASL {
+  mechanisms : Array[String]
+}
+pub impl Message for AuthenticationSASL
+
+pub(all) struct AuthenticationSASLContinue {
+  data : Bytes
+}
+pub impl Message for AuthenticationSASLContinue
+
+pub(all) struct AuthenticationSASLFinal {
+  data : Bytes
+}
+pub impl Message for AuthenticationSASLFinal
+
+pub(all) struct BackendKeyData {
+  pid : Int
+  secret_key : Int
+}
+pub impl Message for BackendKeyData
+
+pub(all) enum BackendMessage {
+  AuthenticationOk(AuthenticationOk)
+  AuthenticationCleartextPassword(AuthenticationCleartextPassword)
+  AuthenticationMD5Password(AuthenticationMD5Password)
+  AuthenticationSASL(AuthenticationSASL)
+  AuthenticationSASLContinue(AuthenticationSASLContinue)
+  AuthenticationSASLFinal(AuthenticationSASLFinal)
+  BackendKeyData(BackendKeyData)
+  ReadyForQuery(ReadyForQuery)
+  ParameterStatus(ParameterStatus)
+  ErrorResponse(ErrorResponse)
+  NoticeResponse(NoticeResponse)
+  RowDescription(RowDescription)
+  DataRow(DataRow)
+  CommandComplete(CommandComplete)
+  EmptyQueryResponse(EmptyQueryResponse)
+  ParseComplete(ParseComplete)
+  BindComplete(BindComplete)
+  CloseComplete(CloseComplete)
+  ParameterDescription(ParameterDescription)
+  NoData(NoData)
+  PortalSuspended(PortalSuspended)
+  CopyInResponse(CopyInResponse)
+  CopyOutResponse(CopyOutResponse)
+  CopyBothResponse(CopyBothResponse)
+  CopyData(CopyData)
+  CopyDone(CopyDone)
+  NotificationResponse(NotificationResponse)
+  NegotiateProtocolVersion(NegotiateProtocolVersion)
+  Unknown(Byte, BytesView)
+}
+pub fn BackendMessage::describe(Self) -> String
+
+pub(all) struct Bind {
+  portal : String
+  statement : String
+  param_formats : Array[Int]
+  params : Array[Bytes?]
+  result_formats : Array[Int]
+}
+pub impl Message for Bind
+
+pub(all) struct BindComplete {
+}
+pub impl Message for BindComplete
+
+pub(all) struct BytesMut {
+  // private fields
+}
+pub fn BytesMut::append_byte(Self, Byte) -> Unit
+pub fn BytesMut::append_bytes(Self, Bytes) -> Unit
+pub fn BytesMut::append_int_be(Self, Int) -> Unit
+pub fn BytesMut::append_string_null(Self, String) -> Unit
+pub fn BytesMut::len(Self) -> Int
+pub fn BytesMut::new() -> Self
+pub fn BytesMut::set_byte(Self, Int, Byte) -> Unit
+pub fn BytesMut::set_int_be(Self, Int, Int) -> Unit
+pub fn BytesMut::to_bytes(Self) -> Bytes
+
+pub(all) struct Close {
+  variant : Byte
+  name : String
+}
+pub impl Message for Close
+
+pub(all) struct CloseComplete {
+}
+pub impl Message for CloseComplete
+
+pub(all) struct CommandComplete {
+  tag : CommandTag
+}
+pub impl Message for CommandComplete
+
+pub struct CommandTag {
+  tag : String
+}
+pub fn CommandTag::command(Self) -> String
+pub fn CommandTag::new(String) -> Self
+pub fn CommandTag::raw(Self) -> String
+pub fn CommandTag::rows_affected(Self) -> Int?
+pub impl Show for CommandTag
+
+pub(all) struct Config {
+  host : String
+  hostaddr : String?
+  port : Int
+  user : String
+  database : String?
+  password : String?
+  sslmode : String
+  sslrootcert : String?
+  sslcert : String?
+  sslkey : String?
+  application_name : String?
+  connect_timeout : Int
+  statement_timeout : Int
+  target_session_attrs : String
+  trace : Bool
+}
+pub fn Config::from_connstr(String) -> Self raise WireError
+pub fn Config::new(String, host? : String, hostaddr? : String?, port? : Int, database? : String?, password? : String?, sslmode? : String, sslrootcert? : String?, sslcert? : String?, sslkey? : String?, application_name? : String?, connect_timeout? : Int, statement_timeout? : Int, target_session_attrs? : String, trace? : Bool) -> Self
+
+pub(all) struct ConnParam {
+  key : String
+  value : String
+}
+
+pub enum ConnStatus {
+  Connecting
+  Closed
+  Idle
+  Busy
+} derive(Eq, @debug.Debug)
+
+pub(all) struct CopyBothResponse {
+  overall_format : Int
+  column_formats : Array[Int]
+}
+pub impl Message for CopyBothResponse
+
+pub(all) struct CopyData {
+  data : Bytes
+}
+pub impl Message for CopyData
+
+pub(all) struct CopyDone {
+}
+pub impl Message for CopyDone
+
+pub(all) struct CopyFail {
+  message : String
+}
+pub impl Message for CopyFail
+
+pub(all) struct CopyInResponse {
+  overall_format : Int
+  column_formats : Array[Int]
+}
+pub impl Message for CopyInResponse
+
+pub(all) struct CopyOutResponse {
+  overall_format : Int
+  column_formats : Array[Int]
+}
+pub impl Message for CopyOutResponse
+
+pub(all) struct DataRow {
+  values : Array[Bytes?]
+}
+pub impl Message for DataRow
+
+pub(all) struct Describe {
+  variant : Byte
+  name : String
+}
+pub impl Message for Describe
+
+pub(all) struct EmptyQueryResponse {
+}
+pub impl Message for EmptyQueryResponse
+
+pub(all) struct ErrorField {
+  field_type : Byte
+  value : String
+} derive(@debug.Debug)
+
+pub(all) struct ErrorResponse {
+  fields : Array[ErrorField]
+}
+pub fn ErrorResponse::code(Self) -> String?
+pub fn ErrorResponse::message(Self) -> String?
+pub fn ErrorResponse::severity(Self) -> String?
+pub impl Message for ErrorResponse
+
+pub(all) struct Execute {
+  portal : String
+  max_rows : Int
+}
+pub impl Message for Execute
+
+pub struct FieldDescription {
+  name : String
+  table_oid : Int
+  attr_num : Int
+  type_oid : Int
+  typlen : Int
+  typmod : Int
+  format : Int
+}
+
+pub(all) struct Flush {
+}
+pub impl Message for Flush
+
+pub(all) struct NegotiateProtocolVersion {
+  newest_minor_version : Int
+  options : Array[String]
+}
+pub impl Message for NegotiateProtocolVersion
+
+pub(all) struct NoData {
+}
+pub impl Message for NoData
+
+pub(all) struct NoticeResponse {
+  fields : Array[ErrorField]
+}
+pub fn NoticeResponse::message(Self) -> String?
+pub impl Message for NoticeResponse
+
+pub(all) struct NotificationResponse {
+  pid : Int
+  channel : String
+  payload : String
+}
+pub impl Message for NotificationResponse
+
+pub(all) struct ParameterDescription {
+  param_types : Array[Int]
+}
+pub impl Message for ParameterDescription
+
+pub(all) struct ParameterStatus {
+  name : String
+  value : String
+}
+pub impl Message for ParameterStatus
+
+pub(all) struct Parse {
+  name : String
+  query : String
+  param_types : Array[Int]
+}
+pub impl Message for Parse
+
+pub(all) struct ParseComplete {
+}
+pub impl Message for ParseComplete
+
+pub(all) struct PasswordMessage {
+  password : String
+}
+pub impl Message for PasswordMessage
+
+pub(all) struct PortalSuspended {
+}
+pub impl Message for PortalSuspended
+
+pub enum ProtocolVersion {
+  V3_0
+  V3_2
+} derive(Eq, @debug.Debug)
+pub fn ProtocolVersion::minor(Self) -> Int
+pub fn ProtocolVersion::to_int32(Self) -> Int
+
+pub(all) struct Query {
+  sql : String
+}
+pub impl Message for Query
+
+pub struct RawConn {
+  stream : Stream
+  mut trace : Bool
+  host : String
+  port : Int
+  params : @hashmap.HashMap[String, String]
+  pid : Int
+  secret_key : Int
+  mut tx_status : TransactionStatus
+  mut status : ConnStatus
+}
+pub fn RawConn::backend_pid(Self) -> Int
+pub async fn RawConn::begin_copy_in(Self, String) -> Unit raise WireError
+pub async fn RawConn::bind(Self, String, String, Array[Bytes?], Array[Int], Array[Int]) -> Unit raise WireError
+pub fn RawConn::close(Self) -> Unit
+pub async fn RawConn::close_portal(Self, String) -> Unit raise WireError
+pub async fn RawConn::close_statement(Self, String) -> Unit raise WireError
+pub async fn RawConn::copy_in(Self, String, Iter[String]) -> Unit raise WireError
+pub async fn RawConn::describe_portal(Self, String) -> Array[FieldDescription] raise WireError
+pub async fn RawConn::describe_statement(Self, String) -> Array[Int] raise WireError
+pub async fn RawConn::end_copy_in(Self) -> Unit raise WireError
+pub async fn RawConn::end_query(Self) -> Unit raise WireError
+pub async fn RawConn::execute(Self, String, Array[FieldDescription], Int) -> ResultReader raise WireError
+pub async fn RawConn::execute_params(Self, String, Array[Bytes?], Array[Int], Array[Int], Array[Int]) -> ResultReader raise WireError
+pub async fn RawConn::execute_prepared(Self, String, Array[Bytes?], Array[Int], Array[Int]) -> ResultReader raise WireError
+pub async fn RawConn::execute_statement(Self, StatementDescription, Array[Bytes?], Array[Int], Array[Int]) -> ResultReader raise WireError
+pub async fn RawConn::flush(Self) -> Unit raise WireError
+pub fn RawConn::is_busy(Self) -> Bool
+pub fn RawConn::is_closed(Self) -> Bool
+pub fn RawConn::param(Self, String) -> String?
+pub async fn RawConn::prepare(Self, String, String, Array[Int]) -> StatementDescription raise WireError
+pub async fn RawConn::read_byte(Self) -> Byte
+pub async fn RawConn::receive(Self) -> BackendMessage raise WireError
+pub async fn[M : Message] RawConn::send(Self, M) -> Unit raise WireError
+pub async fn RawConn::send_copy_data(Self, Bytes) -> Unit raise WireError
+pub async fn RawConn::send_copy_done(Self) -> Unit raise WireError
+pub async fn RawConn::send_copy_fail(Self, String) -> Unit raise WireError
+pub fn RawConn::set_trace(Self, Bool) -> Unit
+pub async fn RawConn::simple_query(Self, String) -> ResultReader raise WireError
+pub async fn RawConn::start_query(Self, String) -> Unit raise WireError
+pub fn RawConn::status(Self) -> ConnStatus
+pub async fn RawConn::sync(Self) -> Unit raise WireError
+pub async fn RawConn::terminate(Self) -> Unit
+pub async fn RawConn::try_close(Self) -> Unit
+pub fn RawConn::tx_status(Self) -> TransactionStatus
+
+pub(all) struct ReadyForQuery {
+  status : TransactionStatus
+}
+pub impl Message for ReadyForQuery
+
+pub struct Result {
+  columns : Array[FieldDescription]
+  rows : Array[Array[Bytes?]]
+  tag : CommandTag
+}
+
+pub struct ResultReader {
+  conn : RawConn
+  columns : Array[FieldDescription]
+  mut row_values : Array[Bytes?]?
+  mut closed : Bool
+  mut tag : CommandTag?
+}
+pub async fn ResultReader::close(Self) -> CommandTag raise WireError
+pub fn ResultReader::columns(Self) -> Array[FieldDescription]
+pub fn ResultReader::data_row(Self) -> Array[Bytes?] raise WireError
+pub async fn ResultReader::has_next(Self) -> Bool raise WireError
+pub async fn ResultReader::read(Self) -> Result raise WireError
+
+pub(all) struct RowDescription {
+  columns : Array[FieldDescription]
+}
+pub impl Message for RowDescription
+
+pub(all) struct SASLInitialResponse {
+  mechanism : String
+  initial_response : Bytes
+}
+pub impl Message for SASLInitialResponse
+
+pub(all) struct SASLResponse {
+  data : Bytes
+}
+pub impl Message for SASLResponse
+
+pub(all) struct SSLRequest {
+}
+pub impl Message for SSLRequest
+
+pub(all) struct StartupMessage {
+  version : ProtocolVersion
+  params : Array[ConnParam]
+}
+pub impl Message for StartupMessage
+
+pub struct StatementDescription {
+  name : String
+  sql : String
+  param_oids : Array[Int]
+  fields : Array[FieldDescription]
+}
+
+pub(all) enum Stream {
+  Plain(@socket.Tcp)
+  Tls(@tls.Tls)
+}
+pub impl Transport for Stream
+pub impl @io.Reader for Stream
+pub impl @io.Writer for Stream
+
+pub(all) struct Sync {
+}
+pub impl Message for Sync
+
+pub(all) struct Terminate {
+}
+pub impl Message for Terminate
+
+pub(all) enum TransactionStatus {
+  Idle
+  InBlock
+  Failed
+} derive(Eq, @debug.Debug)
+pub fn TransactionStatus::from_byte(Byte) -> Self raise WireError
+pub fn TransactionStatus::to_byte(Self) -> Byte
+pub impl Show for TransactionStatus
+
+// Type aliases
+
+// Traits
+pub(open) trait Message {
+  fn encode(Self) -> Bytes raise WireError
+  fn decode(BytesView) -> Self raise WireError
+  fn describe(Self) -> String
+}
+
+pub(open) trait Transport : @io.Reader + @io.Writer {
+  fn close(Self) -> Unit
+}
+

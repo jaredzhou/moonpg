@@ -117,27 +117,26 @@ fn generate_nonce() -> String {
 
 ///|
 fn parse_scram_attrs(
-  msg : String,
-) -> @hashmap.HashMap[String, String] raise WireError {
-  let map : @hashmap.HashMap[String, String] = @hashmap.HashMap([])
-  let bytes = @utf8.encode(msg)
+  data : Bytes,
+) -> @hashmap.HashMap[Int, String] raise WireError {
+  let map : @hashmap.HashMap[Int, String] = @hashmap.HashMap([])
   let mut i = 0
-  let len = bytes.length()
+  let len = data.length()
   while i < len {
-    let key = bytes[i:i + 1].to_owned().to_unchecked_string()
+    let key = data[i].to_int()
     i = i + 1
-    guard i < len && bytes[i] == b'=' else {
+    guard i < len && data[i] == b'=' else {
       raise WireError::InvalidMessage(
         "parse_scram_attrs: expected '=' after key",
       )
     }
     i = i + 1
     let start = i
-    while i < len && bytes[i] != b',' {
+    while i < len && data[i] != b',' {
       i = i + 1
     }
-    let value = @utf8.decode(bytes[start:i].to_owned()) catch {
-      _ => bytes[start:i].to_owned().to_unchecked_string()
+    let value = @utf8.decode(data[start:i].to_owned()) catch {
+      _ => data[start:i].to_owned().to_unchecked_string()
     }
     map.set(key, value)
     if i < len {
@@ -145,6 +144,15 @@ fn parse_scram_attrs(
     }
   }
   map
+}
+
+///|
+/// Look up a SCRAM attribute by its single-character key byte.
+fn scram_attr_get(
+  map : @hashmap.HashMap[Int, String],
+  key_byte : Byte,
+) -> String? {
+  map.get(key_byte.to_int())
 }
 
 ///|
@@ -157,7 +165,7 @@ priv struct ScramState {
   client_nonce : String
   client_first_message_bare : String
   salted_password : FixedArray[Byte]
-  auth_message : String
+  auth_message : Bytes
 }
 
 ///|
@@ -173,7 +181,7 @@ fn scram_client_first(user : String) -> (SASLInitialResponse, ScramState) {
     client_nonce,
     client_first_message_bare: client_first_bare,
     salted_password: FixedArray::make(32, b'\x00'),
-    auth_message: "",
+    auth_message: BytesMut::new().to_bytes(),
   }
   (msg, state)
 }
@@ -181,12 +189,12 @@ fn scram_client_first(user : String) -> (SASLInitialResponse, ScramState) {
 ///|
 fn scram_client_final(
   password : String,
-  server_first_msg : String,
+  server_first_data : Bytes,
   state : ScramState,
 ) -> (SASLResponse, ScramState) raise WireError {
-  let attrs = parse_scram_attrs(server_first_msg)
+  let attrs = parse_scram_attrs(server_first_data)
 
-  let combined_nonce = match attrs.get("r") {
+  let combined_nonce = match scram_attr_get(attrs, b'r') {
     Some(r) => r
     None =>
       raise WireError::InvalidMessage("SCRAM: server-first missing r= (nonce)")
@@ -199,12 +207,17 @@ fn scram_client_final(
     )
   }
 
-  let salt_b64 = match attrs.get("s") {
+  let salt_b64 = match scram_attr_get(attrs, b's') {
     Some(s) => s
-    None =>
-      raise WireError::InvalidMessage("SCRAM: server-first missing s= (salt)")
+    None => {
+      let r_val = scram_attr_get(attrs, b'r').unwrap_or("MISSING")
+      let i_val = scram_attr_get(attrs, b'i').unwrap_or("MISSING")
+      raise WireError::InvalidMessage(
+        "SCRAM: missing s=, r=\{r_val}, i=\{i_val}",
+      )
+    }
   }
-  let iterations_s = match attrs.get("i") {
+  let iterations_s = match scram_attr_get(attrs, b'i') {
     Some(i) => i
     None =>
       raise WireError::InvalidMessage(
@@ -234,15 +247,22 @@ fn scram_client_final(
   // 3. StoredKey = SHA256(ClientKey)
   let stored_key = @crypto.sha256(client_key)
 
-  // 4. AuthMessage
+  // 4. AuthMessage — constructed from raw bytes to avoid String encode/decode
+  //    round-trip corruption (AuthMessage = client-first-bare , server-first , client-final-without-proof)
   let client_final_without_proof = "c=biws,r=\{combined_nonce}"
-  let auth_message = "\{state.client_first_message_bare},\{server_first_msg},\{client_final_without_proof}"
+  let auth_buf = BytesMut::new()
+  auth_buf.append_bytes(@utf8.encode(state.client_first_message_bare))
+  auth_buf.append_byte(b',')
+  auth_buf.append_bytes(server_first_data)
+  auth_buf.append_byte(b',')
+  auth_buf.append_bytes(@utf8.encode(client_final_without_proof))
+  let auth_message = auth_buf.to_bytes()
 
   // 5. ClientSignature = HMAC(StoredKey, AuthMessage)
   let client_signature = @crypto.hmac(
     @crypto.SHA256::new(),
     as_bytesview(stored_key),
-    @utf8.encode(auth_message),
+    auth_message,
   )
 
   // 6. ClientProof = ClientKey XOR ClientSignature
@@ -263,17 +283,17 @@ fn scram_client_final(
 
 ///|
 fn scram_verify_server_final(
-  server_final_msg : String,
+  server_final_data : Bytes,
   state : ScramState,
 ) -> Unit raise WireError {
-  let attrs = parse_scram_attrs(server_final_msg)
+  let attrs = parse_scram_attrs(server_final_data)
 
-  match attrs.get("e") {
+  match scram_attr_get(attrs, b'e') {
     Some(e) => raise WireError::InvalidMessage("SCRAM: server error: \{e}")
     None => ()
   }
 
-  let server_proof_b64 = match attrs.get("v") {
+  let server_proof_b64 = match scram_attr_get(attrs, b'v') {
     Some(v) => v
     None =>
       raise WireError::InvalidMessage(
@@ -292,7 +312,7 @@ fn scram_verify_server_final(
   let expected_sig = @crypto.hmac(
     @crypto.SHA256::new(),
     as_bytesview(server_key),
-    @utf8.encode(state.auth_message),
+    state.auth_message,
   )
 
   let expected_b64 = b64_encode_padded(
@@ -356,12 +376,11 @@ pub async fn handle_scram_auth(
       )
     _ => raise WireError::InvalidMessage("SCRAM: expected SASLContinue")
   }
-  let server_first_msg = @utf8.decode(server_first_data) catch {
-    _ => server_first_data.to_unchecked_string()
-  }
 
   // 3. Build and send client-final-message
-  let (final_msg, state) = scram_client_final(password, server_first_msg, state)
+  let (final_msg, state) = scram_client_final(
+    password, server_first_data, state,
+  )
   conn.send(final_msg)
 
   // 4. Receive server-final-message
@@ -374,9 +393,6 @@ pub async fn handle_scram_auth(
       )
     _ => raise WireError::InvalidMessage("SCRAM: expected SASLFinal")
   }
-  let server_final_msg = @utf8.decode(server_final_data) catch {
-    _ => server_final_data.to_unchecked_string()
-  }
   // 5. Verify server signature
-  scram_verify_server_final(server_final_msg, state)
+  scram_verify_server_final(server_final_data, state)
 }
