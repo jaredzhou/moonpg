@@ -1,15 +1,15 @@
 ///|
 // Integration tests against a live PostgreSQL instance.
 //
-// Connection string (override with env var MOONPG_CONNINFO if needed):
-//   postgres://moonpg_plain:111111@localhost:5432/moonpg_test
+// Connection string (override with env var PGCONN if needed):
+//   postgres://postgres:111111@localhost:5432/postgres
 //
 // Run with:
 //   moon test --target native
 
 ///|
-let conninfo : String = @env.get_env_var("MOONPG_CONNINFO").unwrap_or(
-  "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
+let conninfo : String = @env.get_env_var("PGCONN").unwrap_or(
+  "postgres://postgres:111111@localhost:5432/postgres",
 )
 
 ///|
@@ -534,7 +534,7 @@ async test "async_all_interleaves_array" {
 
 ///|
 async test "copy_in" {
-  let c = connect(test_conninfo)
+  let c = connect(conninfo)
   defer c.close()
   let tbl = "moonpg_copy_in"
   c.execute("DROP TABLE IF EXISTS \{tbl}") |> ignore
@@ -558,7 +558,7 @@ async test "copy_in" {
 ///|
 async test "copy_writer_streaming" {
   let tbl = "moonpg_copy_writer"
-  let c = connect(test_conninfo)
+  let c = connect(conninfo)
   c.execute("DROP TABLE IF EXISTS \{tbl}") |> ignore
   c.execute("CREATE TABLE \{tbl} (name TEXT, age INTEGER)") |> ignore
 
@@ -569,7 +569,7 @@ async test "copy_writer_streaming" {
   w.finish() |> ignore
 
   // Verify via a new connection
-  let c2 = connect(test_conninfo)
+  let c2 = connect(conninfo)
   defer c2.close()
   let result = c2.query("SELECT name, age FROM \{tbl} ORDER BY age")
   assert_true(result.has_next())
@@ -590,12 +590,12 @@ async test "copy_writer_streaming" {
 ///|
 async test "listen_notify_queue" {
   @async.with_task_group() <| group => {
-    let c1 = connect(test_conninfo)
+    let c1 = connect(conninfo)
     let listener = c1.listen("moonpg_test_channel", group)
     println("Listening on channel: moonpg_test_channel")
     // Notify from another connection after a short delay
     let c2_task = group.spawn(() => {
-      let c2 = connect(test_conninfo)
+      let c2 = connect(conninfo)
       c2.notify("moonpg_test_channel", payload="hello")
       c2.close()
     })
@@ -616,7 +616,7 @@ async test "listen_notify_queue" {
 
 ///|
 async test "deallocate_unnamed_statement" {
-  let c = connect(test_conninfo)
+  let c = connect(conninfo)
   defer c.close()
 
   // Execute parameterized SQL to create an unnamed prepared statement

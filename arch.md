@@ -15,7 +15,7 @@ over TCP.  There are zero C dependencies — no libpq, no native stubs.
                    ┌──────────────┴───────────────────┐
                    │  value.mbt   types.mbt           │  ← encode / decode
                    │  Value  RawValue  FromRaw        │
-                   │  ToValue  encode_param           │
+                   │  ToValue  default_encode         │
                    └──────────────┬───────────────────┘
                    ┌──────────────┴───────────────────┐
                    │  wire/                           │  ← wire protocol
@@ -57,7 +57,7 @@ startup, authentication, and message framing.
 - `RawValue` enum: `Null` | `Bytes(Format, Bytes)` — what comes back from a result cell.
 - `ToValue` trait: convert MoonBit types → `Value` for parameter binding.
 - `FromRaw` trait: decode `RawValue` → MoonBit type.
-- `encode_param()`, `build_params()`: encode `Value[]` → `(Bytes?[], Int[])` for the wire.
+- `default_encode()`, `build_params()`: encode `Value[]` → `(Bytes?[], Int[])` for the wire.
 - Binary encode/decode helpers for `int4`, `int8`, `float8`, `bool`.
 
 ### `types.mbt` — Type impls
@@ -139,7 +139,7 @@ User code                      conn.mbt               wire/                  Pos
 ─────────                      ────────               ─────                  ──────────
 conn.execute("INSERT ...",    │                      │                      │
   params=[42, "x", true])     │                      │                      │
-                               │ build_param_arrays() │                      │
+                               │ build_params()       │                      │
                                │ 42→"42", true→"t"    │                      │
                                │                      │                      │
                                │ execute_params() ────→ Parse ──────────────→

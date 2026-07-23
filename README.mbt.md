@@ -223,19 +223,29 @@ See [arch.md](./arch.md) for a detailed walkthrough of the codebase.
 
 ## Run the tests
 
-Requires a running PostgreSQL instance with three test users:
-
-| user          | password    | auth method   |
-|---------------|-------------|---------------|
-| moonpg_plain  | plain_pass  | password      |
-| moonpg_md5    | md5_pass    | md5           |
-| moonpg_scram  | scram_pass  | scram-sha-256 |
+Requires a running PostgreSQL instance.  Set `PGCONN` to point at your database
+(defaults to `postgres://postgres:111111@localhost:5432/postgres`):
 
 ```bash
-# Use env var or defaults (see conn_test.mbt)
-MOONPG_CONNINFO="postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test" \
-  moon test --target native
+# Uses default connection
+moon test --target native
+
+# Or with a custom connection
+PGCONN="postgres://user:pass@localhost:5432/mydb" moon test --target native
 ```
+
+### Authentication tests (optional)
+
+Three authentication tests (plain password, MD5, SCRAM-SHA-256) require
+separate users.  Set the corresponding environment variable for each; tests are
+**skipped** when the variable is missing, so you can run the full suite without
+them.
+
+| env var         | example connstr                                                     | auth method   |
+|-----------------|---------------------------------------------------------------------|---------------|
+| `PG_PLAIN_CONN` | `postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test`     | password      |
+| `PG_MD5_CONN`   | `postgres://moonpg_md5:md5_pass@localhost:5432/moonpg_test`         | md5           |
+| `PG_SCRAM_CONN` | `postgres://moonpg_scram:scram_pass@localhost:5432/moonpg_test`     | scram-sha-256 |
 
 ## License
 

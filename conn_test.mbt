@@ -2,8 +2,8 @@
 // Unit tests for Connection, ConnRows, Row, ExecResult, QueryExecutor.
 // Run with: moon test --target native conn_test.mbt
 
-let test_conninfo : String = @env.get_env_var("MOONPG_CONNINFO").unwrap_or(
-  "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
+let test_conninfo : String = @env.get_env_var("PGCONN").unwrap_or(
+  "postgres://postgres:111111@localhost:5432/postgres",
 )
 
 // Helper: create a fresh table with a unique name.

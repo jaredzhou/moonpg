@@ -4,6 +4,7 @@ import {
   "moonbitlang/async/io",
   "moonbitlang/async/tls",
   "moonbitlang/core/buffer",
+  "moonbitlang/core/env",
   "moonbitlang/core/string",
   "moonbitlang/core/encoding/utf8",
   "moonbitlang/core/hashmap",

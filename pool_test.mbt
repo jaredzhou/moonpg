@@ -4,8 +4,8 @@
 // Requires a live PostgreSQL instance.
 // Run with: moon test --target native
 
-let pool_test_conninfo : String = @env.get_env_var("MOONPG_CONNINFO").unwrap_or(
-  "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
+let pool_test_conninfo : String = @env.get_env_var("PGCONN").unwrap_or(
+  "postgres://postgres:111111@localhost:5432/postgres",
 )
 
 ///|

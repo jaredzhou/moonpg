@@ -19,6 +19,14 @@ pub enum Format {
 } derive(Eq)
 
 ///|
+fn Format::to_int(self : Format) -> Int {
+  match self {
+    Text => 0
+    Binary => 1
+  }
+}
+
+///|
 /// Raw value read from a result cell. Carries the format (text or binary)
 /// and the raw bytes from libpq. Convert to `Value` via `to_value()`.
 pub(all) enum RawValue {
@@ -48,31 +56,17 @@ pub fn RawValue::to_value(self : RawValue) -> Value {
 }
 
 ///|
-/// Encode a `Value` into `(Bytes?, Int)` for the wire protocol.
-///
-/// Returns `(None, 0)` for NULL, or `(Some(encoded_bytes), format_code)`.
-/// All values use text format to avoid needing OID hints for binary.
-pub fn encode_param(v : Value) -> (Bytes?, Int) {
-  match v {
-    Null => (None, 0)
-    Bool(v) => (Some(encode_string(if v { "t" } else { "f" })), 0)
-    Int(v) => (Some(encode_string(v.to_string())), 0)
-    Int64(v) => (Some(encode_string(v.to_string())), 0)
-    Float(v) => (Some(encode_string(v.to_string())), 0)
-    String(v) => (Some(encode_string(v)), 0)
-    Bytes(v) => (Some(v), 1)
-  }
-}
-
-///|
 /// Build `(param_values, param_formats)` arrays for the wire protocol's
 /// `execute_params` from an array of `Value`s.
-pub fn build_params(params : Array[Value]) -> (Array[Bytes?], Array[Int]) {
+pub fn build_params(params : Array[RawValue]) -> (Array[Bytes?], Array[Int]) {
   let n = params.length()
   let values : Array[Bytes?] = Array::makei(n, fn(_) { None })
   let formats : Array[Int] = Array::makei(n, fn(_) { 0 })
   for i, v in params {
-    let (val, fmt) = encode_param(v)
+    let (val, fmt) = match v {
+      RawValue::Null => (None, 0)
+      RawValue::Bytes(f, b) => (Some(b), f.to_int())
+    }
     ignore(values.set(i, val))
     ignore(formats.set(i, fmt))
   }
@@ -202,14 +196,13 @@ fn decode_string(b : Bytes) -> String {
 }
 
 ///|
-/// Encode a `Value` into a `RawValue` for transmission to the server.
-/// `Null` becomes `RawValue::Null`. `String` uses text format; everything
-/// else uses binary format.
-pub fn encode(v : Value) -> RawValue {
+/// Default encode: `Value` → `RawValue` for parameter transmission.
+/// `Null` → `Null`. `Bytes` → binary format; everything else → text format.
+pub fn default_encode(v : Value) -> RawValue {
   match v {
     Null => RawValue::Null
-    String(_) => v.to_raw(Text)
-    _ => v.to_raw(Binary)
+    Bytes(_) => v.to_raw(Binary)
+    _ => v.to_raw(Text)
   }
 }
 
@@ -217,6 +210,12 @@ pub fn encode(v : Value) -> RawValue {
 /// Types that can be used as SQL parameters.
 pub(open) trait ToValue {
   fn to_value(Self) -> Value
+  fn to_raw_value(Self) -> RawValue = _
+}
+
+///|
+impl ToValue with fn to_raw_value(self) {
+  default_encode(self.to_value())
 }
 
 ///|

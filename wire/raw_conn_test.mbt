@@ -1,25 +1,39 @@
 ///|
+let conninfo : String = @env.get_env_var("PGCONN").unwrap_or(
+  "postgres://postgres:111111@localhost:5432/postgres",
+)
+
+///|
 async test "connect_plain" {
-  connect("postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test").close()
+  match @env.get_env_var("PG_PLAIN_CONN") {
+    None => return
+    Some(uri) => connect(uri).close()
+  }
 }
 
 ///|
 async test "connect_md5" {
-  connect("postgres://moonpg_md5:md5_pass@localhost:5432/moonpg_test").close()
+  match @env.get_env_var("PG_MD5_CONN") {
+    None => return
+    Some(uri) => connect(uri).close()
+  }
 }
 
 ///|
 async test "connect_scram" {
-  try {
-    let conn = connect(
-      "postgres://moonpg_scram:scram_pass@localhost:5432/moonpg_test",
-    )
-    conn.close()
-  } catch {
-    WireError::InvalidMessage(m) => fail("SCRAM InvalidMessage: \{m}")
-    WireError::Auth(m) => fail("SCRAM Auth: \{m}")
-    WireError::Connect(m) => fail("SCRAM Connect: \{m}")
-    _ => fail("SCRAM other error")
+  match @env.get_env_var("PG_SCRAM_CONN") {
+    None => return
+    Some(uri) => {
+      try {
+        let conn = connect(uri)
+        conn.close()
+      } catch {
+        WireError::InvalidMessage(m) => fail("SCRAM InvalidMessage: \{m}")
+        WireError::Auth(m) => fail("SCRAM Auth: \{m}")
+        WireError::Connect(m) => fail("SCRAM Connect: \{m}")
+        _ => fail("SCRAM other error")
+      }
+    }
   }
 }
 
@@ -27,7 +41,7 @@ async test "connect_scram" {
 async test "connect_ssl_prefer" {
   // sslmode=prefer against non-TLS server should gracefully fall back to plain.
   connect(
-    "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test?sslmode=prefer",
+    conninfo + "?sslmode=prefer",
   ).close()
 }
 
@@ -36,7 +50,7 @@ async test "connect_ssl_require_non_tls_server" {
   // sslmode=require against non-TLS server should raise.
   try {
     connect(
-      "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test?sslmode=require",
+      conninfo + "?sslmode=require",
     ).close()
     fail("expected sslmode=require to raise")
   } catch {
@@ -55,7 +69,7 @@ async test "kv" {
 ///|
 async test "server_params" {
   let conn = connect(
-    "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
+    conninfo,
   )
   defer conn.close()
   assert_true(conn.param("server_version") is Some(_))
@@ -67,7 +81,7 @@ async test "server_params" {
 ///|
 async test "reconnect" {
   for i = 0; i < 3; i = i + 1 {
-    connect("postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test").close()
+    connect(conninfo).close()
   }
 }
 
@@ -78,7 +92,7 @@ async test "reconnect" {
 ///|
 async test "simple_select_pull" {
   let conn = connect(
-    "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
+    conninfo,
   )
   defer conn.close()
   let r = conn.simple_query("SELECT 1 AS n")
@@ -96,7 +110,7 @@ async test "simple_select_pull" {
 ///|
 async test "simple_select_batch" {
   let conn = connect(
-    "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
+    conninfo,
   )
   defer conn.close()
   let result = conn.simple_query("SELECT generate_series(1, 3) AS x").read()
@@ -116,7 +130,7 @@ async test "simple_select_batch" {
 ///|
 async test "simple_insert" {
   let conn = connect(
-    "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
+    conninfo,
   )
   defer conn.close()
   // Create temp table
@@ -137,7 +151,7 @@ async test "simple_insert" {
 ///|
 async test "simple_update" {
   let conn = connect(
-    "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
+    conninfo,
   )
   defer conn.close()
   let _ = conn.simple_query("CREATE TEMP TABLE _sq_upd (x int)").close()
@@ -150,7 +164,7 @@ async test "simple_update" {
 ///|
 async test "simple_empty_query" {
   let conn = connect(
-    "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
+    conninfo,
   )
   defer conn.close()
   let tag = conn.simple_query("").close()
@@ -160,7 +174,7 @@ async test "simple_empty_query" {
 ///|
 async test "simple_multi_statement_rejected" {
   let conn = connect(
-    "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
+    conninfo,
   )
   defer conn.close()
   (conn.simple_query("SELECT 1; SELECT 2").close() |> ignore) catch {
@@ -178,7 +192,7 @@ async test "simple_multi_statement_rejected" {
 ///|
 async test "simple_trailing_semicolon" {
   let conn = connect(
-    "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
+    conninfo,
   )
   defer conn.close()
   let tag = conn.simple_query("SELECT 1;").close()
@@ -188,7 +202,7 @@ async test "simple_trailing_semicolon" {
 ///|
 async test "simple_syntax_error" {
   let conn = connect(
-    "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
+    conninfo,
   )
   defer conn.close()
   (conn.simple_query("SELEC 1").read() |> ignore) catch {
@@ -206,7 +220,7 @@ async test "simple_syntax_error" {
 ///|
 async test "simple_close_before_exhaust" {
   let conn = connect(
-    "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
+    conninfo,
   )
   defer conn.close()
   let r = conn.simple_query("SELECT generate_series(1, 10) AS x")
@@ -222,7 +236,7 @@ async test "simple_close_before_exhaust" {
 ///|
 async test "simple_double_close" {
   let conn = connect(
-    "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
+    conninfo,
   )
   defer conn.close()
   let r = conn.simple_query("SELECT 1")
@@ -234,7 +248,7 @@ async test "simple_double_close" {
 ///|
 async test "simple_no_rows" {
   let conn = connect(
-    "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
+    conninfo,
   )
   defer conn.close()
   let _ = conn.simple_query("CREATE TEMP TABLE _sq_empty (x int)").close()
@@ -248,7 +262,7 @@ async test "simple_no_rows" {
 ///|
 async test "simple_multiple_queries" {
   let conn = connect(
-    "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
+    conninfo,
   )
   defer conn.close()
   // Several queries in sequence — each should work.
@@ -273,7 +287,7 @@ fn enc(s : String) -> Bytes {
 ///|
 async test "ext_select_params" {
   let conn = connect(
-    "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
+    conninfo,
   )
   defer conn.close()
   let reader = conn.execute_params(
@@ -297,7 +311,7 @@ async test "ext_select_params" {
 ///|
 async test "ext_select_text_params" {
   let conn = connect(
-    "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
+    conninfo,
   )
   defer conn.close()
   let reader = conn.execute_params(
@@ -320,7 +334,7 @@ async test "ext_select_text_params" {
 ///|
 async test "ext_select_null_param" {
   let conn = connect(
-    "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
+    conninfo,
   )
   defer conn.close()
   let reader = conn.execute_params(
@@ -340,7 +354,7 @@ async test "ext_select_null_param" {
 ///|
 async test "ext_select_no_params" {
   let conn = connect(
-    "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
+    conninfo,
   )
   defer conn.close()
   let reader = conn.execute_params("SELECT 1 + 2 AS n", [], [], [], [])
@@ -356,7 +370,7 @@ async test "ext_select_no_params" {
 ///|
 async test "ext_select_no_rows" {
   let conn = connect(
-    "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
+    conninfo,
   )
   defer conn.close()
   let _ = conn.simple_query("CREATE TEMP TABLE _ex_empty (x int)").close()
@@ -377,7 +391,7 @@ async test "ext_select_no_rows" {
 ///|
 async test "ext_insert_params" {
   let conn = connect(
-    "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
+    conninfo,
   )
   defer conn.close()
   let _ = conn
@@ -401,7 +415,7 @@ async test "ext_insert_params" {
 ///|
 async test "ext_insert_multi" {
   let conn = connect(
-    "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
+    conninfo,
   )
   defer conn.close()
   let _ = conn.simple_query("CREATE TEMP TABLE _ex_im (x int, y text)").close()
@@ -420,7 +434,7 @@ async test "ext_insert_multi" {
 ///|
 async test "ext_update_params" {
   let conn = connect(
-    "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
+    conninfo,
   )
   defer conn.close()
   let _ = conn.simple_query("CREATE TEMP TABLE _ex_upd (x int)").close()
@@ -440,7 +454,7 @@ async test "ext_update_params" {
 ///|
 async test "ext_delete_params" {
   let conn = connect(
-    "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
+    conninfo,
   )
   defer conn.close()
   let _ = conn.simple_query("CREATE TEMP TABLE _ex_del (x int)").close()
@@ -460,7 +474,7 @@ async test "ext_delete_params" {
 ///|
 async test "ext_returning" {
   let conn = connect(
-    "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
+    conninfo,
   )
   defer conn.close()
   let _ = conn
@@ -486,7 +500,7 @@ async test "ext_returning" {
 ///|
 async test "ext_pull_iteration" {
   let conn = connect(
-    "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
+    conninfo,
   )
   defer conn.close()
   let reader = conn.execute_params(
@@ -512,7 +526,7 @@ async test "ext_pull_iteration" {
 ///|
 async test "ext_batch_read" {
   let conn = connect(
-    "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
+    conninfo,
   )
   defer conn.close()
   let result = conn
@@ -544,7 +558,7 @@ async test "ext_batch_read" {
 ///|
 async test "ext_close_before_exhaust" {
   let conn = connect(
-    "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
+    conninfo,
   )
   defer conn.close()
   let reader = conn.execute_params(
@@ -566,7 +580,7 @@ async test "ext_close_before_exhaust" {
 ///|
 async test "ext_double_close" {
   let conn = connect(
-    "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
+    conninfo,
   )
   defer conn.close()
   let reader = conn.execute_params("SELECT 1 AS n", [], [], [], [])
@@ -578,7 +592,7 @@ async test "ext_double_close" {
 ///|
 async test "ext_syntax_error" {
   let conn = connect(
-    "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
+    conninfo,
   )
   defer conn.close()
   (conn.execute_params("SELEC $1", [Some(enc("1"))], [], [], []).read()
@@ -597,7 +611,7 @@ async test "ext_syntax_error" {
 ///|
 async test "ext_param_count_mismatch" {
   let conn = connect(
-    "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
+    conninfo,
   )
   defer conn.close()
   // param_oids length must be 0, 1, or equal to param_values count
@@ -625,7 +639,7 @@ async test "ext_param_count_mismatch" {
 ///|
 async test "ext_multiple_executions" {
   let conn = connect(
-    "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
+    conninfo,
   )
   defer conn.close()
   // Run the same parameterized query multiple times.
@@ -653,7 +667,7 @@ async test "ext_multiple_executions" {
 ///|
 async test "prepare_select" {
   let conn = connect(
-    "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
+    conninfo,
   )
   defer conn.close()
   let desc = conn.prepare("stmt_sel", "SELECT $1::int + $2::int AS sum", [
@@ -668,7 +682,7 @@ async test "prepare_select" {
 ///|
 async test "prepare_no_params" {
   let conn = connect(
-    "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
+    conninfo,
   )
   defer conn.close()
   let desc = conn.prepare("", "SELECT 1 AS n", [])
@@ -680,7 +694,7 @@ async test "prepare_no_params" {
 ///|
 async test "prepare_insert" {
   let conn = connect(
-    "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
+    conninfo,
   )
   defer conn.close()
   let _ = conn
@@ -698,7 +712,7 @@ async test "prepare_insert" {
 ///|
 async test "prepare_syntax_error" {
   let conn = connect(
-    "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
+    conninfo,
   )
   defer conn.close()
   (conn.prepare("bad", "SELEC 1", []) |> ignore) catch {
@@ -720,7 +734,7 @@ async test "prepare_syntax_error" {
 ///|
 async test "exec_prepared_select" {
   let conn = connect(
-    "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
+    conninfo,
   )
   defer conn.close()
   conn.prepare("ep_sel", "SELECT $1::int + $2::int AS sum", [23, 23]) |> ignore
@@ -742,7 +756,7 @@ async test "exec_prepared_select" {
 ///|
 async test "exec_prepared_insert" {
   let conn = connect(
-    "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
+    conninfo,
   )
   defer conn.close()
   let _ = conn.simple_query("CREATE TEMP TABLE _epp_ins (x int)").close()
@@ -755,7 +769,7 @@ async test "exec_prepared_insert" {
 ///|
 async test "exec_statement_select" {
   let conn = connect(
-    "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
+    conninfo,
   )
   defer conn.close()
   let desc = conn.prepare(
@@ -776,7 +790,7 @@ async test "exec_statement_select" {
 ///|
 async test "exec_statement_no_columns" {
   let conn = connect(
-    "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
+    conninfo,
   )
   defer conn.close()
   let _ = conn.simple_query("CREATE TEMP TABLE _esp_ins (x int)").close()
@@ -794,7 +808,7 @@ async test "exec_statement_no_columns" {
 ///|
 async test "exec_prepared_multi_exec" {
   let conn = connect(
-    "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
+    conninfo,
   )
   defer conn.close()
   conn.prepare("epm", "SELECT $1::int * 2 AS doubled", [23]) |> ignore
@@ -811,7 +825,7 @@ async test "exec_prepared_multi_exec" {
 ///|
 async test "exec_prepared_null_param" {
   let conn = connect(
-    "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
+    conninfo,
   )
   defer conn.close()
   conn.prepare("epn", "SELECT $1::text IS NULL AS is_null", [25]) |> ignore
@@ -825,7 +839,7 @@ async test "exec_prepared_null_param" {
 ///|
 async test "exec_prepared_no_params" {
   let conn = connect(
-    "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
+    conninfo,
   )
   defer conn.close()
   conn.prepare("ep0", "SELECT 42 AS answer", []) |> ignore
@@ -839,7 +853,7 @@ async test "exec_prepared_no_params" {
 ///|
 async test "exec_prepared_unknown_statement" {
   let conn = connect(
-    "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
+    conninfo,
   )
   defer conn.close()
   (conn.execute_prepared("no_such_stmt", [], [], []).close() |> ignore) catch {
@@ -851,7 +865,7 @@ async test "exec_prepared_unknown_statement" {
 ///|
 async test "exec_prepared_pull" {
   let conn = connect(
-    "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
+    conninfo,
   )
   defer conn.close()
   conn.prepare("epp", "SELECT generate_series(1, $1::int) AS x", [23]) |> ignore
@@ -870,7 +884,7 @@ async test "exec_prepared_pull" {
 ///|
 async test "exec_prepared_close_early" {
   let conn = connect(
-    "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
+    conninfo,
   )
   defer conn.close()
   conn.prepare("epc", "SELECT generate_series(1, 10) AS x", []) |> ignore
@@ -890,7 +904,7 @@ async test "exec_prepared_close_early" {
 ///|
 async test "exec_statement_multi_exec" {
   let conn = connect(
-    "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
+    conninfo,
   )
   defer conn.close()
   let desc = conn.prepare("esm", "SELECT $1::text || '!' AS excited", [25])
@@ -912,7 +926,7 @@ async test "exec_statement_multi_exec" {
 ///|
 async test "exec_statement_pull" {
   let conn = connect(
-    "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
+    conninfo,
   )
   defer conn.close()
   let desc = conn.prepare(
@@ -935,7 +949,7 @@ async test "exec_statement_pull" {
 ///|
 async test "exec_statement_batch" {
   let conn = connect(
-    "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
+    conninfo,
   )
   defer conn.close()
   let desc = conn.prepare(
@@ -964,7 +978,7 @@ async test "exec_statement_batch" {
 ///|
 async test "exec_statement_returning" {
   let conn = connect(
-    "postgres://moonpg_plain:plain_pass@localhost:5432/moonpg_test",
+    conninfo,
   )
   defer conn.close()
   let _ = conn

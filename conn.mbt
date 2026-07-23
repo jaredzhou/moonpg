@@ -438,7 +438,7 @@ pub impl QueryExecutor for Connection with fn query(
       ConnRows::{ reader, }
     }
     Some(ps) => {
-      let (vals, _) = build_param_arrays(ps)
+      let (vals, _) = build_params(ps.map(v => v.to_raw_value()))
       let reader = self.conn.execute_params(sql, vals, [], [], []) catch {
         e => raise map_wire_error(e)
       }
@@ -478,7 +478,7 @@ pub impl QueryExecutor for Connection with fn execute(
       ExecResult::{ tag, }
     }
     Some(ps) => {
-      let (vals, _) = build_param_arrays(ps)
+      let (vals, _) = build_params(ps.map(v => v.to_raw_value()))
       let reader = self.conn.execute_params(sql, vals, [], [], []) catch {
         e => raise map_wire_error(e)
       }
@@ -528,15 +528,6 @@ fn map_wire_error(e : @wire.WireError) -> PgError {
     @wire.InvalidMessage(m) => PgError::QueryError(m)
     @wire.IO(m) => PgError::ConnectionError(m)
   }
-}
-
-///|
-fn build_param_arrays(params : Array[&ToValue]) -> (Array[Bytes?], Array[Int]) {
-  let values : Array[Value] = []
-  for v in params {
-    values.push(v.to_value())
-  }
-  build_params(values)
 }
 
 ///|

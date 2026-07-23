@@ -16,13 +16,11 @@ pub async fn[T, B : TxBeginner] begin_func(B, async (&Tx) -> T) -> T raise PgErr
 
 pub fn build_begin_sql(TxOptions) -> String
 
-pub fn build_params(Array[Value]) -> (Array[Bytes?], Array[Int])
+pub fn build_params(Array[RawValue]) -> (Array[Bytes?], Array[Int])
 
 pub async fn connect(String) -> Connection raise PgError
 
-pub fn encode(Value) -> RawValue
-
-pub fn encode_param(Value) -> (Bytes?, Int)
+pub fn default_encode(Value) -> RawValue
 
 pub fn get_env(String) -> String
 
@@ -249,6 +247,7 @@ pub(open) trait Rows {
 
 pub(open) trait ToValue {
   fn to_value(Self) -> Value
+  fn to_raw_value(Self) -> RawValue = _
 }
 pub impl ToValue for Bool
 pub impl ToValue for Int
