@@ -5,7 +5,7 @@
 **GitHub**：https://github.com/jaredzhou/moonpg
 **项目方向**：MoonBit 数据库驱动与网络协议　　　**是否移植**：是
 
-MoonPG 将 PostgreSQL 原生客户端驱动移植到 MoonBit 生态，从 TCP 层开始完整实现 PostgreSQL v3 有线协议，零 C 依赖（无 libpq、无原生桩代码）。项目实现了完整的前后端消息编解码、三种认证方式（cleartext / MD5 / SCRAM-SHA-256）、TLS/SSL 安全传输、连接池（含健康检查与后台维护）、事务支持、COPY 批量导入协议、LISTEN/NOTIFY 异步通知、以及基于 trait 的多态类型编解码系统（ToValue / FromRaw + 泛型 Option[T] 可空列）。223 个测试覆盖所有公开 API 与有线协议路径。作为 MoonBit 生态首个 PostgreSQL 原生驱动，可为 pony Web 框架 ORM 层、数据迁移工具、ETL 管道、分析型应用提供无需 C 工具链的数据库连接能力。
+MoonPG 将 PostgreSQL 原生客户端驱动移植到 MoonBit 生态，从 TCP 层开始完整实现 PostgreSQL v3 有线协议，零 C 依赖（无 libpq、无原生桩代码）。项目实现了完整的前后端消息编解码、三种认证方式（cleartext / MD5 / SCRAM-SHA-256）、TLS/SSL 安全传输、连接池（含健康检查与后台维护）、事务支持、COPY 批量导入协议、LISTEN/NOTIFY 异步通知、以及基于 trait 的多态类型编解码系统（ToValue / FromRaw + 泛型 Option[T] 可空列）。223 个测试覆盖所有公开 API 与有线协议路径。API 简洁、功能完整，零 C 依赖，可为 pony Web 框架 ORM 层、数据迁移工具、ETL 管道、分析型应用提供开箱即用的数据库连接能力。
 
 **核心功能范围**：
 
