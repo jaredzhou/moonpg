@@ -24,6 +24,16 @@ pub fn default_encode(Value) -> RawValue
 
 pub fn get_env(String) -> String
 
+pub fn pg_oid_to_name(Int) -> String
+
+pub fn pg_type_for_data_type(String) -> @wire.Type?
+
+pub fn pg_type_for_name(String) -> @wire.Type?
+
+pub fn pg_type_for_oid(Int) -> @wire.Type?
+
+pub let pg_type_map : @wire.TypeMap
+
 pub fn[T] raise_binary() -> T raise PgError
 
 pub fn[T] raise_null(String) -> T raise PgError

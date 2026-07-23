@@ -219,26 +219,30 @@ pub fn[T] raise_binary() -> T raise PgError {
 // ===========================================================================
 
 ///|
+/// PostgreSQL data type descriptor — re-exported from wire/pgtype.
+pub type PGType = @wire.Type
+
+///|
 /// Default PostgreSQL type map — OID ↔ name lookups with
 /// `information_schema.data_type` aliases.
 pub let pg_type_map : @wire.TypeMap = @wire.default_map
 
 ///|
 /// Look up a type by canonical PG name (e.g. `"int4"`, `"varchar"`).
-pub fn pg_type_for_name(name : String) -> @wire.Type? {
+pub fn pg_type_for_name(name : String) -> PGType? {
   pg_type_map.type_for_name(name)
 }
 
 ///|
-/// Look up a type by OID (e.g. `23` → `Type{name:"int4", oid:23}`).
-pub fn pg_type_for_oid(oid : Int) -> @wire.Type? {
+/// Look up a type by OID (e.g. `23` → `PGType{name:"int4", oid:23}`).
+pub fn pg_type_for_oid(oid : Int) -> PGType? {
   pg_type_map.type_for_oid(oid)
 }
 
 ///|
 /// Look up a type by `information_schema.data_type` name
-/// (e.g. `"integer"` → `Type{name:"int4", oid:23}`).
-pub fn pg_type_for_data_type(name : String) -> @wire.Type? {
+/// (e.g. `"integer"` → `PGType{name:"int4", oid:23}`).
+pub fn pg_type_for_data_type(name : String) -> PGType? {
   pg_type_map.type_for_data_type(name)
 }
 

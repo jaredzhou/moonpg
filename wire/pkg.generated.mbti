@@ -306,6 +306,8 @@ pub let tsvector_array_oid : Int
 
 pub let tsvector_oid : Int
 
+pub fn type_for_data_type(String) -> Type?
+
 pub let unknown_oid : Int
 
 pub let uuid_array_oid : Int
@@ -785,7 +787,9 @@ pub(all) struct Type {
 pub(all) struct TypeMap {
   oid_to_type : @hashmap.HashMap[Int, Type]
   name_to_type : @hashmap.HashMap[String, Type]
+  data_type_to_oid : @hashmap.HashMap[String, Int]
 }
+pub fn TypeMap::type_for_data_type(Self, String) -> Type?
 pub fn TypeMap::type_for_name(Self, String) -> Type?
 pub fn TypeMap::type_for_oid(Self, Int) -> Type?
 
