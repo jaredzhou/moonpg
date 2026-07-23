@@ -47,6 +47,7 @@ jobs:
         run: |
           sudo apt-get update -y && sudo apt-get install -y postgresql-client
           PGPASSWORD=postgres_pass psql -h localhost -U postgres -c "CREATE DATABASE moonpg_test;"
+          # Optional: user for PG_PLAIN_CONN auth test (CI does not set the env var, so the test is skipped)
           PGPASSWORD=postgres_pass psql -h localhost -U postgres -c "CREATE USER moonpg_plain WITH PASSWORD 'plain_pass';"
           PGPASSWORD=postgres_pass psql -h localhost -U postgres -d moonpg_test -c "GRANT ALL ON SCHEMA public TO moonpg_plain;"
 
@@ -60,4 +61,6 @@ jobs:
 
       # Build and run all tests.
       - name: Test
-        run: moon test --target native
+        env:
+          PGCONN: "postgres://postgres:postgres_pass@localhost:5432/moonpg_test"
+        run: moon test --target native --deny-warn
