@@ -51,3 +51,14 @@ You can browse and install extra skills here:
   scientific computations), prefer assertion tests. You can use
   `moon coverage analyze > uncovered.log` to see which parts of your code are
   not covered by tests.
+
+## Setup
+
+After cloning, configure git to use the project's pre-commit hooks:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+The pre-commit hook runs `moon fmt --check` → `moon info` → `moon check --deny-warn` → `moon test --deny-warn`
+before every commit, matching what CI enforces.
