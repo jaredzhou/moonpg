@@ -252,6 +252,12 @@ pub fn pg_oid_to_name(oid : Int) -> String {
   @wire.oid_to_name(oid)
 }
 
+///|
+/// Iterate over all registered types, yielding `PGType` values.
+pub fn pg_types() -> Iter[PGType] {
+  pg_type_map.iter().map(fn(kv) { kv.1 })
+}
+
 // ===========================================================================
 // Private encode / decode helpers
 // ===========================================================================

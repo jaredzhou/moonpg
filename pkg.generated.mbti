@@ -227,6 +227,7 @@ pub fn Value::pg_type_name(Self) -> String
 pub fn Value::to_raw(Self, Format) -> RawValue
 
 // Type aliases
+pub using @wire {type Type as PGType}
 
 // Traits
 pub(open) trait FromRaw {
