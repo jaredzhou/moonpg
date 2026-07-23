@@ -33,7 +33,11 @@ fn TypeMap::new() -> TypeMap {
 ///|
 fn TypeMap::register(self : TypeMap, name : String, oid : Int) -> TypeMap {
   let t = new_type(name, oid)
-  self.oid_to_type.set(oid, Type::{ ..t })
+  // Only set oid_to_type on first registration — keeps the canonical PG name
+  match self.oid_to_type.get(oid) {
+    None => self.oid_to_type.set(oid, Type::{ ..t })
+    Some(_) => ()
+  }
   self.name_to_type.set(name, Type::{ ..t })
   self
 }
@@ -522,6 +526,20 @@ fn build_default_map() -> TypeMap {
   .register("_tstzmultirange", tstzmultirange_array_oid)
   .register("_datemultirange", datemultirange_array_oid)
   .register("_int8multirange", int8multirange_array_oid)
+  // information_schema standard SQL names — same OIDs, different names
+  .register("integer", int4_oid)
+  .register("bigint", int8_oid)
+  .register("smallint", int2_oid)
+  .register("boolean", bool_oid)
+  .register("character varying", varchar_oid)
+  .register("character", bpchar_oid)
+  .register("double precision", float8_oid)
+  .register("real", float4_oid)
+  .register("timestamp with time zone", timestamptz_oid)
+  .register("timestamp without time zone", timestamp_oid)
+  .register("time with time zone", timetz_oid)
+  .register("time without time zone", time_oid)
+  .register("ARRAY", record_oid)
 }
 
 ///|
@@ -590,4 +608,21 @@ test "oid_to_name_array" {
 test "oid_to_name_range" {
   assert_eq(oid_to_name(3904), "int4range")
   assert_eq(oid_to_name(3912), "daterange")
+}
+
+///|
+test "information_schema_aliases" {
+  // info schema names resolve to same OIDs as PG internal names
+  assert_eq(name_to_oid("integer"), 23)
+  assert_eq(name_to_oid("bigint"), 20)
+  assert_eq(name_to_oid("smallint"), 21)
+  assert_eq(name_to_oid("boolean"), 16)
+  assert_eq(name_to_oid("character varying"), 1043)
+  assert_eq(name_to_oid("double precision"), 701)
+  assert_eq(name_to_oid("real"), 700)
+  assert_eq(name_to_oid("timestamp with time zone"), 1184)
+  assert_eq(name_to_oid("timestamp without time zone"), 1114)
+  // canonical PG names still resolve via oid_to_name
+  assert_eq(oid_to_name(23), "int4")
+  assert_eq(oid_to_name(1184), "timestamptz")
 }
