@@ -90,15 +90,245 @@ pub const PARAM_TIMEZONE : String = "TimeZone"
 
 pub const SSL_REQUEST_CODE : Int = 80877103
 
+pub let aclitem_array_oid : Int
+
+pub let aclitem_oid : Int
+
+pub let bit_array_oid : Int
+
+pub let bit_oid : Int
+
+pub let bool_array_oid : Int
+
+pub let bool_oid : Int
+
+pub let box_array_oid : Int
+
+pub let box_oid : Int
+
+pub let bpchar_array_oid : Int
+
+pub let bpchar_oid : Int
+
+pub let bytea_array_oid : Int
+
+pub let bytea_oid : Int
+
+pub let char_array_oid : Int
+
+pub let char_oid : Int
+
+pub let cid_array_oid : Int
+
+pub let cid_oid : Int
+
+pub let cidr_oid : Int
+
+pub let circle_array_oid : Int
+
+pub let circle_oid : Int
+
 pub fn compute_md5_password(String, String, Bytes) -> String
 
 pub async fn connect(String) -> RawConn raise WireError
 
 pub async fn connect_config(Config) -> RawConn raise WireError
 
+pub let date_array_oid : Int
+
+pub let date_oid : Int
+
+pub let datemultirange_array_oid : Int
+
+pub let datemultirange_oid : Int
+
+pub let daterange_array_oid : Int
+
+pub let daterange_oid : Int
+
+pub let float4_array_oid : Int
+
+pub let float4_oid : Int
+
+pub let float8_array_oid : Int
+
+pub let float8_oid : Int
+
 pub async fn handle_sasl_auth(RawConn, String, Array[String], String?) -> Unit raise WireError
 
 pub async fn handle_scram_auth(RawConn, String, String) -> Unit raise WireError
+
+pub let inet_array_oid : Int
+
+pub let inet_oid : Int
+
+pub let int2_array_oid : Int
+
+pub let int2_oid : Int
+
+pub let int4_array_oid : Int
+
+pub let int4_oid : Int
+
+pub let int4multirange_array_oid : Int
+
+pub let int4multirange_oid : Int
+
+pub let int4range_array_oid : Int
+
+pub let int4range_oid : Int
+
+pub let int8_array_oid : Int
+
+pub let int8_oid : Int
+
+pub let int8multirange_array_oid : Int
+
+pub let int8multirange_oid : Int
+
+pub let int8range_array_oid : Int
+
+pub let int8range_oid : Int
+
+pub let interval_array_oid : Int
+
+pub let interval_oid : Int
+
+pub let json_array_oid : Int
+
+pub let json_oid : Int
+
+pub let jsonb_array_oid : Int
+
+pub let jsonb_oid : Int
+
+pub let jsonpath_array_oid : Int
+
+pub let jsonpath_oid : Int
+
+pub let line_array_oid : Int
+
+pub let line_oid : Int
+
+pub let lseg_array_oid : Int
+
+pub let lseg_oid : Int
+
+pub let macaddr8_oid : Int
+
+pub let macaddr_array_oid : Int
+
+pub let macaddr_oid : Int
+
+pub let name_array_oid : Int
+
+pub let name_oid : Int
+
+pub fn name_to_oid(String) -> Int
+
+pub let numeric_array_oid : Int
+
+pub let numeric_oid : Int
+
+pub let nummultirange_array_oid : Int
+
+pub let nummultirange_oid : Int
+
+pub let numrange_array_oid : Int
+
+pub let numrange_oid : Int
+
+pub let oid_array_oid : Int
+
+pub let oid_oid : Int
+
+pub fn oid_to_name(Int) -> String
+
+pub let path_array_oid : Int
+
+pub let path_oid : Int
+
+pub let point_array_oid : Int
+
+pub let point_oid : Int
+
+pub let polygon_array_oid : Int
+
+pub let polygon_oid : Int
+
+pub let record_array_oid : Int
+
+pub let record_oid : Int
+
+pub let text_array_oid : Int
+
+pub let text_oid : Int
+
+pub let tid_array_oid : Int
+
+pub let tid_oid : Int
+
+pub let time_array_oid : Int
+
+pub let time_oid : Int
+
+pub let timestamp_array_oid : Int
+
+pub let timestamp_oid : Int
+
+pub let timestamptz_array_oid : Int
+
+pub let timestamptz_oid : Int
+
+pub let timetz_array_oid : Int
+
+pub let timetz_oid : Int
+
+pub let tsmultirange_array_oid : Int
+
+pub let tsmultirange_oid : Int
+
+pub let tsrange_array_oid : Int
+
+pub let tsrange_oid : Int
+
+pub let tstzmultirange_array_oid : Int
+
+pub let tstzmultirange_oid : Int
+
+pub let tstzrange_array_oid : Int
+
+pub let tstzrange_oid : Int
+
+pub let tsvector_array_oid : Int
+
+pub let tsvector_oid : Int
+
+pub let unknown_oid : Int
+
+pub let uuid_array_oid : Int
+
+pub let uuid_oid : Int
+
+pub let varbit_array_oid : Int
+
+pub let varbit_oid : Int
+
+pub let varchar_array_oid : Int
+
+pub let varchar_oid : Int
+
+pub let xid8_array_oid : Int
+
+pub let xid8_oid : Int
+
+pub let xid_array_oid : Int
+
+pub let xid_oid : Int
+
+pub let xml_array_oid : Int
+
+pub let xml_oid : Int
 
 // Errors
 pub suberror WireError {
@@ -345,6 +575,7 @@ pub struct FieldDescription {
   typmod : Int
   format : Int
 }
+pub fn FieldDescription::type_name(Self) -> String
 
 pub(all) struct Flush {
 }
@@ -543,6 +774,18 @@ pub(all) enum TransactionStatus {
 pub fn TransactionStatus::from_byte(Byte) -> Self raise WireError
 pub fn TransactionStatus::to_byte(Self) -> Byte
 pub impl Show for TransactionStatus
+
+pub(all) struct Type {
+  name : String
+  oid : Int
+}
+
+pub(all) struct TypeMap {
+  oid_to_type : @hashmap.HashMap[Int, Type]
+  name_to_type : @hashmap.HashMap[String, Type]
+}
+pub fn TypeMap::type_for_name(Self, String) -> Type?
+pub fn TypeMap::type_for_oid(Self, Int) -> Type?
 
 // Type aliases
 

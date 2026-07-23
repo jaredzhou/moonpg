@@ -207,15 +207,41 @@ pub fn default_encode(v : Value) -> RawValue {
 }
 
 ///|
+
+///|
+/// Return the PostgreSQL type name for this value (e.g. `"int4"`, `"text"`).
+pub fn Value::pg_type_name(self : Value) -> String {
+  match self {
+    Null => "unknown"
+    Bool(_) => "bool"
+    Int(_) => "int4"
+    Int64(_) => "int8"
+    Float(_) => "float8"
+    String(_) => "text"
+    Bytes(_) => "bytea"
+  }
+}
+
+///|
 /// Types that can be used as SQL parameters.
 pub(open) trait ToValue {
   fn to_value(Self) -> Value
   fn to_raw_value(Self) -> RawValue = _
+  fn pg_type(Self) -> @wire.Type = _
 }
 
 ///|
 impl ToValue with fn to_raw_value(self) {
   default_encode(self.to_value())
+}
+
+///|
+impl ToValue with fn pg_type(self) -> @wire.Type {
+  let name = self.to_value().pg_type_name()
+  match @wire.default_map.type_for_name(name) {
+    Some(t) => t
+    None => @wire.Type::{ name: "unknown", oid: 0 }
+  }
 }
 
 ///|

@@ -41,9 +41,22 @@ pub impl[T : ToValue] ToValue for T? with fn to_value(self) {
 }
 
 ///|
+pub impl[T : ToValue] ToValue for T? with fn pg_type(self) -> @wire.Type {
+  match self {
+    None => @wire.Type::{ name: "unknown", oid: 0 }
+    Some(v) => v.pg_type()
+  }
+}
+
+///|
 /// PG `json` / `jsonb` — transmitted as text.
 pub impl ToValue for Json with fn to_value(self) {
   Value::String(self.stringify())
+}
+
+///|
+pub impl ToValue for Json with fn pg_type(_self) -> @wire.Type {
+  @wire.default_map.type_for_name("jsonb").unwrap()
 }
 
 ///|
@@ -213,6 +226,11 @@ pub impl ToValue for Timestamp with fn to_value(self) {
 }
 
 ///|
+pub impl ToValue for Timestamp with fn pg_type(_self) -> @wire.Type {
+  @wire.default_map.type_for_name("timestamptz").unwrap()
+}
+
+///|
 pub impl FromRaw for Timestamp with fn from_raw(v : RawValue) raise PgError {
   match v {
     Null => raise_null("Timestamp")
@@ -225,6 +243,11 @@ pub impl FromRaw for Timestamp with fn from_raw(v : RawValue) raise PgError {
 /// PG `numeric` — arbitrary-precision decimal, transmitted as text.
 pub impl ToValue for @decimal.Decimal with fn to_value(self) {
   Value::String(self.to_string())
+}
+
+///|
+pub impl ToValue for @decimal.Decimal with fn pg_type(_self) -> @wire.Type {
+  @wire.default_map.type_for_name("numeric").unwrap()
 }
 
 ///|
@@ -246,6 +269,11 @@ pub impl FromRaw for @decimal.Decimal with fn from_raw(v : RawValue) raise PgErr
 /// PG `uuid` — transmitted as text.
 pub impl ToValue for @uuid.UUID with fn to_value(self) {
   Value::String(self.to_string())
+}
+
+///|
+pub impl ToValue for @uuid.UUID with fn pg_type(_self) -> @wire.Type {
+  @wire.default_map.type_for_name("uuid").unwrap()
 }
 
 ///|

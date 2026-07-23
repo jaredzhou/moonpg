@@ -526,7 +526,7 @@ fn build_default_map() -> TypeMap {
 
 ///|
 /// Lazily-initialised default type map.
-let default_map : TypeMap = build_default_map()
+pub let default_map : TypeMap = build_default_map()
 
 ///|
 /// Look up the human-readable type name for a PostgreSQL OID in the default map.
