@@ -73,6 +73,13 @@ pub fn TypeMap::iter(self : TypeMap) -> Iter[(Int, Type)] {
 }
 
 ///|
+/// Iterate over all `information_schema.data_type` aliases.
+/// Yields `(name, oid)` pairs.
+pub fn TypeMap::iter_data_types(self : TypeMap) -> Iter[(String, Int)] {
+  self.data_type_to_oid.iter()
+}
+
+///|
 /// Look up a type by `information_schema.data_type` name.
 /// Returns `None` for unknown names.
 pub fn TypeMap::type_for_data_type(self : TypeMap, name : String) -> Type? {

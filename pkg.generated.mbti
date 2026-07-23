@@ -34,6 +34,8 @@ pub fn pg_type_for_oid(Int) -> @wire.Type?
 
 pub let pg_type_map : @wire.TypeMap
 
+pub fn pg_types() -> Iter[@wire.Type]
+
 pub fn[T] raise_binary() -> T raise PgError
 
 pub fn[T] raise_null(String) -> T raise PgError

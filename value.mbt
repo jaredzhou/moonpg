@@ -258,6 +258,13 @@ pub fn pg_types() -> Iter[PGType] {
   pg_type_map.iter().map(fn(kv) { kv.1 })
 }
 
+///|
+/// Iterate over all `information_schema.data_type` names,
+/// yielding `(name, oid)` pairs (e.g. `("integer", 23)`).
+pub fn pg_data_types() -> Iter[(String, Int)] {
+  pg_type_map.iter_data_types()
+}
+
 // ===========================================================================
 // Private encode / decode helpers
 // ===========================================================================
