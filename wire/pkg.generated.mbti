@@ -146,6 +146,8 @@ pub let daterange_array_oid : Int
 
 pub let daterange_oid : Int
 
+pub let default_map : TypeMap
+
 pub let float4_array_oid : Int
 
 pub let float4_oid : Int

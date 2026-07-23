@@ -1,4 +1,13 @@
 ///|
+/// PostgreSQL value types, traits, and encoders.
+/// Public API (enums, traits, and their methods) at the top;
+/// private encode/decode helpers at the bottom.
+
+// ===========================================================================
+// Public types
+// ===========================================================================
+
+///|
 /// PostgreSQL parameter value. Used for both encoding (client → server via
 /// `ToValue`) and decoding (server → client via `FromRaw`).
 pub enum Value {
@@ -19,20 +28,63 @@ pub enum Format {
 } derive(Eq)
 
 ///|
-fn Format::to_int(self : Format) -> Int {
-  match self {
-    Text => 0
-    Binary => 1
-  }
-}
-
-///|
 /// Raw value read from a result cell. Carries the format (text or binary)
 /// and the raw bytes from libpq. Convert to `Value` via `to_value()`.
 pub(all) enum RawValue {
   Null
   Bytes(Format, Bytes)
 }
+
+// ===========================================================================
+// Public traits
+// ===========================================================================
+
+///|
+/// Types that can be used as SQL parameters.
+pub(open) trait ToValue {
+  fn to_value(Self) -> Value
+  fn to_raw_value(Self) -> RawValue = _
+  fn pg_type(Self) -> @wire.Type = _
+}
+
+///|
+/// Default `to_raw_value`: `Null` → `RawValue::Null`. `Bytes` → binary;
+/// everything else → text format.
+impl ToValue with fn to_raw_value(self) {
+  default_encode(self.to_value())
+}
+
+///|
+/// Default `pg_type`: derived from `Value::pg_type_name` via the TypeMap.
+/// Override for types whose `to_value()` representation doesn't match the
+/// PG type (e.g. Timestamp → int8 on wire but timestamptz in PG).
+impl ToValue with fn pg_type(self) -> @wire.Type {
+  let name = self.to_value().pg_type_name()
+  match @wire.default_map.type_for_name(name) {
+    Some(t) => t
+    None => @wire.Type::{ name: "unknown", oid: 0 }
+  }
+}
+
+///|
+/// Types that can be decoded from a PostgreSQL cell value.
+///
+/// `from_raw` receives a `RawValue` directly from the libpq result (format +
+/// raw bytes). Implementations should handle:
+///
+/// * `RawValue::Null` — SQL NULL; raise or return a default
+/// * `RawValue::Bytes(Text, b)` — text-format value (UTF-8 decode then parse)
+/// * `RawValue::Bytes(Binary, b)` — binary wire-protocol value
+///
+/// The basic implementations raise `PgError::QueryError` on `Null`; use
+/// `Option[T]` for nullable columns.
+pub(open) trait FromRaw {
+  fn from_raw(RawValue) -> Self raise PgError
+}
+
+// ===========================================================================
+// Public functions
+// ===========================================================================
 
 ///|
 /// Convert a `RawValue` (format + bytes from libpq) to a `Value`.
@@ -57,7 +109,7 @@ pub fn RawValue::to_value(self : RawValue) -> Value {
 
 ///|
 /// Build `(param_values, param_formats)` arrays for the wire protocol's
-/// `execute_params` from an array of `Value`s.
+/// `execute_params` from an array of `RawValue`s.
 pub fn build_params(params : Array[RawValue]) -> (Array[Bytes?], Array[Int]) {
   let n = params.length()
   let values : Array[Bytes?] = Array::makei(n, fn(_) { None })
@@ -71,6 +123,91 @@ pub fn build_params(params : Array[RawValue]) -> (Array[Bytes?], Array[Int]) {
     ignore(formats.set(i, fmt))
   }
   (values, formats)
+}
+
+///|
+/// Encode a `Value` into a `RawValue` in the given format.
+///
+/// * `Text` — PostgreSQL text representation (e.g. `"42"`, `"t"`, `"f"`).
+/// * `Binary` — PostgreSQL binary representation (network byte order).
+///
+/// Returns `RawValue::Null` for `Value::Null` (caller should emit SQL NULL
+/// instead).
+pub fn Value::to_raw(self : Value, format : Format) -> RawValue {
+  match self {
+    Null => RawValue::Null
+    Bool(v) =>
+      match format {
+        Text => RawValue::Bytes(Text, encode_string(if v { "t" } else { "f" }))
+        Binary => RawValue::Bytes(Binary, encode_bool(v))
+      }
+    Int(v) =>
+      match format {
+        Text => RawValue::Bytes(Text, encode_string(v.to_string()))
+        Binary => RawValue::Bytes(Binary, encode_int4(v))
+      }
+    Int64(v) =>
+      match format {
+        Text => RawValue::Bytes(Text, encode_string(v.to_string()))
+        Binary => RawValue::Bytes(Binary, encode_int8(v))
+      }
+    Float(v) =>
+      match format {
+        Text => RawValue::Bytes(Text, encode_string(v.to_string()))
+        Binary => RawValue::Bytes(Binary, encode_float8(v))
+      }
+    String(v) => RawValue::Bytes(format, encode_string(v))
+    Bytes(v) => RawValue::Bytes(format, v)
+  }
+}
+
+///|
+/// Default encode: `Value` → `RawValue` for parameter transmission.
+/// `Null` → `Null`. `Bytes` → binary format; everything else → text format.
+pub fn default_encode(v : Value) -> RawValue {
+  match v {
+    Null => RawValue::Null
+    Bytes(_) => v.to_raw(Binary)
+    _ => v.to_raw(Text)
+  }
+}
+
+///|
+/// Return the PostgreSQL type name for this value (e.g. `"int4"`, `"text"`).
+pub fn Value::pg_type_name(self : Value) -> String {
+  match self {
+    Null => "unknown"
+    Bool(_) => "bool"
+    Int(_) => "int4"
+    Int64(_) => "int8"
+    Float(_) => "float8"
+    String(_) => "text"
+    Bytes(_) => "bytea"
+  }
+}
+
+///|
+pub fn[T] raise_null(label : String) -> T raise PgError {
+  raise PgError::QueryError(
+    "cannot decode NULL as \{label}; use Option[\{label}] for nullable columns",
+  )
+}
+
+///|
+pub fn[T] raise_binary() -> T raise PgError {
+  raise PgError::QueryError("binary-format cell values are not supported yet")
+}
+
+// ===========================================================================
+// Private helpers
+// ===========================================================================
+
+///|
+fn Format::to_int(self : Format) -> Int {
+  match self {
+    Text => 0
+    Binary => 1
+  }
 }
 
 ///|
@@ -148,42 +285,6 @@ fn decode_bool(b : Bytes) -> Bool {
 }
 
 ///|
-/// Encode a `Value` into a `RawValue` in the given format.
-///
-/// * `Text` — PostgreSQL text representation (e.g. `"42"`, `"t"`, `"f"`).
-/// * `Binary` — PostgreSQL binary representation (network byte order).
-///
-/// Returns `RawValue::Null` for `Value::Null` (caller should emit SQL NULL
-/// instead).
-pub fn Value::to_raw(self : Value, format : Format) -> RawValue {
-  match self {
-    Null => RawValue::Null
-    Bool(v) =>
-      match format {
-        Text => RawValue::Bytes(Text, encode_string(if v { "t" } else { "f" }))
-        Binary => RawValue::Bytes(Binary, encode_bool(v))
-      }
-    Int(v) =>
-      match format {
-        Text => RawValue::Bytes(Text, encode_string(v.to_string()))
-        Binary => RawValue::Bytes(Binary, encode_int4(v))
-      }
-    Int64(v) =>
-      match format {
-        Text => RawValue::Bytes(Text, encode_string(v.to_string()))
-        Binary => RawValue::Bytes(Binary, encode_int8(v))
-      }
-    Float(v) =>
-      match format {
-        Text => RawValue::Bytes(Text, encode_string(v.to_string()))
-        Binary => RawValue::Bytes(Binary, encode_float8(v))
-      }
-    String(v) => RawValue::Bytes(format, encode_string(v))
-    Bytes(v) => RawValue::Bytes(format, v)
-  }
-}
-
-///|
 fn encode_string(s : String) -> Bytes {
   @utf8.encode(s)
 }
@@ -195,84 +296,9 @@ fn decode_string(b : Bytes) -> String {
   }
 }
 
-///|
-/// Default encode: `Value` → `RawValue` for parameter transmission.
-/// `Null` → `Null`. `Bytes` → binary format; everything else → text format.
-pub fn default_encode(v : Value) -> RawValue {
-  match v {
-    Null => RawValue::Null
-    Bytes(_) => v.to_raw(Binary)
-    _ => v.to_raw(Text)
-  }
-}
-
-///|
-
-///|
-/// Return the PostgreSQL type name for this value (e.g. `"int4"`, `"text"`).
-pub fn Value::pg_type_name(self : Value) -> String {
-  match self {
-    Null => "unknown"
-    Bool(_) => "bool"
-    Int(_) => "int4"
-    Int64(_) => "int8"
-    Float(_) => "float8"
-    String(_) => "text"
-    Bytes(_) => "bytea"
-  }
-}
-
-///|
-/// Types that can be used as SQL parameters.
-pub(open) trait ToValue {
-  fn to_value(Self) -> Value
-  fn to_raw_value(Self) -> RawValue = _
-  fn pg_type(Self) -> @wire.Type = _
-}
-
-///|
-impl ToValue with fn to_raw_value(self) {
-  default_encode(self.to_value())
-}
-
-///|
-impl ToValue with fn pg_type(self) -> @wire.Type {
-  let name = self.to_value().pg_type_name()
-  match @wire.default_map.type_for_name(name) {
-    Some(t) => t
-    None => @wire.Type::{ name: "unknown", oid: 0 }
-  }
-}
-
-///|
-/// Types that can be decoded from a PostgreSQL cell value.
-///
-/// `from_raw` receives a `RawValue` directly from the libpq result (format +
-/// raw bytes). Implementations should handle:
-///
-/// * `RawValue::Null` — SQL NULL; raise or return a default
-/// * `RawValue::Bytes(Text, b)` — text-format value (UTF-8 decode then parse)
-/// * `RawValue::Bytes(Binary, b)` — binary wire-protocol value
-///
-/// The basic implementations raise `PgError::QueryError` on `Null`; use
-/// `Option[T]` for nullable columns.
-
-///|
-pub(open) trait FromRaw {
-  fn from_raw(RawValue) -> Self raise PgError
-}
-
-///|
-pub fn[T] raise_null(label : String) -> T raise PgError {
-  raise PgError::QueryError(
-    "cannot decode NULL as \{label}; use Option[\{label}] for nullable columns",
-  )
-}
-
-///|
-pub fn[T] raise_binary() -> T raise PgError {
-  raise PgError::QueryError("binary-format cell values are not supported yet")
-}
+// ===========================================================================
+// Tests
+// ===========================================================================
 
 ///|
 test "decode_int4_positive" {

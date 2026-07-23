@@ -213,6 +213,7 @@ pub enum Value {
   String(String)
   Bytes(Bytes)
 }
+pub fn Value::pg_type_name(Self) -> String
 pub fn Value::to_raw(Self, Format) -> RawValue
 
 // Type aliases
@@ -248,6 +249,7 @@ pub(open) trait Rows {
 pub(open) trait ToValue {
   fn to_value(Self) -> Value
   fn to_raw_value(Self) -> RawValue = _
+  fn pg_type(Self) -> @wire.Type = _
 }
 pub impl ToValue for Bool
 pub impl ToValue for Int

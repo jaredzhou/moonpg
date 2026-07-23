@@ -1,6 +1,12 @@
 ///|
 /// `ToValue` and `FromRaw` implementations for built-in types.
 /// Core traits and types live in `value.mbt`.
+///
+/// Each type's `ToValue` and `FromRaw` impls are grouped together.
+
+// ---------------------------------------------------------------------------
+// Int
+// ---------------------------------------------------------------------------
 
 ///|
 pub impl ToValue for Int with fn to_value(self) {
@@ -8,9 +14,45 @@ pub impl ToValue for Int with fn to_value(self) {
 }
 
 ///|
+pub impl FromRaw for Int with fn from_raw(v : RawValue) raise PgError {
+  match v {
+    Null => raise_null("Int")
+    Bytes(Text, b) => {
+      let s = decode_string(b)
+      @string.parse_int(s) catch {
+        _ => raise PgError::QueryError("cannot convert '\{s}' to Int")
+      }
+    }
+    Bytes(Binary, b) => decode_int4(b)
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Int64
+// ---------------------------------------------------------------------------
+
+///|
 pub impl ToValue for Int64 with fn to_value(self) {
   Value::Int64(self)
 }
+
+///|
+pub impl FromRaw for Int64 with fn from_raw(v : RawValue) raise PgError {
+  match v {
+    Null => raise_null("Int64")
+    Bytes(Text, b) => {
+      let s = decode_string(b)
+      @string.parse_int64(s) catch {
+        _ => raise PgError::QueryError("cannot convert '\{s}' to Int64")
+      }
+    }
+    Bytes(Binary, b) => decode_int8(b)
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Double
+// ---------------------------------------------------------------------------
 
 ///|
 pub impl ToValue for Double with fn to_value(self) {
@@ -18,9 +60,22 @@ pub impl ToValue for Double with fn to_value(self) {
 }
 
 ///|
-pub impl ToValue for String with fn to_value(self) {
-  Value::String(self)
+pub impl FromRaw for Double with fn from_raw(v : RawValue) raise PgError {
+  match v {
+    Null => raise_null("Double")
+    Bytes(Text, b) => {
+      let s = decode_string(b)
+      @string.parse_double(s) catch {
+        _ => raise PgError::QueryError("cannot convert '\{s}' to Double")
+      }
+    }
+    Bytes(Binary, b) => decode_float8(b)
+  }
 }
+
+// ---------------------------------------------------------------------------
+// Bool
+// ---------------------------------------------------------------------------
 
 ///|
 pub impl ToValue for Bool with fn to_value(self) {
@@ -28,9 +83,57 @@ pub impl ToValue for Bool with fn to_value(self) {
 }
 
 ///|
+pub impl FromRaw for Bool with fn from_raw(v : RawValue) raise PgError {
+  match v {
+    Null => raise_null("Bool")
+    Bytes(Text, b) => {
+      let s = decode_string(b)
+      @string.parse_bool(s) catch {
+        _ => raise PgError::QueryError("cannot convert '\{s}' to Bool")
+      }
+    }
+    Bytes(Binary, b) => decode_bool(b)
+  }
+}
+
+// ---------------------------------------------------------------------------
+// String
+// ---------------------------------------------------------------------------
+
+///|
+pub impl ToValue for String with fn to_value(self) {
+  Value::String(self)
+}
+
+///|
+pub impl FromRaw for String with fn from_raw(v : RawValue) raise PgError {
+  match v {
+    Null => raise_null("String")
+    Bytes(Text, b) => decode_string(b)
+    Bytes(Binary, b) => decode_string(b)
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Bytes
+// ---------------------------------------------------------------------------
+
+///|
 pub impl ToValue for Bytes with fn to_value(self) {
   Value::Bytes(self)
 }
+
+///|
+pub impl FromRaw for Bytes with fn from_raw(v : RawValue) raise PgError {
+  match v {
+    Null => raise_null("Bytes")
+    Bytes(_, b) => b
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Option[T] — nullable
+// ---------------------------------------------------------------------------
 
 ///|
 pub impl[T : ToValue] ToValue for T? with fn to_value(self) {
@@ -49,7 +152,18 @@ pub impl[T : ToValue] ToValue for T? with fn pg_type(self) -> @wire.Type {
 }
 
 ///|
-/// PG `json` / `jsonb` — transmitted as text.
+pub impl[T : FromRaw] FromRaw for T? with fn from_raw(v : RawValue) raise PgError {
+  match v {
+    Null => None
+    Bytes(_, _) => Some(T::from_raw(v))
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Json
+// ---------------------------------------------------------------------------
+
+///|
 pub impl ToValue for Json with fn to_value(self) {
   Value::String(self.stringify())
 }
@@ -57,89 +171,6 @@ pub impl ToValue for Json with fn to_value(self) {
 ///|
 pub impl ToValue for Json with fn pg_type(_self) -> @wire.Type {
   @wire.default_map.type_for_name("jsonb").unwrap()
-}
-
-///|
-pub impl FromRaw for Int with fn from_raw(v : RawValue) raise PgError {
-  match v {
-    Null => raise_null("Int")
-    Bytes(Text, b) => {
-      let s = decode_string(b)
-      @string.parse_int(s) catch {
-        _ => raise PgError::QueryError("cannot convert '\{s}' to Int")
-      }
-    }
-    Bytes(Binary, b) => decode_int4(b)
-  }
-}
-
-///|
-pub impl FromRaw for Int64 with fn from_raw(v : RawValue) raise PgError {
-  match v {
-    Null => raise_null("Int64")
-    Bytes(Text, b) => {
-      let s = decode_string(b)
-      @string.parse_int64(s) catch {
-        _ => raise PgError::QueryError("cannot convert '\{s}' to Int64")
-      }
-    }
-    Bytes(Binary, b) => decode_int8(b)
-  }
-}
-
-///|
-pub impl FromRaw for Double with fn from_raw(v : RawValue) raise PgError {
-  match v {
-    Null => raise_null("Double")
-    Bytes(Text, b) => {
-      let s = decode_string(b)
-      @string.parse_double(s) catch {
-        _ => raise PgError::QueryError("cannot convert '\{s}' to Double")
-      }
-    }
-    Bytes(Binary, b) => decode_float8(b)
-  }
-}
-
-///|
-pub impl FromRaw for Bool with fn from_raw(v : RawValue) raise PgError {
-  match v {
-    Null => raise_null("Bool")
-    Bytes(Text, b) => {
-      let s = decode_string(b)
-      @string.parse_bool(s) catch {
-        _ => raise PgError::QueryError("cannot convert '\{s}' to Bool")
-      }
-    }
-    Bytes(Binary, b) => decode_bool(b)
-  }
-}
-
-///|
-pub impl FromRaw for String with fn from_raw(v : RawValue) raise PgError {
-  match v {
-    Null => raise_null("String")
-    Bytes(Text, b) => decode_string(b)
-    Bytes(Binary, b) => decode_string(b)
-  }
-}
-
-///|
-pub impl FromRaw for Bytes with fn from_raw(v : RawValue) raise PgError {
-  match v {
-    Null => raise_null("Bytes")
-    Bytes(_, b) => b
-  }
-}
-
-///|
-/// Nullable variant of `FromRaw`: `SQL NULL` decodes to `None`, any other
-/// value is delegated to `T::from_raw` (which itself may raise).
-pub impl[T : FromRaw] FromRaw for T? with fn from_raw(v : RawValue) raise PgError {
-  match v {
-    Null => None
-    Bytes(_, _) => Some(T::from_raw(v))
-  }
 }
 
 ///|
@@ -154,41 +185,30 @@ pub impl FromRaw for Json with fn from_raw(v : RawValue) raise PgError {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Timestamp
+// ---------------------------------------------------------------------------
+
 ///|
-/// PG `timestamp` / `timestamptz` — Unix epoch microseconds (UTC).
-/// Transmitted as PG binary int8 (microseconds since 2000-01-01).
 pub(all) struct Timestamp(Int64)
 
 ///|
-/// Offset between Unix epoch (1970-01-01) and PG epoch (2000-01-01)
-/// in microseconds: 30 years = 946,684,800,000,000 µs.
 let pg_epoch_offset : Int64 = 946684800000000L
 
 ///|
-/// Parse PG text format: `YYYY-MM-DD HH:MM:SS[.f+][+TZ]`.
-/// Delegates calendar math to `@x.time.PlainDateTime`.
 fn parse_ts(s : String) -> Timestamp raise PgError {
-  // Separate timezone offset if present (PlainDateTime ignores it).
   let (body, tz_offset_secs) = split_tz(s)
-  // PG uses space separator; x/time expects ISO 8601 'T'.
   let iso = body.replace(old=" ", new="T")
   let pdt = @time.PlainDateTime::from_str(iso) catch {
     _ => raise PgError::QueryError("cannot parse timestamp: '\{s}'")
   }
-  // to_unix_second gives UTC seconds; nanosecond() gives sub-second.
-  // Adjust by timezone offset: e.g. +08:00 means local time is 8h ahead,
-  // so subtract 8h to get UTC.
   let usec = (pdt.to_unix_second() - tz_offset_secs.to_int64()) * 1_000_000L +
     pdt.nanosecond().to_int64() / 1000L
   Timestamp(usec)
 }
 
 ///|
-/// Strip timezone suffix from PG timestamp string.
-/// Returns `(body, offset_seconds)`. Offset is positive for `+HH:MM`
-/// (ahead of UTC), negative for `-HH:MM` (behind UTC).
 fn split_tz(s : String) -> (String, Int) {
-  // Look for + or - after the first 19 characters (date + time).
   let len = s.length()
   for i = 19; i < len; i = i + 1 {
     if s[i] == '+' || s[i] == '-' {
@@ -206,7 +226,6 @@ fn split_tz(s : String) -> (String, Int) {
 }
 
 ///|
-/// Single ASCII digit at position i, or 0 if out of range / non-digit.
 fn digit(s : String, i : Int) -> Int {
   if i >= s.length() {
     return 0
@@ -221,7 +240,6 @@ fn digit(s : String, i : Int) -> Int {
 
 ///|
 pub impl ToValue for Timestamp with fn to_value(self) {
-  // Unix epoch → PG epoch (2000-01-01), then encode as binary int8
   Value::Int64(self.0 - pg_epoch_offset)
 }
 
@@ -239,8 +257,11 @@ pub impl FromRaw for Timestamp with fn from_raw(v : RawValue) raise PgError {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Decimal
+// ---------------------------------------------------------------------------
+
 ///|
-/// PG `numeric` — arbitrary-precision decimal, transmitted as text.
 pub impl ToValue for @decimal.Decimal with fn to_value(self) {
   Value::String(self.to_string())
 }
@@ -265,8 +286,11 @@ pub impl FromRaw for @decimal.Decimal with fn from_raw(v : RawValue) raise PgErr
   }
 }
 
+// ---------------------------------------------------------------------------
+// UUID
+// ---------------------------------------------------------------------------
+
 ///|
-/// PG `uuid` — transmitted as text.
 pub impl ToValue for @uuid.UUID with fn to_value(self) {
   Value::String(self.to_string())
 }
@@ -288,6 +312,10 @@ pub impl FromRaw for @uuid.UUID with fn from_raw(v : RawValue) raise PgError {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
 ///|
 test "parse_ts_basic" {
   let ts = parse_ts("2024-07-09 12:34:56")
@@ -308,9 +336,7 @@ test "parse_ts_with_micros" {
 
 ///|
 test "parse_ts_with_tz" {
-  // Same instant as UTC but expressed as +08:00 → should convert to UTC
   let ts = parse_ts("2024-07-09 12:34:56+08")
-  // 12:34:56 +08:00 = 04:34:56 UTC
   assert_eq(ts.0, 1720499696000000L, msg="parse_ts +08")
 }
 
@@ -323,6 +349,5 @@ test "timestamp_epoch" {
 ///|
 test "timestamp_before_epoch" {
   let ts = parse_ts("1969-12-31 23:59:59")
-  // One second before epoch = -1_000_000 microseconds
   assert_eq(ts.0, -1000000L, msg="before epoch")
 }
