@@ -12,9 +12,13 @@ pub(all) struct Type {
 
 ///|
 /// Registry of PostgreSQL type OID ↔ name mappings.
+/// * `oid_to_type` / `name_to_type` — canonical PG names (e.g. `int4`, `varchar`).
+/// * `data_type_to_oid` — `information_schema` standard names (e.g. `integer`,
+///   `character varying`) mapping to OIDs.
 pub(all) struct TypeMap {
   oid_to_type : @hashmap.HashMap[Int, Type]
   name_to_type : @hashmap.HashMap[String, Type]
+  data_type_to_oid : @hashmap.HashMap[String, Int]
 }
 
 ///|
@@ -27,18 +31,26 @@ fn TypeMap::new() -> TypeMap {
   {
     oid_to_type: @hashmap.HashMap([], capacity=200),
     name_to_type: @hashmap.HashMap([], capacity=200),
+    data_type_to_oid: @hashmap.HashMap([], capacity=50),
   }
 }
 
 ///|
 fn TypeMap::register(self : TypeMap, name : String, oid : Int) -> TypeMap {
   let t = new_type(name, oid)
-  // Only set oid_to_type on first registration — keeps the canonical PG name
-  match self.oid_to_type.get(oid) {
-    None => self.oid_to_type.set(oid, Type::{ ..t })
-    Some(_) => ()
-  }
+  self.oid_to_type.set(oid, Type::{ ..t })
   self.name_to_type.set(name, Type::{ ..t })
+  self
+}
+
+///|
+/// Register an `information_schema.data_type` alias for the given OID.
+fn TypeMap::register_data_type(
+  self : TypeMap,
+  name : String,
+  oid : Int,
+) -> TypeMap {
+  self.data_type_to_oid.set(name, oid)
   self
 }
 
@@ -49,9 +61,19 @@ pub fn TypeMap::type_for_oid(self : TypeMap, oid : Int) -> Type? {
 }
 
 ///|
-/// Look up a type by name. Returns `None` for unknown names.
+/// Look up a type by canonical PG name. Returns `None` for unknown names.
 pub fn TypeMap::type_for_name(self : TypeMap, name : String) -> Type? {
   self.name_to_type.get(name)
+}
+
+///|
+/// Look up a type by `information_schema.data_type` name.
+/// Returns `None` for unknown names.
+pub fn TypeMap::type_for_data_type(self : TypeMap, name : String) -> Type? {
+  match self.data_type_to_oid.get(name) {
+    None => None
+    Some(oid) => self.oid_to_type.get(oid)
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -526,20 +548,20 @@ fn build_default_map() -> TypeMap {
   .register("_tstzmultirange", tstzmultirange_array_oid)
   .register("_datemultirange", datemultirange_array_oid)
   .register("_int8multirange", int8multirange_array_oid)
-  // information_schema standard SQL names — same OIDs, different names
-  .register("integer", int4_oid)
-  .register("bigint", int8_oid)
-  .register("smallint", int2_oid)
-  .register("boolean", bool_oid)
-  .register("character varying", varchar_oid)
-  .register("character", bpchar_oid)
-  .register("double precision", float8_oid)
-  .register("real", float4_oid)
-  .register("timestamp with time zone", timestamptz_oid)
-  .register("timestamp without time zone", timestamp_oid)
-  .register("time with time zone", timetz_oid)
-  .register("time without time zone", time_oid)
-  .register("ARRAY", record_oid)
+  // information_schema.data_type aliases — separate from canonical PG names
+  .register_data_type("integer", int4_oid)
+  .register_data_type("bigint", int8_oid)
+  .register_data_type("smallint", int2_oid)
+  .register_data_type("boolean", bool_oid)
+  .register_data_type("character varying", varchar_oid)
+  .register_data_type("character", bpchar_oid)
+  .register_data_type("double precision", float8_oid)
+  .register_data_type("real", float4_oid)
+  .register_data_type("timestamp with time zone", timestamptz_oid)
+  .register_data_type("timestamp without time zone", timestamp_oid)
+  .register_data_type("time with time zone", timetz_oid)
+  .register_data_type("time without time zone", time_oid)
+  .register_data_type("ARRAY", record_oid)
 }
 
 ///|
@@ -557,13 +579,19 @@ pub fn oid_to_name(oid : Int) -> String {
 }
 
 ///|
-/// Look up the OID for a type name in the default map.
-/// Returns `0` for unknown names (0 is not a valid PG OID).
+/// Look up the OID for a canonical PG type name. Returns `0` for unknown names.
 pub fn name_to_oid(name : String) -> Int {
   match default_map.type_for_name(name) {
     Some(t) => t.oid
     None => 0
   }
+}
+
+///|
+/// Look up a type by `information_schema.data_type` name in the default map.
+/// Returns `None` for unknown names.
+pub fn type_for_data_type(name : String) -> Type? {
+  default_map.type_for_data_type(name)
 }
 
 ///|
@@ -612,17 +640,32 @@ test "oid_to_name_range" {
 
 ///|
 test "information_schema_aliases" {
-  // info schema names resolve to same OIDs as PG internal names
-  assert_eq(name_to_oid("integer"), 23)
-  assert_eq(name_to_oid("bigint"), 20)
-  assert_eq(name_to_oid("smallint"), 21)
-  assert_eq(name_to_oid("boolean"), 16)
-  assert_eq(name_to_oid("character varying"), 1043)
-  assert_eq(name_to_oid("double precision"), 701)
-  assert_eq(name_to_oid("real"), 700)
-  assert_eq(name_to_oid("timestamp with time zone"), 1184)
-  assert_eq(name_to_oid("timestamp without time zone"), 1114)
-  // canonical PG names still resolve via oid_to_name
+  // info schema names → Types
+  match type_for_data_type("integer") {
+    Some(t) => {
+      assert_eq(t.name, "int4")
+      assert_eq(t.oid, 23)
+    }
+    None => fail("expected integer type")
+  }
+  match type_for_data_type("character varying") {
+    Some(t) => {
+      assert_eq(t.name, "varchar")
+      assert_eq(t.oid, 1043)
+    }
+    None => fail("expected character varying")
+  }
+  match type_for_data_type("timestamp with time zone") {
+    Some(t) => {
+      assert_eq(t.name, "timestamptz")
+      assert_eq(t.oid, 1184)
+    }
+    None => fail("expected timestamptz")
+  }
+  // canonical PG names unchanged
   assert_eq(oid_to_name(23), "int4")
   assert_eq(oid_to_name(1184), "timestamptz")
+  assert_eq(name_to_oid("int4"), 23)
+  // unknown
+  assert_true(type_for_data_type("nope") is None)
 }
