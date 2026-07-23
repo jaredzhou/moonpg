@@ -5,7 +5,7 @@
 **GitHub**：https://github.com/jaredzhou/moonpg
 **项目方向**：MoonBit 数据库驱动与网络协议　　　**是否移植**：是
 
-MoonPG 将 PostgreSQL 原生客户端驱动移植到 MoonBit 生态，从 TCP 层开始完整实现 PostgreSQL v3 有线协议，零 C 依赖（无 libpq、无原生桩代码）。项目实现了完整的前后端消息编解码、三种认证方式（cleartext / MD5 / SCRAM-SHA-256）、TLS/SSL 安全传输、连接池（含健康检查与后台维护）、事务支持、COPY 批量导入协议、LISTEN/NOTIFY 异步通知、以及基于 trait 的多态类型编解码系统（ToValue / FromRaw + 泛型 Option[T] 可空列）。223 个测试覆盖所有公开 API 与有线协议路径。API 简洁、功能完整，零 C 依赖。配合 FoxQL（编译期类型安全 SQL 构建器）与 QueryX（JSON 查询 DSL + FoxQL 桥接）形成完整的 MoonBit PostgreSQL 技术栈：moonpg 负责有线协议与连接管理，FoxQL 提供类型安全查询构建，QueryX 提供 JSON 过滤表达式到 SQL 的翻译层——覆盖从驱动到查询构建再到 RESTful 接口过滤的端到端数据库能力，为 pony Web 框架与微服务后端提供完整的 PostgreSQL 开发体验。
+MoonPG 将 PostgreSQL 原生客户端驱动移植到 MoonBit 生态，从 TCP 层开始完整实现 PostgreSQL v3 有线协议，零 C 依赖（无 libpq、无原生桩代码）。项目实现了完整的前后端消息编解码、三种认证方式（cleartext / MD5 / SCRAM-SHA-256）、TLS/SSL 安全传输、连接池（含健康检查与后台维护）、事务支持、COPY 批量导入协议、LISTEN/NOTIFY 异步通知、以及基于 trait 的多态类型编解码系统（ToValue / FromRaw + 泛型 Option[T] 可空列）。223 个测试覆盖所有公开 API 与有线协议路径。API 简洁、功能完整，零 C 依赖，适用于 MoonBit Web 后端开发、ETL 数据处理管道、微服务数据访问层、数据分析与报表系统、实时消息通知等场景。配合 FoxQL（编译期类型安全 SQL 构建器）与 QueryX（JSON 查询 DSL + FoxQL 桥接），moonpg 与二者形成完整的 MoonBit PostgreSQL 技术栈——驱动层、查询构建层、RESTful 过滤层各司其职，为 pony Web 框架提供从连接到接口的端到端 PostgreSQL 开发体验。
 
 **核心功能范围**：
 
