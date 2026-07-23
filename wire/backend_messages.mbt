@@ -20,6 +20,14 @@ pub struct FieldDescription {
 }
 
 ///|
+/// Return the human-readable type name for this column (e.g. `"int4"`, `"text"`).
+/// Looks up `type_oid` in the built-in OID map; returns `"unknown"` for
+/// unrecognised OIDs.  No database round-trip.
+pub fn FieldDescription::type_name(self : FieldDescription) -> String {
+  oid_to_name(self.type_oid)
+}
+
+///|
 /// Describes a prepared statement: its parameter OIDs and result-column
 /// layout (if the statement returns rows).
 pub struct StatementDescription {
