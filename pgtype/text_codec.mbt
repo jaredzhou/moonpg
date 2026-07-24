@@ -1,10 +1,9 @@
 ///|
-/// `TextCodec` — text-format codec that maps `Value::String` to/from UTF-8 bytes.
+/// `TextCodec` — text format encodes `Value::String` as UTF-8 bytes.
+/// Binary format is identical — decodes bytes as UTF-8 string.
 ///
 /// Used for these PostgreSQL types (among others):
 /// * text (25), varchar (1043), bpchar (1042), name (19), unknown (705)
-///
-/// Binary format is not supported — raises `CodecError`.
 pub struct TextCodec {}
 
 ///|
@@ -23,20 +22,13 @@ impl Codec for TextCodec with fn encode(
   format : @value.Format,
   value : @value.Value,
 ) -> Bytes? raise CodecError {
-  match format {
-    @value.Format::Text =>
-      match value {
-        @value.Value::String(s) => Some(@utf8.encode(s))
-        @value.Value::Json(j) => Some(@utf8.encode(j.stringify()))
-        @value.Value::Null => None
-        _ =>
-          raise CodecError::CodecError(
-            "TextCodec::encode: expected Value::String or Value::Null",
-          )
-      }
-    @value.Format::Binary =>
+  match value {
+    @value.Value::String(s) => Some(@utf8.encode(s))
+    @value.Value::Json(j) => Some(@utf8.encode(j.stringify()))
+    @value.Value::Null => None
+    _ =>
       raise CodecError::CodecError(
-        "TextCodec: binary format not supported for text types",
+        "TextCodec::encode: expected Value::String or Value::Null",
       )
   }
 }
@@ -45,22 +37,16 @@ impl Codec for TextCodec with fn encode(
 impl Codec for TextCodec with fn decode(
   _self : TextCodec,
   _oid : Int,
-  format : @value.Format,
+  _format : @value.Format,
   bytes : Bytes?,
 ) -> @value.Value raise CodecError {
   match bytes {
     None => @value.Value::Null
-    Some(bytes) => match format {
-    @value.Format::Text => {
+    Some(bytes) => {
       let s = @utf8.decode(bytes) catch { _ => bytes.to_unchecked_string() }
       @value.Value::String(s)
     }
-    @value.Format::Binary =>
-      raise CodecError::CodecError(
-        "TextCodec: binary format not supported for text types",
-      )
   }
-}
 }
 
 // ===========================================================================
@@ -80,17 +66,15 @@ test "text_codec_roundtrip_text" {
 }
 
 ///|
-test "text_codec_binary_raises" {
+test "text_codec_roundtrip_binary" {
   let codec = text_codec
-  let val = @value.Value::String("test")
-  let mut got_error : Bool = false
-  let _ = Codec::encode(codec, text_oid, @value.Format::Binary, val) catch {
-    _ => {
-      got_error = true
-      None
-    }
+  let val = @value.Value::String("hello binary")
+  let encoded = Codec::encode(codec, text_oid, @value.Format::Binary, val)
+  let decoded = Codec::decode(codec, text_oid, @value.Format::Binary, encoded)
+  match decoded {
+    @value.Value::String(s) => assert_eq(s, "hello binary")
+    _ => fail("expected Value::String")
   }
-  assert_true(got_error, msg="expected CodecError for binary format")
 }
 
 ///|

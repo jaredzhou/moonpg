@@ -95,7 +95,7 @@ pub impl TxBeginner for Connection with fn begin_tx(
 pub impl QueryExecutor for DbTx with fn query(
   self : DbTx,
   sql : String,
-  params? : Array[&ToValue],
+  params? : Array[&@value.ToValue],
 ) -> &Rows raise PgError {
   Connection::query(self.conn, sql, params?)
 }
@@ -104,7 +104,7 @@ pub impl QueryExecutor for DbTx with fn query(
 pub impl QueryExecutor for DbTx with fn query_one(
   self : DbTx,
   sql : String,
-  params? : Array[&ToValue],
+  params? : Array[&@value.ToValue],
 ) -> Row raise PgError {
   Connection::query_one(self.conn, sql, params?)
 }
@@ -113,7 +113,7 @@ pub impl QueryExecutor for DbTx with fn query_one(
 pub impl QueryExecutor for DbTx with fn execute(
   self : DbTx,
   sql : String,
-  params? : Array[&ToValue],
+  params? : Array[&@value.ToValue],
 ) -> ExecResult raise PgError {
   Connection::execute(self.conn, sql, params?)
 }

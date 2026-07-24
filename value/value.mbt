@@ -100,12 +100,12 @@ pub(open) trait FromValue {
 // ---------------------------------------------------------------------------
 
 ///|
-impl ToValue for Int with fn to_value(self) {
+pub impl ToValue for Int with fn to_value(self) {
   Value::Int(self)
 }
 
 ///|
-impl FromValue for Int with fn from_value(v : Value) {
+pub impl FromValue for Int with fn from_value(v : Value) {
   match v {
     Value::Int(i) => i
     _ => raise ValueError::ValueError("expected Value::Int")
@@ -117,12 +117,12 @@ impl FromValue for Int with fn from_value(v : Value) {
 // ---------------------------------------------------------------------------
 
 ///|
-impl ToValue for Int64 with fn to_value(self) {
+pub impl ToValue for Int64 with fn to_value(self) {
   Value::Int64(self)
 }
 
 ///|
-impl FromValue for Int64 with fn from_value(v : Value) {
+pub impl FromValue for Int64 with fn from_value(v : Value) {
   match v {
     Value::Int64(i) => i
     Value::Timestamp(i) => i
@@ -136,12 +136,12 @@ impl FromValue for Int64 with fn from_value(v : Value) {
 // ---------------------------------------------------------------------------
 
 ///|
-impl ToValue for Double with fn to_value(self) {
+pub impl ToValue for Double with fn to_value(self) {
   Value::Float(self)
 }
 
 ///|
-impl FromValue for Double with fn from_value(v : Value) {
+pub impl FromValue for Double with fn from_value(v : Value) {
   match v {
     Value::Float(f) => f
     _ => raise ValueError::ValueError("expected Value::Float")
@@ -153,12 +153,12 @@ impl FromValue for Double with fn from_value(v : Value) {
 // ---------------------------------------------------------------------------
 
 ///|
-impl ToValue for Bool with fn to_value(self) {
+pub impl ToValue for Bool with fn to_value(self) {
   Value::Bool(self)
 }
 
 ///|
-impl FromValue for Bool with fn from_value(v : Value) {
+pub impl FromValue for Bool with fn from_value(v : Value) {
   match v {
     Value::Bool(b) => b
     _ => raise ValueError::ValueError("expected Value::Bool")
@@ -170,12 +170,12 @@ impl FromValue for Bool with fn from_value(v : Value) {
 // ---------------------------------------------------------------------------
 
 ///|
-impl ToValue for String with fn to_value(self) {
+pub impl ToValue for String with fn to_value(self) {
   Value::String(self)
 }
 
 ///|
-impl FromValue for String with fn from_value(v : Value) {
+pub impl FromValue for String with fn from_value(v : Value) {
   match v {
     Value::String(s) => s
     _ => raise ValueError::ValueError("expected Value::String")
@@ -187,12 +187,12 @@ impl FromValue for String with fn from_value(v : Value) {
 // ---------------------------------------------------------------------------
 
 ///|
-impl ToValue for Bytes with fn to_value(self) {
+pub impl ToValue for Bytes with fn to_value(self) {
   Value::Bytes(self)
 }
 
 ///|
-impl FromValue for Bytes with fn from_value(v : Value) {
+pub impl FromValue for Bytes with fn from_value(v : Value) {
   match v {
     Value::Bytes(b) => b
     _ => raise ValueError::ValueError("expected Value::Bytes")
@@ -204,7 +204,7 @@ impl FromValue for Bytes with fn from_value(v : Value) {
 // ---------------------------------------------------------------------------
 
 ///|
-impl[T : ToValue] ToValue for T? with fn to_value(self) {
+pub impl[T : ToValue] ToValue for T? with fn to_value(self) {
   match self {
     None => Value::Null
     Some(v) => v.to_value()
@@ -212,7 +212,7 @@ impl[T : ToValue] ToValue for T? with fn to_value(self) {
 }
 
 ///|
-impl[T : FromValue] FromValue for T? with fn from_value(v : Value) {
+pub impl[T : FromValue] FromValue for T? with fn from_value(v : Value) {
   match v {
     Value::Null => None
     _ => Some(T::from_value(v))
@@ -224,12 +224,12 @@ impl[T : FromValue] FromValue for T? with fn from_value(v : Value) {
 // ---------------------------------------------------------------------------
 
 ///|
-impl ToValue for Json with fn to_value(self) {
+pub impl ToValue for Json with fn to_value(self) {
   Value::Json(self)
 }
 
 ///|
-impl FromValue for Json with fn from_value(v : Value) {
+pub impl FromValue for Json with fn from_value(v : Value) {
   match v {
     Value::Json(j) => j
     _ => raise ValueError::ValueError("expected Value::Json")
@@ -241,12 +241,12 @@ impl FromValue for Json with fn from_value(v : Value) {
 // ---------------------------------------------------------------------------
 
 ///|
-impl ToValue for @decimal.Decimal with fn to_value(self) {
+pub impl ToValue for @decimal.Decimal with fn to_value(self) {
   Value::String(self.to_string())
 }
 
 ///|
-impl FromValue for @decimal.Decimal with fn from_value(v : Value) {
+pub impl FromValue for @decimal.Decimal with fn from_value(v : Value) {
   match v {
     Value::String(s) => {
       let d = @decimal.Decimal::from_string(s)
@@ -264,12 +264,12 @@ impl FromValue for @decimal.Decimal with fn from_value(v : Value) {
 // ---------------------------------------------------------------------------
 
 ///|
-impl ToValue for @uuid.UUID with fn to_value(self) {
+pub impl ToValue for @uuid.UUID with fn to_value(self) {
   Value::String(self.to_string())
 }
 
 ///|
-impl FromValue for @uuid.UUID with fn from_value(v : Value) {
+pub impl FromValue for @uuid.UUID with fn from_value(v : Value) {
   match v {
     Value::String(s) =>
       @uuid.from_hex(s) catch {

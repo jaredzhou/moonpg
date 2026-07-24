@@ -505,7 +505,7 @@ pub fn Pool::close(self : Pool) -> Unit {
 pub async fn PoolConn::query(
   self : PoolConn,
   sql : String,
-  params? : Array[&ToValue],
+  params? : Array[&@value.ToValue],
 ) -> &Rows raise PgError {
   self.conn.query(sql, params?)
 }
@@ -514,7 +514,7 @@ pub async fn PoolConn::query(
 pub async fn PoolConn::query_one(
   self : PoolConn,
   sql : String,
-  params? : Array[&ToValue],
+  params? : Array[&@value.ToValue],
 ) -> Row raise PgError {
   self.conn.query_one(sql, params?)
 }
@@ -523,7 +523,7 @@ pub async fn PoolConn::query_one(
 pub async fn PoolConn::execute(
   self : PoolConn,
   sql : String,
-  params? : Array[&ToValue],
+  params? : Array[&@value.ToValue],
 ) -> ExecResult raise PgError {
   self.conn.execute(sql, params?)
 }
@@ -544,7 +544,7 @@ pub(all) struct PoolDbTx {
 pub impl QueryExecutor for PoolDbTx with fn query(
   self : PoolDbTx,
   sql : String,
-  params? : Array[&ToValue],
+  params? : Array[&@value.ToValue],
 ) -> &Rows raise PgError {
   self.inner.query(sql, params?)
 }
@@ -553,7 +553,7 @@ pub impl QueryExecutor for PoolDbTx with fn query(
 pub impl QueryExecutor for PoolDbTx with fn query_one(
   self : PoolDbTx,
   sql : String,
-  params? : Array[&ToValue],
+  params? : Array[&@value.ToValue],
 ) -> Row raise PgError {
   self.inner.query_one(sql, params?)
 }
@@ -562,7 +562,7 @@ pub impl QueryExecutor for PoolDbTx with fn query_one(
 pub impl QueryExecutor for PoolDbTx with fn execute(
   self : PoolDbTx,
   sql : String,
-  params? : Array[&ToValue],
+  params? : Array[&@value.ToValue],
 ) -> ExecResult raise PgError {
   self.inner.execute(sql, params?)
 }
@@ -635,7 +635,7 @@ pub impl TxBeginner for Pool with fn begin_tx(self : Pool, opts? : TxOptions) ->
 pub impl QueryExecutor for Pool with fn query(
   self : Pool,
   sql : String,
-  params? : Array[&ToValue],
+  params? : Array[&@value.ToValue],
 ) -> &Rows raise PgError {
   let pc = self.acquire()
   let rows = pc.query(sql, params?) catch {
@@ -651,7 +651,7 @@ pub impl QueryExecutor for Pool with fn query(
 pub impl QueryExecutor for Pool with fn query_one(
   self : Pool,
   sql : String,
-  params? : Array[&ToValue],
+  params? : Array[&@value.ToValue],
 ) -> Row raise PgError {
   let pc = self.acquire()
   let row = pc.query_one(sql, params?) catch {
@@ -668,7 +668,7 @@ pub impl QueryExecutor for Pool with fn query_one(
 pub impl QueryExecutor for Pool with fn execute(
   self : Pool,
   sql : String,
-  params? : Array[&ToValue],
+  params? : Array[&@value.ToValue],
 ) -> ExecResult raise PgError {
   let pc = self.acquire()
   let result = pc.execute(sql, params?) catch {

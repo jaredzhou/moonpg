@@ -48,14 +48,15 @@ impl Codec for ByteaCodec with fn decode(
 ) -> @value.Value raise CodecError {
   match bytes {
     None => @value.Value::Null
-    Some(bytes) => match format {
-    @value.Format::Text => {
-      let s = decode_string(bytes)
-      @value.Value::Bytes(decode_bytea_hex(s))
-    }
-    @value.Format::Binary => @value.Value::Bytes(bytes)
+    Some(bytes) =>
+      match format {
+        @value.Format::Text => {
+          let s = decode_string(bytes)
+          @value.Value::Bytes(decode_bytea_hex(s))
+        }
+        @value.Format::Binary => @value.Value::Bytes(bytes)
+      }
   }
-}
 }
 
 ///|
@@ -164,20 +165,21 @@ impl Codec for JSONCodec with fn decode(
 ) -> @value.Value raise CodecError {
   match bytes {
     None => @value.Value::Null
-    Some(bytes) => match format {
-    @value.Format::Text => {
-      let s = decode_string(bytes)
-      let j = @json.parse(s) catch {
-        _ => raise CodecError::CodecError("JSONCodec::decode: invalid JSON")
+    Some(bytes) =>
+      match format {
+        @value.Format::Text => {
+          let s = decode_string(bytes)
+          let j = @json.parse(s) catch {
+            _ => raise CodecError::CodecError("JSONCodec::decode: invalid JSON")
+          }
+          @value.Value::Json(j)
+        }
+        @value.Format::Binary =>
+          raise CodecError::CodecError(
+            "JSONCodec::decode: binary format not supported",
+          )
       }
-      @value.Value::Json(j)
-    }
-    @value.Format::Binary =>
-      raise CodecError::CodecError(
-        "JSONCodec::decode: binary format not supported",
-      )
   }
-}
 }
 
 // ===========================================================================
@@ -234,20 +236,22 @@ impl Codec for JSONBCodec with fn decode(
 ) -> @value.Value raise CodecError {
   match bytes {
     None => @value.Value::Null
-    Some(bytes) => match format {
-    @value.Format::Text => {
-      let s = decode_string(bytes)
-      let j = @json.parse(s) catch {
-        _ => raise CodecError::CodecError("JSONBCodec::decode: invalid JSON")
+    Some(bytes) =>
+      match format {
+        @value.Format::Text => {
+          let s = decode_string(bytes)
+          let j = @json.parse(s) catch {
+            _ =>
+              raise CodecError::CodecError("JSONBCodec::decode: invalid JSON")
+          }
+          @value.Value::Json(j)
+        }
+        @value.Format::Binary =>
+          raise CodecError::CodecError(
+            "JSONBCodec::decode: binary format not supported",
+          )
       }
-      @value.Value::Json(j)
-    }
-    @value.Format::Binary =>
-      raise CodecError::CodecError(
-        "JSONBCodec::decode: binary format not supported",
-      )
   }
-}
 }
 
 // ===========================================================================
@@ -303,20 +307,23 @@ impl Codec for TimestampCodec with fn decode(
 ) -> @value.Value raise CodecError {
   match bytes {
     None => @value.Value::Null
-    Some(bytes) => match format {
-    @value.Format::Text => {
-      let s = decode_string(bytes)
-      @value.Value::Timestamp(parse_ts_text(s))
-    }
-    @value.Format::Binary => {
-      guard bytes.length() >= 8 else {
-        raise CodecError::CodecError("TimestampCodec::decode: expected 8 bytes")
+    Some(bytes) =>
+      match format {
+        @value.Format::Text => {
+          let s = decode_string(bytes)
+          @value.Value::Timestamp(parse_ts_text(s))
+        }
+        @value.Format::Binary => {
+          guard bytes.length() >= 8 else {
+            raise CodecError::CodecError(
+              "TimestampCodec::decode: expected 8 bytes",
+            )
+          }
+          let pg_usec = decode_int8(bytes)
+          @value.Value::Timestamp(pg_usec - pg_epoch_offset_usec)
+        }
       }
-      let pg_usec = decode_int8(bytes)
-      @value.Value::Timestamp(pg_usec - pg_epoch_offset_usec)
-    }
   }
-}
 }
 
 // ===========================================================================
@@ -372,22 +379,23 @@ impl Codec for TimestamptzCodec with fn decode(
 ) -> @value.Value raise CodecError {
   match bytes {
     None => @value.Value::Null
-    Some(bytes) => match format {
-    @value.Format::Text => {
-      let s = decode_string(bytes)
-      @value.Value::Timestamp(parse_tstz_text(s))
-    }
-    @value.Format::Binary => {
-      guard bytes.length() >= 8 else {
-        raise CodecError::CodecError(
-          "TimestamptzCodec::decode: expected 8 bytes",
-        )
+    Some(bytes) =>
+      match format {
+        @value.Format::Text => {
+          let s = decode_string(bytes)
+          @value.Value::Timestamp(parse_tstz_text(s))
+        }
+        @value.Format::Binary => {
+          guard bytes.length() >= 8 else {
+            raise CodecError::CodecError(
+              "TimestamptzCodec::decode: expected 8 bytes",
+            )
+          }
+          let pg_usec = decode_int8(bytes)
+          @value.Value::Timestamp(pg_usec - pg_epoch_offset_usec)
+        }
       }
-      let pg_usec = decode_int8(bytes)
-      @value.Value::Timestamp(pg_usec - pg_epoch_offset_usec)
-    }
   }
-}
 }
 
 // ===========================================================================

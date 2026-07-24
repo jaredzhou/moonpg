@@ -61,28 +61,29 @@ impl Codec for BoolCodec with fn decode(
 ) -> @value.Value raise CodecError {
   match bytes {
     None => @value.Value::Null
-    Some(bytes) => match format {
-    @value.Format::Text => {
-      let s = decode_string(bytes)
-      match s {
-        "t" => @value.Value::Bool(true)
-        "f" => @value.Value::Bool(false)
-        _ =>
-          raise CodecError::CodecError(
-            "BoolCodec::decode: invalid text bool: \{s}",
-          )
+    Some(bytes) =>
+      match format {
+        @value.Format::Text => {
+          let s = decode_string(bytes)
+          match s {
+            "t" => @value.Value::Bool(true)
+            "f" => @value.Value::Bool(false)
+            _ =>
+              raise CodecError::CodecError(
+                "BoolCodec::decode: invalid text bool: \{s}",
+              )
+          }
+        }
+        @value.Format::Binary => {
+          guard bytes.length() >= 1 else {
+            raise CodecError::CodecError(
+              "BoolCodec::decode: expected 1 byte, got \{bytes.length()}",
+            )
+          }
+          @value.Value::Bool(decode_bool(bytes))
+        }
       }
-    }
-    @value.Format::Binary => {
-      guard bytes.length() >= 1 else {
-        raise CodecError::CodecError(
-          "BoolCodec::decode: expected 1 byte, got \{bytes.length()}",
-        )
-      }
-      @value.Value::Bool(decode_bool(bytes))
-    }
   }
-}
 }
 
 // ===========================================================================
@@ -127,25 +128,28 @@ impl Codec for Int2Codec with fn decode(
 ) -> @value.Value raise CodecError {
   match bytes {
     None => @value.Value::Null
-    Some(bytes) => match format {
-    @value.Format::Text => {
-      let s = decode_string(bytes)
-      let v = @string.parse_int(s) catch {
-        _ =>
-          raise CodecError::CodecError("Int2Codec::decode: invalid text: \{s}")
+    Some(bytes) =>
+      match format {
+        @value.Format::Text => {
+          let s = decode_string(bytes)
+          let v = @string.parse_int(s) catch {
+            _ =>
+              raise CodecError::CodecError(
+                "Int2Codec::decode: invalid text: \{s}",
+              )
+          }
+          @value.Value::Int(v)
+        }
+        @value.Format::Binary => {
+          guard bytes.length() >= 2 else {
+            raise CodecError::CodecError(
+              "Int2Codec::decode: expected 2 bytes, got \{bytes.length()}",
+            )
+          }
+          @value.Value::Int(decode_int2(bytes))
+        }
       }
-      @value.Value::Int(v)
-    }
-    @value.Format::Binary => {
-      guard bytes.length() >= 2 else {
-        raise CodecError::CodecError(
-          "Int2Codec::decode: expected 2 bytes, got \{bytes.length()}",
-        )
-      }
-      @value.Value::Int(decode_int2(bytes))
-    }
   }
-}
 }
 
 // ===========================================================================
@@ -190,25 +194,28 @@ impl Codec for Int4Codec with fn decode(
 ) -> @value.Value raise CodecError {
   match bytes {
     None => @value.Value::Null
-    Some(bytes) => match format {
-    @value.Format::Text => {
-      let s = decode_string(bytes)
-      let v = @string.parse_int(s) catch {
-        _ =>
-          raise CodecError::CodecError("Int4Codec::decode: invalid text: \{s}")
+    Some(bytes) =>
+      match format {
+        @value.Format::Text => {
+          let s = decode_string(bytes)
+          let v = @string.parse_int(s) catch {
+            _ =>
+              raise CodecError::CodecError(
+                "Int4Codec::decode: invalid text: \{s}",
+              )
+          }
+          @value.Value::Int(v)
+        }
+        @value.Format::Binary => {
+          guard bytes.length() >= 4 else {
+            raise CodecError::CodecError(
+              "Int4Codec::decode: expected 4 bytes, got \{bytes.length()}",
+            )
+          }
+          @value.Value::Int(decode_int4(bytes))
+        }
       }
-      @value.Value::Int(v)
-    }
-    @value.Format::Binary => {
-      guard bytes.length() >= 4 else {
-        raise CodecError::CodecError(
-          "Int4Codec::decode: expected 4 bytes, got \{bytes.length()}",
-        )
-      }
-      @value.Value::Int(decode_int4(bytes))
-    }
   }
-}
 }
 
 // ===========================================================================
@@ -259,25 +266,28 @@ impl Codec for Int8Codec with fn decode(
 ) -> @value.Value raise CodecError {
   match bytes {
     None => @value.Value::Null
-    Some(bytes) => match format {
-    @value.Format::Text => {
-      let s = decode_string(bytes)
-      let v = @string.parse_int64(s) catch {
-        _ =>
-          raise CodecError::CodecError("Int8Codec::decode: invalid text: \{s}")
+    Some(bytes) =>
+      match format {
+        @value.Format::Text => {
+          let s = decode_string(bytes)
+          let v = @string.parse_int64(s) catch {
+            _ =>
+              raise CodecError::CodecError(
+                "Int8Codec::decode: invalid text: \{s}",
+              )
+          }
+          @value.Value::Int64(v)
+        }
+        @value.Format::Binary => {
+          guard bytes.length() >= 8 else {
+            raise CodecError::CodecError(
+              "Int8Codec::decode: expected 8 bytes, got \{bytes.length()}",
+            )
+          }
+          @value.Value::Int64(decode_int8(bytes))
+        }
       }
-      @value.Value::Int64(v)
-    }
-    @value.Format::Binary => {
-      guard bytes.length() >= 8 else {
-        raise CodecError::CodecError(
-          "Int8Codec::decode: expected 8 bytes, got \{bytes.length()}",
-        )
-      }
-      @value.Value::Int64(decode_int8(bytes))
-    }
   }
-}
 }
 
 // ===========================================================================
@@ -333,27 +343,28 @@ impl Codec for Float4Codec with fn decode(
 ) -> @value.Value raise CodecError {
   match bytes {
     None => @value.Value::Null
-    Some(bytes) => match format {
-    @value.Format::Text => {
-      let s = decode_string(bytes)
-      let v = @string.parse_double(s) catch {
-        _ =>
-          raise CodecError::CodecError(
-            "Float4Codec::decode: invalid text: \{s}",
-          )
+    Some(bytes) =>
+      match format {
+        @value.Format::Text => {
+          let s = decode_string(bytes)
+          let v = @string.parse_double(s) catch {
+            _ =>
+              raise CodecError::CodecError(
+                "Float4Codec::decode: invalid text: \{s}",
+              )
+          }
+          @value.Value::Float(v)
+        }
+        @value.Format::Binary => {
+          guard bytes.length() >= 4 else {
+            raise CodecError::CodecError(
+              "Float4Codec::decode: expected 4 bytes, got \{bytes.length()}",
+            )
+          }
+          @value.Value::Float(decode_float4(bytes))
+        }
       }
-      @value.Value::Float(v)
-    }
-    @value.Format::Binary => {
-      guard bytes.length() >= 4 else {
-        raise CodecError::CodecError(
-          "Float4Codec::decode: expected 4 bytes, got \{bytes.length()}",
-        )
-      }
-      @value.Value::Float(decode_float4(bytes))
-    }
   }
-}
 }
 
 // ===========================================================================
@@ -409,27 +420,28 @@ impl Codec for Float8Codec with fn decode(
 ) -> @value.Value raise CodecError {
   match bytes {
     None => @value.Value::Null
-    Some(bytes) => match format {
-    @value.Format::Text => {
-      let s = decode_string(bytes)
-      let v = @string.parse_double(s) catch {
-        _ =>
-          raise CodecError::CodecError(
-            "Float8Codec::decode: invalid text: \{s}",
-          )
+    Some(bytes) =>
+      match format {
+        @value.Format::Text => {
+          let s = decode_string(bytes)
+          let v = @string.parse_double(s) catch {
+            _ =>
+              raise CodecError::CodecError(
+                "Float8Codec::decode: invalid text: \{s}",
+              )
+          }
+          @value.Value::Float(v)
+        }
+        @value.Format::Binary => {
+          guard bytes.length() >= 8 else {
+            raise CodecError::CodecError(
+              "Float8Codec::decode: expected 8 bytes, got \{bytes.length()}",
+            )
+          }
+          @value.Value::Float(decode_float8(bytes))
+        }
       }
-      @value.Value::Float(v)
-    }
-    @value.Format::Binary => {
-      guard bytes.length() >= 8 else {
-        raise CodecError::CodecError(
-          "Float8Codec::decode: expected 8 bytes, got \{bytes.length()}",
-        )
-      }
-      @value.Value::Float(decode_float8(bytes))
-    }
   }
-}
 }
 
 // ===========================================================================

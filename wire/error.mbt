@@ -1,6 +1,6 @@
 ///|
 /// Wire-protocol errors.
-pub suberror WireError {
+pub(all) suberror WireError {
   /// Server sent an `ErrorResponse`.
   PgServer(String)
   /// Connection-level failure: TCP, SSL, network.

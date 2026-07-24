@@ -55,21 +55,7 @@ pub impl Rows for ConnRows with fn has_next(self : ConnRows) -> Bool raise PgErr
 pub impl Rows for ConnRows with fn get_row(self : ConnRows) -> Row raise PgError {
   let raw_row = self.reader.data_row() catch { e => raise map_wire_error(e) }
   let col_descs = self.reader.columns()
-  let values : Array[RawValue] = []
-  for i = 0; i < raw_row.length(); i = i + 1 {
-    match raw_row[i] {
-      None => values.push(RawValue::Null)
-      Some(bytes) => {
-        let format = if i < col_descs.length() && col_descs[i].format != 0 {
-          Format::Binary
-        } else {
-          Format::Text
-        }
-        values.push(RawValue::Bytes(format, bytes))
-      }
-    }
-  }
-  Row::{ values, col_descs }
+  Row::{ values: raw_row, col_descs }
 }
 
 ///|
@@ -92,20 +78,41 @@ pub impl Rows for ConnRows with fn close(self : ConnRows) -> Unit raise PgError 
 ///|
 /// A single row from a query result.
 pub struct Row {
-  values : Array[RawValue]
+  values : Array[Bytes?]
   col_descs : Array[@wire.FieldDescription]
 }
 
 ///|
 /// Read the value at column `col` (zero-based index) as `T`.
-pub fn[T : FromRaw] Row::get(self : Row, col : Int) -> T raise PgError {
-  let raw = self.values[col]
-  T::from_raw(raw)
+pub fn[T : @value.FromValue] Row::get(self : Row, col : Int) -> T raise PgError {
+  let desc = self.col_descs[col]
+  let format = if desc.format == 0 {
+    @value.Format::Text
+  } else {
+    @value.Format::Binary
+  }
+  let codec = @pgtype.default_map.codec_for(desc.type_oid)
+  let val = codec.decode(desc.type_oid, format, self.values[col]) catch {
+    e => {
+      let msg = match e {
+        @pgtype.CodecError::CodecError(m) => m
+      }
+      raise PgError::QueryError("codec decode error: \{msg}")
+    }
+  }
+  T::from_value(val) catch {
+    e => {
+      let msg = match e {
+        @value.ValueError::ValueError(m) => m
+      }
+      raise PgError::QueryError("from_value error: \{msg}")
+    }
+  }
 }
 
 ///|
 /// Read the value of column `name` as `T`.
-pub fn[T : FromRaw] Row::get_by_name(
+pub fn[T : @value.FromValue] Row::get_by_name(
   self : Row,
   name : String,
 ) -> T raise PgError {
@@ -366,7 +373,7 @@ pub async fn Connection::begin_copy(
 /// backslash-escaped strings) and sent immediately — no batching in memory.
 pub async fn CopyWriter::write_row(
   self : CopyWriter,
-  row : Array[&ToValue],
+  row : Array[&@value.ToValue],
 ) -> Unit raise PgError {
   let parts : Array[String] = []
   for v in row {
@@ -408,15 +415,51 @@ pub fn Connection::status(self : Connection) -> ConnStatus {
 }
 
 // ---------------------------------------------------------------------------
+// exec_params — prepare, encode, execute
+// ---------------------------------------------------------------------------
+
+///|
+/// Prepare a parameterised statement, encode parameters with codecs
+/// using the OIDs returned by the server, and execute.
+async fn exec_params(
+  conn : @wire.RawConn,
+  sql : String,
+  params : Array[&@value.ToValue],
+) -> @wire.ResultReader raise @wire.WireError {
+  let stmt = conn.prepare("", sql, [])
+  let n = params.length()
+  let param_values : Array[Bytes?] = Array::makei(n, fn(_) { None })
+  let param_formats : Array[Int] = Array::makei(n, fn(_) { 0 })
+  for i = 0; i < n; i = i + 1 {
+    let oid = stmt.param_oids[i]
+    let codec = @pgtype.default_map.codec_for(oid)
+    let val = params[i].to_value()
+    let fmt = codec.prefer_format()
+    param_values[i] = codec.encode(oid, fmt, val) catch {
+      e => {
+        let err_msg = match e {
+          @pgtype.CodecError::CodecError(m) => m
+        }
+        raise @wire.WireError::InvalidMessage(
+          "codec encode error for param \{i}: \{err_msg}",
+        )
+      }
+    }
+    param_formats[i] = if fmt == @value.Format::Binary { 1 } else { 0 }
+  }
+  conn.execute_statement(stmt, param_values, param_formats, [])
+}
+
+// ---------------------------------------------------------------------------
 // QueryExecutor trait
 // ---------------------------------------------------------------------------
 
 ///|
 /// Types that can execute SQL queries.
 pub(open) trait QueryExecutor {
-  async fn query(Self, String, params? : Array[&ToValue]) -> &Rows raise PgError
-  async fn query_one(Self, String, params? : Array[&ToValue]) -> Row raise PgError
-  async fn execute(Self, String, params? : Array[&ToValue]) -> ExecResult raise PgError
+  async fn query(Self, String, params? : Array[&@value.ToValue]) -> &Rows raise PgError
+  async fn query_one(Self, String, params? : Array[&@value.ToValue]) -> Row raise PgError
+  async fn execute(Self, String, params? : Array[&@value.ToValue]) -> ExecResult raise PgError
 }
 
 // ---------------------------------------------------------------------------
@@ -428,7 +471,7 @@ pub(open) trait QueryExecutor {
 pub impl QueryExecutor for Connection with fn query(
   self : Connection,
   sql : String,
-  params? : Array[&ToValue],
+  params? : Array[&@value.ToValue],
 ) -> &Rows raise PgError {
   match params {
     None => {
@@ -438,8 +481,7 @@ pub impl QueryExecutor for Connection with fn query(
       ConnRows::{ reader, }
     }
     Some(ps) => {
-      let (vals, _) = build_params(ps.map(v => v.to_raw_value()))
-      let reader = self.conn.execute_params(sql, vals, [], [], []) catch {
+      let reader = exec_params(self.conn, sql, ps) catch {
         e => raise map_wire_error(e)
       }
       ConnRows::{ reader, }
@@ -451,7 +493,7 @@ pub impl QueryExecutor for Connection with fn query(
 pub impl QueryExecutor for Connection with fn query_one(
   self : Connection,
   sql : String,
-  params? : Array[&ToValue],
+  params? : Array[&@value.ToValue],
 ) -> Row raise PgError {
   let rows = self.query(sql, params?)
   if rows.has_next() {
@@ -467,7 +509,7 @@ pub impl QueryExecutor for Connection with fn query_one(
 pub impl QueryExecutor for Connection with fn execute(
   self : Connection,
   sql : String,
-  params? : Array[&ToValue],
+  params? : Array[&@value.ToValue],
 ) -> ExecResult raise PgError {
   match params {
     None => {
@@ -478,8 +520,7 @@ pub impl QueryExecutor for Connection with fn execute(
       ExecResult::{ tag, }
     }
     Some(ps) => {
-      let (vals, _) = build_params(ps.map(v => v.to_raw_value()))
-      let reader = self.conn.execute_params(sql, vals, [], [], []) catch {
+      let reader = exec_params(self.conn, sql, ps) catch {
         e => raise map_wire_error(e)
       }
       let tag = reader.close() catch { e => raise map_wire_error(e) }
@@ -496,21 +537,7 @@ pub fn row_from_raw(
   raw_row : Array[Bytes?],
   col_descs : Array[@wire.FieldDescription],
 ) -> Row {
-  let values : Array[RawValue] = []
-  for i = 0; i < raw_row.length(); i = i + 1 {
-    match raw_row[i] {
-      None => values.push(RawValue::Null)
-      Some(bytes) => {
-        let format = if i < col_descs.length() && col_descs[i].format != 0 {
-          Format::Binary
-        } else {
-          Format::Text
-        }
-        values.push(RawValue::Bytes(format, bytes))
-      }
-    }
-  }
-  Row::{ values, col_descs }
+  Row::{ values: raw_row, col_descs }
 }
 
 // ---------------------------------------------------------------------------
@@ -556,15 +583,17 @@ fn parse_server_version(s : String) -> Int {
 /// * Numbers → decimal string
 /// * `String` → backslash-escaped (\\, \t, \n)
 /// * `Bytes` → hex-encoded (e.g. `\xDEADBEEF`)
-fn encode_copy_text(v : Value) -> String {
+fn encode_copy_text(v : @value.Value) -> String {
   match v {
-    Null => "\\N"
-    Bool(v) => if v { "t" } else { "f" }
-    Int(v) => v.to_string()
-    Int64(v) => v.to_string()
-    Float(v) => v.to_string()
-    String(v) => escape_copy_string(v)
-    Bytes(v) => "\\\\x" + encode_hex(v)
+    @value.Value::Null => "\\N"
+    @value.Value::Bool(v) => if v { "t" } else { "f" }
+    @value.Value::Int(v) => v.to_string()
+    @value.Value::Int64(v) => v.to_string()
+    @value.Value::Float(v) => v.to_string()
+    @value.Value::String(v) => escape_copy_string(v)
+    @value.Value::Bytes(v) => "\\\\x" + encode_hex(v)
+    @value.Value::Timestamp(u) => u.to_string()
+    @value.Value::Json(j) => escape_copy_string(j.stringify())
   }
 }
 
