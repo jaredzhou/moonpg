@@ -28,16 +28,21 @@ impl Codec for BoolCodec with fn encode(
   match value {
     @value.Value::Bool(v) =>
       match format {
-        @value.Format::Text => Some(@utf8.encode(if v { "true" } else { "false" }))
+        @value.Format::Text => Some(@utf8.encode(if v { "t" } else { "f" }))
         @value.Format::Binary => Some(encode_bool(v))
       }
     @value.Value::String(s) =>
       match format {
         @value.Format::Text => Some(@utf8.encode(s))
         @value.Format::Binary => {
-          let b = match s {
-            "true" | "t" | "yes" | "on" | "1" => true
-            _ => false
+          let b = if s == "t" {
+            true
+          } else if s == "f" {
+            false
+          } else {
+            raise CodecError::CodecError(
+              "BoolCodec::encode: expected \"t\" or \"f\", got \"\{s}\"",
+            )
           }
           Some(encode_bool(b))
         }
@@ -60,8 +65,8 @@ impl Codec for BoolCodec with fn decode(
     @value.Format::Text => {
       let s = decode_string(bytes)
       match s {
-        "true" | "t" | "yes" | "on" | "1" => @value.Value::Bool(true)
-        "false" | "f" | "no" | "off" | "0" => @value.Value::Bool(false)
+        "t" => @value.Value::Bool(true)
+        "f" => @value.Value::Bool(false)
         _ =>
           raise CodecError::CodecError(
             "BoolCodec::decode: invalid text bool: \{s}",
