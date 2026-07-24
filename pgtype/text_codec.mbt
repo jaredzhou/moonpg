@@ -19,7 +19,7 @@ impl Codec for TextCodec with fn prefer_format(_self : TextCodec) -> @value.Form
 impl Codec for TextCodec with fn encode(
   _self : TextCodec,
   _oid : Int,
-  format : @value.Format,
+  _format : @value.Format,
   value : @value.Value,
 ) -> Bytes? raise CodecError {
   match value {

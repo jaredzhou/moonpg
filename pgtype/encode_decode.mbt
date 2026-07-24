@@ -100,12 +100,6 @@ fn decode_bool(b : Bytes) -> Bool {
 // ===========================================================================
 
 ///|
-/// Encode a `String` as UTF-8 bytes.
-fn encode_string(s : String) -> Bytes {
-  @utf8.encode(s)
-}
-
-///|
 /// Decode UTF-8 bytes to `String`, falling back to unchecked conversion.
 fn decode_string(b : Bytes) -> String {
   @utf8.decode(b) catch {
