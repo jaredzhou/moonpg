@@ -387,3 +387,144 @@ test "timestamp_from_value" {
   let ts : Timestamp = FromValue::from_value(val)
   assert_eq(ts.0, 1720528496000000L)
 }
+
+// ===========================================================================
+// Edge case tests
+// ===========================================================================
+
+// --- String roundtrip ---
+test "string_to_value" {
+  let val = ToValue::to_value("hello")
+  assert_eq(val, Value::String("hello"))
+}
+
+test "string_from_value" {
+  let v : String = FromValue::from_value(Value::String("hello"))
+  assert_eq(v, "hello")
+}
+
+test "string_from_value_mismatch" {
+  let mut ok = false
+  let _ = FromValue::from_value(Value::Int(42)) catch {
+    _ => { ok = true; "" }
+  }
+  assert_true(ok)
+}
+
+// --- Bytes roundtrip ---
+test "bytes_to_value" {
+  let data = b"\x00\x01\xFF"
+  let val = ToValue::to_value(data)
+  assert_eq(val, Value::Bytes(data))
+}
+
+test "bytes_from_value" {
+  let data = b"\x00\x01\xFF"
+  let v : Bytes = FromValue::from_value(Value::Bytes(data))
+  assert_eq(v, data)
+}
+
+// --- Double roundtrip ---
+test "double_to_value" {
+  let val = ToValue::to_value(3.14)
+  assert_eq(val, Value::Float(3.14))
+}
+
+test "double_from_value" {
+  let v : Double = FromValue::from_value(Value::Float(3.14))
+  assert_eq(v, 3.14)
+}
+
+// --- Int64 roundtrip ---
+test "int64_to_value" {
+  let val = ToValue::to_value(42L)
+  assert_eq(val, Value::Int64(42L))
+}
+
+test "int64_from_value" {
+  let v : Int64 = FromValue::from_value(Value::Int64(42L))
+  assert_eq(v, 42L)
+}
+
+// --- Int64 from Timestamp (compatibility) ---
+test "int64_from_timestamp" {
+  // Int64::from_value accepts Value::Timestamp
+  let v : Int64 = FromValue::from_value(Value::Timestamp(1720000000000000L))
+  assert_eq(v, 1720000000000000L)
+}
+
+// --- NULL roundtrip via Option ---
+test "option_string_from_null" {
+  let v : String? = FromValue::from_value(Value::Null)
+  match v {
+    None => ()
+    Some(_) => fail("expected None")
+  }
+}
+
+test "option_int_from_some" {
+  let v : Int? = FromValue::from_value(Value::Int(42))
+  match v {
+    Some(n) => assert_eq(n, 42)
+    None => fail("expected Some(42)")
+  }
+}
+
+// --- Decimal roundtrip ---
+test "decimal_to_value" {
+  let d = @decimal.Decimal::from_string("3.14").unwrap()
+  let val = ToValue::to_value(d)
+  assert_eq(val, Value::String("3.14"))
+}
+
+test "decimal_from_value" {
+  let v : @decimal.Decimal = FromValue::from_value(Value::String("3.14"))
+  assert_eq(v.to_string(), "3.14")
+}
+
+test "decimal_from_value_invalid" {
+  let mut ok = false
+  let _ = FromValue::from_value(Value::String("not_a_number")) catch {
+    _ => { ok = true; @decimal.Decimal::from_string("0").unwrap() }
+  }
+  assert_true(ok)
+}
+
+// --- UUID roundtrip ---
+test "uuid_from_value" {
+  let v : @uuid.UUID = FromValue::from_value(
+    Value::String("550e8400-e29b-41d4-a716-446655440000"),
+  )
+  assert_eq(v.to_string(), "550e8400-e29b-41d4-a716-446655440000")
+}
+
+// --- Timestamp mismatch ---
+test "timestamp_from_value_mismatch" {
+  let mut ok = false
+  let _ = FromValue::from_value(Value::String("bad")) catch {
+    _ => { ok = true; Timestamp::Timestamp(0L) }
+  }
+  assert_true(ok)
+}
+
+// --- Json roundtrip ---
+test "json_from_value" {
+  let j = @json.parse("{\"a\":1}")
+  let val = Value::Json(j)
+  let v : Json = FromValue::from_value(val)
+  assert_eq(v.stringify(), "{\"a\":1}")
+}
+
+// --- Bool edge cases ---
+test "bool_from_value_all" {
+  assert_eq(FromValue::from_value(Value::Bool(true)), true)
+  assert_eq(FromValue::from_value(Value::Bool(false)), false)
+}
+
+test "bool_from_value_mismatch" {
+  let mut ok = false
+  let _ = FromValue::from_value(Value::Int(1)) catch {
+    _ => { ok = true; false }
+  }
+  assert_true(ok)
+}

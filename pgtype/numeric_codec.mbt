@@ -607,3 +607,154 @@ test "numeric_codec_type_mismatch" {
   }
   assert_true(got_error, msg="expected CodecError for type mismatch")
 }
+
+// ===========================================================================
+// Edge case tests
+// ===========================================================================
+
+// --- BoolCodec ---
+test "bool_codec_string_compat_t" {
+  let codec = bool_codec
+  let encoded = Codec::encode(codec, bool_oid, @value.Format::Binary, @value.Value::String("t"))
+  let decoded = Codec::decode(codec, bool_oid, @value.Format::Binary, encoded)
+  assert_eq(decoded, @value.Value::Bool(true))
+}
+
+test "bool_codec_string_compat_f" {
+  let codec = bool_codec
+  let encoded = Codec::encode(codec, bool_oid, @value.Format::Binary, @value.Value::String("f"))
+  let decoded = Codec::decode(codec, bool_oid, @value.Format::Binary, encoded)
+  assert_eq(decoded, @value.Value::Bool(false))
+}
+
+test "bool_codec_string_compat_bad" {
+  let codec = bool_codec
+  let mut ok = false
+  let _ = Codec::encode(codec, bool_oid, @value.Format::Binary, @value.Value::String("bad")) catch {
+    _ => { ok = true; None }
+  }
+  assert_true(ok, msg="expected error for invalid bool string")
+}
+
+test "bool_codec_null" {
+  let codec = bool_codec
+  let encoded = Codec::encode(codec, bool_oid, @value.Format::Binary, @value.Value::Null)
+  assert_eq(encoded, None)
+  let decoded = Codec::decode(codec, bool_oid, @value.Format::Binary, None)
+  assert_eq(decoded, @value.Value::Null)
+}
+
+// --- Int2Codec ---
+test "int2_codec_text_roundtrip" {
+  let codec = int2_codec
+  for v in [0, 32767, -32768, 1, -1] {
+    let encoded = Codec::encode(codec, int2_oid, @value.Format::Text, @value.Value::Int(v))
+    let decoded = Codec::decode(codec, int2_oid, @value.Format::Text, encoded)
+    match decoded {
+      @value.Value::Int(n) => assert_eq(n, v)
+      _ => fail("expected Value::Int")
+    }
+  }
+}
+
+test "int2_codec_binary_roundtrip" {
+  let codec = int2_codec
+  for v in [0, 32767, -32768] {
+    let encoded = Codec::encode(codec, int2_oid, @value.Format::Binary, @value.Value::Int(v))
+    let decoded = Codec::decode(codec, int2_oid, @value.Format::Binary, encoded)
+    match decoded {
+      @value.Value::Int(n) => assert_eq(n, v)
+      _ => fail("expected Value::Int")
+    }
+  }
+}
+
+test "int2_codec_null" {
+  let codec = int2_codec
+  let encoded = Codec::encode(codec, int2_oid, @value.Format::Binary, @value.Value::Null)
+  assert_eq(encoded, None)
+}
+
+// --- Float4Codec ---
+test "float4_codec_text_roundtrip" {
+  let codec = float4_codec
+  let v = 3.14
+  let encoded = Codec::encode(codec, float4_oid, @value.Format::Text, @value.Value::Float(v))
+  let decoded = Codec::decode(codec, float4_oid, @value.Format::Text, encoded)
+  match decoded {
+    @value.Value::Float(f) => assert_true((f - v).abs() < 0.01)
+    _ => fail("expected Value::Float")
+  }
+}
+
+test "float4_codec_binary_roundtrip" {
+  let codec = float4_codec
+  let v = -2.5
+  let encoded = Codec::encode(codec, float4_oid, @value.Format::Binary, @value.Value::Float(v))
+  let decoded = Codec::decode(codec, float4_oid, @value.Format::Binary, encoded)
+  match decoded {
+    @value.Value::Float(f) => assert_true((f - v).abs() < 0.001)
+    _ => fail("expected Value::Float")
+  }
+}
+
+test "float4_codec_null" {
+  let codec = float4_codec
+  let encoded = Codec::encode(codec, float4_oid, @value.Format::Binary, @value.Value::Null)
+  assert_eq(encoded, None)
+}
+
+// --- Int8Codec: Int → Int64 compatibility ---
+test "int8_codec_int_compat" {
+  let codec = int8_codec
+  // Value::Int should widen to Int64
+  let encoded = Codec::encode(codec, int8_oid, @value.Format::Binary, @value.Value::Int(42))
+  let decoded = Codec::decode(codec, int8_oid, @value.Format::Binary, encoded)
+  assert_eq(decoded, @value.Value::Int64(42L))
+}
+
+test "int8_codec_null" {
+  let codec = int8_codec
+  let encoded = Codec::encode(codec, int8_oid, @value.Format::Binary, @value.Value::Null)
+  assert_eq(encoded, None)
+}
+
+// --- Float8Codec: Int/Int64 → Double compatibility ---
+test "float8_codec_int_compat" {
+  let codec = float8_codec
+  let encoded = Codec::encode(codec, float8_oid, @value.Format::Binary, @value.Value::Int(3))
+  let decoded = Codec::decode(codec, float8_oid, @value.Format::Binary, encoded)
+  assert_eq(decoded, @value.Value::Float(3.0))
+}
+
+test "float8_codec_int64_compat" {
+  let codec = float8_codec
+  let encoded = Codec::encode(codec, float8_oid, @value.Format::Binary, @value.Value::Int64(99L))
+  let decoded = Codec::decode(codec, float8_oid, @value.Format::Binary, encoded)
+  assert_eq(decoded, @value.Value::Float(99.0))
+}
+
+test "float8_codec_null" {
+  let codec = float8_codec
+  let encoded = Codec::encode(codec, float8_oid, @value.Format::Binary, @value.Value::Null)
+  assert_eq(encoded, None)
+}
+
+// --- Int4Codec edge values ---
+test "int4_codec_edge_values" {
+  let codec = int4_codec
+  for v in [0, 2147483647, -2147483648] {
+    let encoded = Codec::encode(codec, int4_oid, @value.Format::Binary, @value.Value::Int(v))
+    let decoded = Codec::decode(codec, int4_oid, @value.Format::Binary, encoded)
+    match decoded {
+      @value.Value::Int(n) => assert_eq(n, v)
+      _ => fail("expected Value::Int")
+    }
+  }
+}
+
+test "int4_codec_null" {
+  let codec = int4_codec
+  let encoded = Codec::encode(codec, int4_oid, @value.Format::Binary, @value.Value::Null)
+  assert_eq(encoded, None)
+}
