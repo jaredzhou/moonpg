@@ -142,6 +142,14 @@ impl Codec for JSONCodec with fn encode(
             "JSONCodec::encode: binary format not supported",
           )
       }
+    @value.Value::String(s) =>
+      match format {
+        @value.Format::Text => Some(@utf8.encode(s))
+        @value.Format::Binary =>
+          raise CodecError::CodecError(
+            "JSONCodec::encode: binary format not supported",
+          )
+      }
     @value.Value::Null => None
     _ => raise CodecError::CodecError("JSONCodec::encode: expected Value::Json")
   }
@@ -198,6 +206,14 @@ impl Codec for JSONBCodec with fn encode(
     @value.Value::Json(j) =>
       match format {
         @value.Format::Text => Some(@utf8.encode(j.stringify()))
+        @value.Format::Binary =>
+          raise CodecError::CodecError(
+            "JSONBCodec::encode: binary format not supported",
+          )
+      }
+    @value.Value::String(s) =>
+      match format {
+        @value.Format::Text => Some(@utf8.encode(s))
         @value.Format::Binary =>
           raise CodecError::CodecError(
             "JSONBCodec::encode: binary format not supported",
@@ -262,6 +278,14 @@ impl Codec for TimestampCodec with fn encode(
         @value.Format::Text => Some(@utf8.encode(format_ts_text(usec)))
         @value.Format::Binary => Some(encode_int8(usec + pg_epoch_offset_usec))
       }
+    @value.Value::String(s) =>
+      match format {
+        @value.Format::Text => Some(@utf8.encode(s))
+        @value.Format::Binary =>
+          raise CodecError::CodecError(
+            "TimestampCodec::encode: expected Value::Timestamp",
+          )
+      }
     @value.Value::Null => None
     _ =>
       raise CodecError::CodecError(
@@ -322,6 +346,14 @@ impl Codec for TimestamptzCodec with fn encode(
       match format {
         @value.Format::Text => Some(@utf8.encode(format_tstz_text(usec)))
         @value.Format::Binary => Some(encode_int8(usec + pg_epoch_offset_usec))
+      }
+    @value.Value::String(s) =>
+      match format {
+        @value.Format::Text => Some(@utf8.encode(s))
+        @value.Format::Binary =>
+          raise CodecError::CodecError(
+            "TimestamptzCodec::encode: expected Value::Timestamp",
+          )
       }
     @value.Value::Null => None
     _ =>

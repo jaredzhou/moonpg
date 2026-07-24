@@ -27,6 +27,7 @@ impl Codec for TextCodec with fn encode(
     @value.Format::Text =>
       match value {
         @value.Value::String(s) => Some(@utf8.encode(s))
+        @value.Value::Json(j) => Some(@utf8.encode(j.stringify()))
         @value.Value::Null => None
         _ =>
           raise CodecError::CodecError(

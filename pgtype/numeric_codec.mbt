@@ -31,6 +31,17 @@ impl Codec for BoolCodec with fn encode(
         @value.Format::Text => Some(@utf8.encode(if v { "true" } else { "false" }))
         @value.Format::Binary => Some(encode_bool(v))
       }
+    @value.Value::String(s) =>
+      match format {
+        @value.Format::Text => Some(@utf8.encode(s))
+        @value.Format::Binary => {
+          let b = match s {
+            "true" | "t" | "yes" | "on" | "1" => true
+            _ => false
+          }
+          Some(encode_bool(b))
+        }
+      }
     @value.Value::Null => None
     _ => raise CodecError::CodecError("BoolCodec::encode: expected Value::Bool")
   }
@@ -223,6 +234,11 @@ impl Codec for Int8Codec with fn encode(
         @value.Format::Text => Some(@utf8.encode(v.to_string()))
         @value.Format::Binary => Some(encode_int8(v))
       }
+    @value.Value::Int(v) =>
+      match format {
+        @value.Format::Text => Some(@utf8.encode(v.to_string()))
+        @value.Format::Binary => Some(encode_int8(v.to_int64()))
+      }
     @value.Value::Null => None
     _ =>
       raise CodecError::CodecError("Int8Codec::encode: expected Value::Int64")
@@ -286,6 +302,16 @@ impl Codec for Float4Codec with fn encode(
       match format {
         @value.Format::Text => Some(@utf8.encode(v.to_string()))
         @value.Format::Binary => Some(encode_float4(v))
+      }
+    @value.Value::Int(v) =>
+      match format {
+        @value.Format::Text => Some(@utf8.encode(v.to_string()))
+        @value.Format::Binary => Some(encode_float4(v.to_double()))
+      }
+    @value.Value::Int64(v) =>
+      match format {
+        @value.Format::Text => Some(@utf8.encode(v.to_string()))
+        @value.Format::Binary => Some(encode_float4(v.to_double()))
       }
     @value.Value::Null => None
     _ =>
@@ -352,6 +378,16 @@ impl Codec for Float8Codec with fn encode(
       match format {
         @value.Format::Text => Some(@utf8.encode(v.to_string()))
         @value.Format::Binary => Some(encode_float8(v))
+      }
+    @value.Value::Int(v) =>
+      match format {
+        @value.Format::Text => Some(@utf8.encode(v.to_string()))
+        @value.Format::Binary => Some(encode_float8(v.to_double()))
+      }
+    @value.Value::Int64(v) =>
+      match format {
+        @value.Format::Text => Some(@utf8.encode(v.to_string()))
+        @value.Format::Binary => Some(encode_float8(v.to_double()))
       }
     @value.Value::Null => None
     _ =>
