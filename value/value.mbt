@@ -358,7 +358,7 @@ test "bool_from_value" {
 
 ///|
 /// Microseconds since Unix epoch (1970-01-01 00:00:00 UTC).
-pub(all) struct Timestamp(Int64)
+pub(all) struct Timestamp(Int64) derive(Eq, Debug)
 
 ///|
 pub impl ToValue for Timestamp with fn to_value(self) {

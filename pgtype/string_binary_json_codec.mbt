@@ -285,10 +285,7 @@ impl Codec for TimestampCodec with fn encode(
     @value.Value::String(s) =>
       match format {
         @value.Format::Text => Some(@utf8.encode(s))
-        @value.Format::Binary =>
-          raise CodecError::CodecError(
-            "TimestampCodec::encode: expected Value::Timestamp",
-          )
+        @value.Format::Binary => Some(encode_int8(parse_ts_text(s) + pg_epoch_offset_usec))
       }
     @value.Value::Null => None
     _ =>
@@ -358,9 +355,7 @@ impl Codec for TimestamptzCodec with fn encode(
       match format {
         @value.Format::Text => Some(@utf8.encode(s))
         @value.Format::Binary =>
-          raise CodecError::CodecError(
-            "TimestamptzCodec::encode: expected Value::Timestamp",
-          )
+          Some(encode_int8(parse_tstz_text(s) + pg_epoch_offset_usec))
       }
     @value.Value::Null => None
     _ =>

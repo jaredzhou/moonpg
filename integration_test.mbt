@@ -37,16 +37,18 @@ async fn fresh_table() -> Unit raise PgError {
   defer c.close()
   let ddl =
     #|CREATE TABLE IF NOT EXISTS moonpg_types (
-    #|  id    SERIAL PRIMARY KEY,
-    #|  i4    INTEGER       NOT NULL,
-    #|  i8    BIGINT        NOT NULL,
-    #|  f8    DOUBLE PRECISION NOT NULL,
-    #|  flag  BOOLEAN       NOT NULL,
-    #|  name  TEXT          NOT NULL,
-    #|  email TEXT
+    #|  id         SERIAL PRIMARY KEY,
+    #|  i4         INTEGER       NOT NULL,
+    #|  i8         BIGINT        NOT NULL,
+    #|  f8         DOUBLE PRECISION NOT NULL,
+    #|  flag       BOOLEAN       NOT NULL,
+    #|  name       TEXT          NOT NULL,
+    #|  email      TEXT,
+    #|  js         JSONB,
+    #|  created_at TIMESTAMPTZ
     #|)
+  c.execute("DROP TABLE IF EXISTS moonpg_types") |> ignore
   c.execute(ddl) |> ignore
-  c.execute("TRUNCATE TABLE moonpg_types") |> ignore
 }
 
 ///|
@@ -134,15 +136,16 @@ async test "query_iterates_all_basic_types" {
   defer conn.close()
 
   conn.execute(
-    "INSERT INTO moonpg_types (i4, i8, f8, flag, name, email) VALUES (7, 1234567890123, 2.71828, true, 'bob', NULL)",
+    "INSERT INTO moonpg_types (i4, i8, f8, flag, name, email, js, created_at) VALUES (7, 1234567890123, 2.71828, true, 'bob', NULL, $1, $2)",
+    params=["{\"k\":\"v\"}", "2024-01-01 00:00:00"],
   )
   |> ignore
 
   let rows = conn.query(
-    "SELECT id, i4, i8, f8, flag, name, email FROM moonpg_types",
+    "SELECT id, i4, i8, f8, flag, name, email, js, created_at FROM moonpg_types",
   )
 
-  let collected : Array[(Int, Int, Int64, Double, Bool, String, String?)] = []
+  let collected : Array[(Int, Int, Int64, Double, Bool, String, String?, Json?, @value.Timestamp?)] = []
   while rows.has_next() {
     let row = rows.get_row()
     let id : Int = row.get(0)
@@ -152,29 +155,32 @@ async test "query_iterates_all_basic_types" {
     let flag : Bool = row.get(4)
     let name : String = row.get(5)
     let email : String? = row.get(6)
-    collected.push((id, i4, i8, f8, flag, name, email))
+    let js_val : Json? = row.get(7)
+    let ts_val : @value.Timestamp? = row.get(8)
+    collected.push((id, i4, i8, f8, flag, name, email, js_val, ts_val))
   }
   rows.close()
 
   assert_eq(collected.length(), 1, msg="row count")
   let entry = collected[0]
-  let id = entry.0
-  let i4 = entry.1
-  let i8 = entry.2
-  let f8 = entry.3
-  let flag = entry.4
-  let name = entry.5
-  let email = entry.6
-  assert_eq(i4, 7, msg="i4")
-  assert_eq(i8, 1234567890123L, msg="i8")
-  assert_true((f8 - 2.71828).abs() < 1.0e-9, msg="f8 close to 2.71828")
-  assert_eq(flag, true, msg="flag")
-  assert_eq(name, "bob", msg="name")
-  match email {
+  assert_eq(entry.1, 7, msg="i4")
+  assert_eq(entry.2, 1234567890123L, msg="i8")
+  assert_true((entry.3 - 2.71828).abs() < 1.0e-9, msg="f8")
+  assert_eq(entry.4, true, msg="flag")
+  assert_eq(entry.5, "bob", msg="name")
+  match entry.6 {
     Some(s) => fail("expected None, got Some(\{s})")
     None => ()
   }
-  assert_true(id > 0, msg="id > 0")
+  match entry.7 {
+    Some(js) => assert_eq(js.stringify(), "{\"k\":\"v\"}", msg="jsonb")
+    None => fail("expected Some(jsonb)")
+  }
+  match entry.8 {
+    Some(ts) => assert_true(ts.0 > 0L, msg="timestamptz")
+    None => fail("expected Some(timestamp)")
+  }
+  assert_true(entry.0 > 0, msg="id > 0")
 }
 
 ///|
