@@ -9,7 +9,7 @@
 
 ///|
 /// Per-field metadata carried in a `RowDescription` message.
-pub struct FieldDescription {
+pub(all) struct FieldDescription {
   name : String
   table_oid : Int
   attr_num : Int
@@ -30,7 +30,7 @@ pub fn FieldDescription::type_name(self : FieldDescription) -> String {
 ///|
 /// Describes a prepared statement: its parameter OIDs and result-column
 /// layout (if the statement returns rows).
-pub struct StatementDescription {
+pub(all) struct StatementDescription {
   /// Statement name (empty = unnamed).
   name : String
   /// The SQL text that was parsed.

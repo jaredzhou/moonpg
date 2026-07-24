@@ -653,13 +653,10 @@ async test "binary_result_format_roundtrip" {
 
   let raw = @wire.connect(conninfo)
   defer raw.close()
-  let reader = raw.execute_params(
-    "SELECT i4, i8, f8, flag, name, email FROM moonpg_types",
-    [],
-    [],
-    [],
-    [1],
-  )
+  let _ = raw.prepare("", "SELECT i4, i8, f8, flag, name, email FROM moonpg_types", [])
+  raw.bind("", "", [], [], [1])
+  let cols = raw.describe_portal("")
+  let reader = raw.execute("", cols, 0)
 
   let cols = reader.columns()
   assert_eq(cols.length(), 6, msg="6 columns")
@@ -700,13 +697,12 @@ async test "binary_result_format_nullable" {
 
   let raw = @wire.connect(conninfo)
   defer raw.close()
-  let reader = raw.execute_params(
-    "SELECT i4, flag, email FROM moonpg_types WHERE name = 'null-test'",
-    [],
-    [],
-    [],
-    [1],
+  let _ = raw.prepare(
+    "", "SELECT i4, flag, email FROM moonpg_types WHERE name = 'null-test'", [],
   )
+  raw.bind("", "", [], [], [1])
+  let cols = raw.describe_portal("")
+  let reader = raw.execute("", cols, 0)
 
   if reader.has_next() {
     let raw_row = reader.data_row()
@@ -743,13 +739,10 @@ async test "binary_result_format_bytea" {
 
   let raw = @wire.connect(conninfo)
   defer raw.close()
-  let reader = raw.execute_params(
-    "SELECT data FROM moonpg_bytea_test",
-    [],
-    [],
-    [],
-    [1],
-  )
+  let _ = raw.prepare("", "SELECT data FROM moonpg_bytea_test", [])
+  raw.bind("", "", [], [], [1])
+  let cols = raw.describe_portal("")
+  let reader = raw.execute("", cols, 0)
 
   let cols = reader.columns()
   assert_eq(cols.length(), 1, msg="1 column")
