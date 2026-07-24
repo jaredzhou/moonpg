@@ -13,10 +13,13 @@ A pure MoonBit PostgreSQL client — wire protocol from scratch, zero C dependen
   connections, plus `begin_func` (auto-commit/rollback).
 - **Rows trait** — polymorphic row iteration (`ConnRows`, `PoolRows`); pull-based with
   `has_next()` / `get_row()`.
-- **Typed decoding** — `FromRaw` trait for `Int`, `Int64`, `Double`, `Bool`, `String`,
+- **Typed decoding** — `FromValue` trait for `Int`, `Int64`, `Double`, `Bool`, `String`,
   `Bytes`, `Json`, `Decimal`, `UUID`, `Timestamp`, plus `Option[T]` for nullable columns.
 - **Parameterised queries** — `$1`-style placeholders via the extended query protocol;
   `ToValue` trait with impls for all basic types and `Option[T]`.
+- **Codec-based encoding** — per-PG-type codecs with OID dispatch; `&Codec` trait objects
+  handle text and binary format transparently.  Supports variant compatibility (e.g.
+  `String` → JSON, `Int` → `Int64`).
 - **Async concurrency** — multiple connections can run queries concurrently; a slow
   query on one connection never blocks others.
 
@@ -204,7 +207,7 @@ let result = begin_func(conn, async fn(tx) {
 
 ## Typed decoding
 
-`FromRaw` decodes PostgreSQL cells into MoonBit types:
+`FromValue` decodes PostgreSQL cells into MoonBit types:
 
 ```moonbit nocheck
 ///|
@@ -214,7 +217,10 @@ let id : Int = row.get(0) // raises on NULL
 let email : String? = row.get_by_name("email") // NULL → None
 
 ///|
-let ts : Timestamp = row.get(2) // pg timestamp → Unix µs
+let js : Json = row.get(2) // jsonb → Json
+
+///|
+let ts : @value.Timestamp = row.get(3) // pg timestamptz → Unix µs
 ```
 
 ## Architecture
