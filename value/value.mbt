@@ -23,7 +23,7 @@ pub(all) suberror ValueError {
 /// | `Float`           | float4 (700), float8 (701)                |
 /// | `String`          | text, varchar, bpchar, name, uuid, …      |
 /// | `Bytes`           | bytea (17)                                |
-/// | `Timestamp(Int64)`| timestamp (1114), timestamptz (1184)      |
+/// | `Timestamp(Int64)` | timestamp (1114), timestamptz (1184)      |
 /// | `Json(Json)`      | json (114), jsonb (3802)                  |
 pub(all) enum Value {
   Null
@@ -350,4 +350,40 @@ test "json_to_value" {
 test "bool_from_value" {
   assert_eq(FromValue::from_value(Value::Bool(true)), true)
   assert_eq(FromValue::from_value(Value::Bool(false)), false)
+}
+
+// ===========================================================================
+// Timestamp
+// ===========================================================================
+
+///|
+/// Microseconds since Unix epoch (1970-01-01 00:00:00 UTC).
+pub(all) struct Timestamp(Int64)
+
+///|
+pub impl ToValue for Timestamp with fn to_value(self) {
+  Value::Timestamp(self.0)
+}
+
+///|
+pub impl FromValue for Timestamp with fn from_value(v : Value) {
+  match v {
+    Value::Timestamp(u) => Timestamp(u)
+    _ => raise ValueError::ValueError("expected Value::Timestamp")
+  }
+}
+
+test "timestamp_to_value" {
+  let ts = Timestamp::Timestamp(1720528496000000L)
+  let val = ToValue::to_value(ts)
+  match val {
+    Value::Timestamp(u) => assert_eq(u, 1720528496000000L)
+    _ => fail("expected Value::Timestamp")
+  }
+}
+
+test "timestamp_from_value" {
+  let val = Value::Timestamp(1720528496000000L)
+  let ts : Timestamp = FromValue::from_value(val)
+  assert_eq(ts.0, 1720528496000000L)
 }
