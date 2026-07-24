@@ -1273,13 +1273,13 @@ pub async fn RawConn::execute_prepared(
 /// `param_formats` — `0` = text, `1` = binary.  Length must be `0`, `1`,
 ///   or equal to `param_values`.
 ///
-/// `result_formats` — `0` = text, `1` = binary.  Same convention.
+/// `result_formats` — optional; when absent, synthesized from `stmt_desc.fields[].format`.
 pub async fn RawConn::execute_statement(
   self : RawConn,
   stmt_desc : StatementDescription,
   param_values : Array[Bytes?],
   param_formats : Array[Int],
-  result_formats : Array[Int],
+  result_formats? : Array[Int],
 ) -> ResultReader raise WireError {
   let n = param_values.length()
   guard n <= 65535 else {
@@ -1288,6 +1288,13 @@ pub async fn RawConn::execute_statement(
     )
   }
   let p_formats : Array[Int] = expand_formats(n, param_formats)
+  let r_formats : Array[Int] = match result_formats {
+    Some(rf) => rf
+    None =>
+      Array::makei(stmt_desc.fields.length(), fn(i) {
+        stmt_desc.fields[i].format
+      })
+  }
 
   self.lock()
 
@@ -1296,7 +1303,7 @@ pub async fn RawConn::execute_statement(
     statement: stmt_desc.name,
     params: param_values,
     param_formats: p_formats,
-    result_formats,
+    result_formats: r_formats,
   })
   self.send(Execute::{ portal: "", max_rows: 0 })
   self.send(Sync::{  })

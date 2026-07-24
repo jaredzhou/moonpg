@@ -447,22 +447,21 @@ async fn exec_params(
     }
     param_formats[i] = if fmt == @value.Format::Binary { 1 } else { 0 }
   }
-  let m = stmt.fields.length()
-  let result_formats : Array[Int] = Array::makei(m, fn(_) { 0 })
-  let fields : Array[@wire.FieldDescription] = Array::makei(m, fn(i) {
-    let f = stmt.fields[i]
-    let codec = @pgtype.default_map.codec_for(f.type_oid)
-    let fmt = if codec.prefer_format() == @value.Format::Binary { 1 } else { 0 }
-    result_formats[i] = fmt
-    @wire.FieldDescription::{ ..f, format: fmt }
-  })
+  let fields : Array[@wire.FieldDescription] = Array::makei(
+    stmt.fields.length(),
+    fn(i) {
+      let f = stmt.fields[i]
+      let codec = @pgtype.default_map.codec_for(f.type_oid)
+      @wire.FieldDescription::{
+        ..f,
+        format: if codec.prefer_format() == @value.Format::Binary { 1 } else { 0 },
+      }
+    },
+  )
   let stmt2 = @wire.StatementDescription::{
-    name: stmt.name,
-    sql: stmt.sql,
-    param_oids: stmt.param_oids,
-    fields,
+    name: stmt.name, sql: stmt.sql, param_oids: stmt.param_oids, fields,
   }
-  conn.execute_statement(stmt2, param_values, param_formats, result_formats)
+  conn.execute_statement(stmt2, param_values, param_formats)
 }
 
 // ---------------------------------------------------------------------------

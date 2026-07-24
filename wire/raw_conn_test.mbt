@@ -352,7 +352,7 @@ async test "exec_statement_select" {
     [23],
   )
   // execute_statement skips Describe — uses pre-known columns from desc
-  let reader = conn.execute_statement(desc, [Some(enc("10"))], [], [])
+  let reader = conn.execute_statement(desc, [Some(enc("10"))], [])
   // Columns are available without a Describe round-trip
   assert_eq(reader.columns().length(), 1)
   assert_eq(reader.columns()[0].name, "prod")
@@ -368,7 +368,7 @@ async test "exec_statement_no_columns" {
   let _ = conn.simple_query("CREATE TEMP TABLE _esp_ins (x int)").close()
   let desc = conn.prepare("es_ins", "INSERT INTO _esp_ins VALUES ($1)", [23])
   assert_eq(desc.fields.length(), 0)
-  let tag = conn.execute_statement(desc, [Some(enc("99"))], [], []).close()
+  let tag = conn.execute_statement(desc, [Some(enc("99"))], []).close()
   assert_eq(tag.command(), "INSERT")
   assert_true(tag.rows_affected() is Some(1))
 }
@@ -472,7 +472,7 @@ async test "exec_statement_multi_exec" {
       1 => "world"
       _ => "moon"
     }
-    let reader = conn.execute_statement(desc, [Some(enc(word))], [], [])
+    let reader = conn.execute_statement(desc, [Some(enc(word))], [])
     let result = reader.read()
     match result.rows[0] {
       [Some(bs)] => assert_eq(@utf8.decode(bs), word + "!")
@@ -490,7 +490,7 @@ async test "exec_statement_pull" {
     "SELECT n FROM generate_series(1, $1::int) AS n WHERE n % 2 = 0",
     [23],
   )
-  let reader = conn.execute_statement(desc, [Some(enc("10"))], [], [])
+  let reader = conn.execute_statement(desc, [Some(enc("10"))], [])
   let values : Array[String] = []
   while reader.has_next() {
     match reader.data_row() {
@@ -511,7 +511,7 @@ async test "exec_statement_batch" {
     "SELECT $1::int * n FROM generate_series(1, 3) AS n",
     [23],
   )
-  let result = conn.execute_statement(desc, [Some(enc("7"))], [], []).read()
+  let result = conn.execute_statement(desc, [Some(enc("7"))], []).read()
   assert_eq(result.columns[0].name, "?column?")
   assert_eq(result.rows.length(), 3)
   match result.rows {
@@ -541,7 +541,7 @@ async test "exec_statement_returning" {
     "INSERT INTO _esr (val) VALUES ($1) RETURNING id, val",
     [25],
   )
-  let reader = conn.execute_statement(desc, [Some(enc("xyz"))], [], [])
+  let reader = conn.execute_statement(desc, [Some(enc("xyz"))], [])
   assert_eq(reader.columns().length(), 2)
   assert_eq(reader.columns()[0].name, "id")
   assert_eq(reader.columns()[1].name, "val")
