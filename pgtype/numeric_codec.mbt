@@ -24,15 +24,14 @@ impl Codec for BoolCodec with fn encode(
   _oid : Int,
   format : @value.Format,
   value : @value.Value,
-) -> Bytes raise CodecError {
+) -> Bytes? raise CodecError {
   match value {
     @value.Value::Bool(v) =>
       match format {
-        @value.Format::Text => @utf8.encode(if v { "true" } else { "false" })
-        @value.Format::Binary => encode_bool(v)
+        @value.Format::Text => Some(@utf8.encode(if v { "true" } else { "false" }))
+        @value.Format::Binary => Some(encode_bool(v))
       }
-    @value.Value::Null =>
-      raise CodecError::CodecError("BoolCodec::encode: cannot encode NULL")
+    @value.Value::Null => None
     _ => raise CodecError::CodecError("BoolCodec::encode: expected Value::Bool")
   }
 }
@@ -88,15 +87,14 @@ impl Codec for Int2Codec with fn encode(
   _oid : Int,
   format : @value.Format,
   value : @value.Value,
-) -> Bytes raise CodecError {
+) -> Bytes? raise CodecError {
   match value {
     @value.Value::Int(v) =>
       match format {
-        @value.Format::Text => @utf8.encode(v.to_string())
-        @value.Format::Binary => encode_int2(v)
+        @value.Format::Text => Some(@utf8.encode(v.to_string()))
+        @value.Format::Binary => Some(encode_int2(v))
       }
-    @value.Value::Null =>
-      raise CodecError::CodecError("Int2Codec::encode: cannot encode NULL")
+    @value.Value::Null => None
     _ => raise CodecError::CodecError("Int2Codec::encode: expected Value::Int")
   }
 }
@@ -149,15 +147,14 @@ impl Codec for Int4Codec with fn encode(
   _oid : Int,
   format : @value.Format,
   value : @value.Value,
-) -> Bytes raise CodecError {
+) -> Bytes? raise CodecError {
   match value {
     @value.Value::Int(v) =>
       match format {
-        @value.Format::Text => @utf8.encode(v.to_string())
-        @value.Format::Binary => encode_int4(v)
+        @value.Format::Text => Some(@utf8.encode(v.to_string()))
+        @value.Format::Binary => Some(encode_int4(v))
       }
-    @value.Value::Null =>
-      raise CodecError::CodecError("Int4Codec::encode: cannot encode NULL")
+    @value.Value::Null => None
     _ => raise CodecError::CodecError("Int4Codec::encode: expected Value::Int")
   }
 }
@@ -210,15 +207,14 @@ impl Codec for Int8Codec with fn encode(
   _oid : Int,
   format : @value.Format,
   value : @value.Value,
-) -> Bytes raise CodecError {
+) -> Bytes? raise CodecError {
   match value {
     @value.Value::Int64(v) =>
       match format {
-        @value.Format::Text => @utf8.encode(v.to_string())
-        @value.Format::Binary => encode_int8(v)
+        @value.Format::Text => Some(@utf8.encode(v.to_string()))
+        @value.Format::Binary => Some(encode_int8(v))
       }
-    @value.Value::Null =>
-      raise CodecError::CodecError("Int8Codec::encode: cannot encode NULL")
+    @value.Value::Null => None
     _ =>
       raise CodecError::CodecError("Int8Codec::encode: expected Value::Int64")
   }
@@ -272,15 +268,14 @@ impl Codec for Float4Codec with fn encode(
   _oid : Int,
   format : @value.Format,
   value : @value.Value,
-) -> Bytes raise CodecError {
+) -> Bytes? raise CodecError {
   match value {
     @value.Value::Float(v) =>
       match format {
-        @value.Format::Text => @utf8.encode(v.to_string())
-        @value.Format::Binary => encode_float4(v)
+        @value.Format::Text => Some(@utf8.encode(v.to_string()))
+        @value.Format::Binary => Some(encode_float4(v))
       }
-    @value.Value::Null =>
-      raise CodecError::CodecError("Float4Codec::encode: cannot encode NULL")
+    @value.Value::Null => None
     _ =>
       raise CodecError::CodecError("Float4Codec::encode: expected Value::Float")
   }
@@ -336,15 +331,14 @@ impl Codec for Float8Codec with fn encode(
   _oid : Int,
   format : @value.Format,
   value : @value.Value,
-) -> Bytes raise CodecError {
+) -> Bytes? raise CodecError {
   match value {
     @value.Value::Float(v) =>
       match format {
-        @value.Format::Text => @utf8.encode(v.to_string())
-        @value.Format::Binary => encode_float8(v)
+        @value.Format::Text => Some(@utf8.encode(v.to_string()))
+        @value.Format::Binary => Some(encode_float8(v))
       }
-    @value.Value::Null =>
-      raise CodecError::CodecError("Float8Codec::encode: cannot encode NULL")
+    @value.Value::Null => None
     _ =>
       raise CodecError::CodecError("Float8Codec::encode: expected Value::Float")
   }
@@ -393,7 +387,7 @@ test "bool_codec_text_roundtrip" {
       @value.Format::Text,
       @value.Value::Bool(v),
     )
-    let decoded = Codec::decode(codec, bool_oid, @value.Format::Text, encoded)
+    let decoded = Codec::decode(codec, bool_oid, @value.Format::Text, encoded.unwrap())
     match decoded {
       @value.Value::Bool(b) => assert_eq(b, v)
       _ => fail("expected Value::Bool")
@@ -411,7 +405,7 @@ test "bool_codec_binary_roundtrip" {
       @value.Format::Binary,
       @value.Value::Bool(v),
     )
-    let decoded = Codec::decode(codec, bool_oid, @value.Format::Binary, encoded)
+    let decoded = Codec::decode(codec, bool_oid, @value.Format::Binary, encoded.unwrap())
     match decoded {
       @value.Value::Bool(b) => assert_eq(b, v)
       _ => fail("expected Value::Bool")
@@ -429,7 +423,7 @@ test "int4_codec_text_roundtrip" {
       @value.Format::Text,
       @value.Value::Int(v),
     )
-    let decoded = Codec::decode(codec, int4_oid, @value.Format::Text, encoded)
+    let decoded = Codec::decode(codec, int4_oid, @value.Format::Text, encoded.unwrap())
     match decoded {
       @value.Value::Int(n) => assert_eq(n, v)
       _ => fail("expected Value::Int")
@@ -447,7 +441,7 @@ test "int4_codec_binary_roundtrip" {
       @value.Format::Binary,
       @value.Value::Int(v),
     )
-    let decoded = Codec::decode(codec, int4_oid, @value.Format::Binary, encoded)
+    let decoded = Codec::decode(codec, int4_oid, @value.Format::Binary, encoded.unwrap())
     match decoded {
       @value.Value::Int(n) => assert_eq(n, v)
       _ => fail("expected Value::Int")
@@ -465,7 +459,7 @@ test "int8_codec_text_roundtrip" {
       @value.Format::Text,
       @value.Value::Int64(v),
     )
-    let decoded = Codec::decode(codec, int8_oid, @value.Format::Text, encoded)
+    let decoded = Codec::decode(codec, int8_oid, @value.Format::Text, encoded.unwrap())
     match decoded {
       @value.Value::Int64(n) => assert_eq(n, v)
       _ => fail("expected Value::Int64")
@@ -483,7 +477,7 @@ test "int8_codec_binary_roundtrip" {
       @value.Format::Binary,
       @value.Value::Int64(v),
     )
-    let decoded = Codec::decode(codec, int8_oid, @value.Format::Binary, encoded)
+    let decoded = Codec::decode(codec, int8_oid, @value.Format::Binary, encoded.unwrap())
     match decoded {
       @value.Value::Int64(n) => assert_eq(n, v)
       _ => fail("expected Value::Int64")
@@ -501,7 +495,7 @@ test "float8_codec_text_roundtrip" {
     @value.Format::Text,
     @value.Value::Float(v),
   )
-  let decoded = Codec::decode(codec, float8_oid, @value.Format::Text, encoded)
+  let decoded = Codec::decode(codec, float8_oid, @value.Format::Text, encoded.unwrap())
   match decoded {
     @value.Value::Float(f) => assert_true((f - v).abs() < 0.0001)
     _ => fail("expected Value::Float")
@@ -518,7 +512,7 @@ test "float8_codec_binary_roundtrip" {
     @value.Format::Binary,
     @value.Value::Float(v),
   )
-  let decoded = Codec::decode(codec, float8_oid, @value.Format::Binary, encoded)
+  let decoded = Codec::decode(codec, float8_oid, @value.Format::Binary, encoded.unwrap())
   match decoded {
     @value.Value::Float(f) => assert_true((f - v).abs() < 1.0e-15)
     _ => fail("expected Value::Float")
@@ -537,7 +531,7 @@ test "numeric_codec_type_mismatch" {
   ) catch {
     _ => {
       got_error = true
-      Bytes::new(0)
+      None
     }
   }
   assert_true(got_error, msg="expected CodecError for type mismatch")

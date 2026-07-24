@@ -26,15 +26,14 @@ impl Codec for ByteaCodec with fn encode(
   _oid : Int,
   format : @value.Format,
   value : @value.Value,
-) -> Bytes raise CodecError {
+) -> Bytes? raise CodecError {
   match value {
     @value.Value::Bytes(b) =>
       match format {
-        @value.Format::Text => encode_bytea_hex(b)
-        @value.Format::Binary => b
+        @value.Format::Text => Some(encode_bytea_hex(b))
+        @value.Format::Binary => Some(b)
       }
-    @value.Value::Null =>
-      raise CodecError::CodecError("ByteaCodec::encode: cannot encode NULL")
+    @value.Value::Null => None
     _ =>
       raise CodecError::CodecError("ByteaCodec::encode: expected Value::Bytes")
   }
@@ -130,18 +129,17 @@ impl Codec for JSONCodec with fn encode(
   _oid : Int,
   format : @value.Format,
   value : @value.Value,
-) -> Bytes raise CodecError {
+) -> Bytes? raise CodecError {
   match value {
     @value.Value::Json(j) =>
       match format {
-        @value.Format::Text => @utf8.encode(j.stringify())
+        @value.Format::Text => Some(@utf8.encode(j.stringify()))
         @value.Format::Binary =>
           raise CodecError::CodecError(
             "JSONCodec::encode: binary format not supported",
           )
       }
-    @value.Value::Null =>
-      raise CodecError::CodecError("JSONCodec::encode: cannot encode NULL")
+    @value.Value::Null => None
     _ => raise CodecError::CodecError("JSONCodec::encode: expected Value::Json")
   }
 }
@@ -189,18 +187,17 @@ impl Codec for JSONBCodec with fn encode(
   _oid : Int,
   format : @value.Format,
   value : @value.Value,
-) -> Bytes raise CodecError {
+) -> Bytes? raise CodecError {
   match value {
     @value.Value::Json(j) =>
       match format {
-        @value.Format::Text => @utf8.encode(j.stringify())
+        @value.Format::Text => Some(@utf8.encode(j.stringify()))
         @value.Format::Binary =>
           raise CodecError::CodecError(
             "JSONBCodec::encode: binary format not supported",
           )
       }
-    @value.Value::Null =>
-      raise CodecError::CodecError("JSONBCodec::encode: cannot encode NULL")
+    @value.Value::Null => None
     _ =>
       raise CodecError::CodecError("JSONBCodec::encode: expected Value::Json")
   }
@@ -249,15 +246,14 @@ impl Codec for TimestampCodec with fn encode(
   _oid : Int,
   format : @value.Format,
   value : @value.Value,
-) -> Bytes raise CodecError {
+) -> Bytes? raise CodecError {
   match value {
     @value.Value::Timestamp(usec) =>
       match format {
-        @value.Format::Text => @utf8.encode(format_ts_text(usec))
-        @value.Format::Binary => encode_int8(usec + pg_epoch_offset_usec)
+        @value.Format::Text => Some(@utf8.encode(format_ts_text(usec)))
+        @value.Format::Binary => Some(encode_int8(usec + pg_epoch_offset_usec))
       }
-    @value.Value::Null =>
-      raise CodecError::CodecError("TimestampCodec::encode: cannot encode NULL")
+    @value.Value::Null => None
     _ =>
       raise CodecError::CodecError(
         "TimestampCodec::encode: expected Value::Timestamp",
@@ -308,17 +304,14 @@ impl Codec for TimestamptzCodec with fn encode(
   _oid : Int,
   format : @value.Format,
   value : @value.Value,
-) -> Bytes raise CodecError {
+) -> Bytes? raise CodecError {
   match value {
     @value.Value::Timestamp(usec) =>
       match format {
-        @value.Format::Text => @utf8.encode(format_tstz_text(usec))
-        @value.Format::Binary => encode_int8(usec + pg_epoch_offset_usec)
+        @value.Format::Text => Some(@utf8.encode(format_tstz_text(usec)))
+        @value.Format::Binary => Some(encode_int8(usec + pg_epoch_offset_usec))
       }
-    @value.Value::Null =>
-      raise CodecError::CodecError(
-        "TimestamptzCodec::encode: cannot encode NULL",
-      )
+    @value.Value::Null => None
     _ =>
       raise CodecError::CodecError(
         "TimestamptzCodec::encode: expected Value::Timestamp",
@@ -537,7 +530,7 @@ test "bytea_codec_text_roundtrip" {
     @value.Format::Text,
     @value.Value::Bytes(data),
   )
-  let decoded = Codec::decode(codec, bytea_oid, @value.Format::Text, encoded)
+  let decoded = Codec::decode(codec, bytea_oid, @value.Format::Text, encoded.unwrap())
   match decoded {
     @value.Value::Bytes(b) => assert_eq(b, data)
     _ => fail("expected Value::Bytes")
@@ -554,7 +547,7 @@ test "bytea_codec_binary_roundtrip" {
     @value.Format::Binary,
     @value.Value::Bytes(data),
   )
-  let decoded = Codec::decode(codec, bytea_oid, @value.Format::Binary, encoded)
+  let decoded = Codec::decode(codec, bytea_oid, @value.Format::Binary, encoded.unwrap())
   match decoded {
     @value.Value::Bytes(b) => assert_eq(b, data)
     _ => fail("expected Value::Bytes")
@@ -571,7 +564,7 @@ test "json_codec_text_roundtrip" {
     @value.Format::Text,
     @value.Value::Json(j),
   )
-  let decoded = Codec::decode(codec, json_oid, @value.Format::Text, encoded)
+  let decoded = Codec::decode(codec, json_oid, @value.Format::Text, encoded.unwrap())
   match decoded {
     @value.Value::Json(v) => assert_eq(v.stringify(), "{\"a\":1}")
     _ => fail("expected Value::Json")
@@ -588,7 +581,7 @@ test "jsonb_codec_text_roundtrip" {
     @value.Format::Text,
     @value.Value::Json(j),
   )
-  let decoded = Codec::decode(codec, jsonb_oid, @value.Format::Text, encoded)
+  let decoded = Codec::decode(codec, jsonb_oid, @value.Format::Text, encoded.unwrap())
   match decoded {
     @value.Value::Json(v) => assert_eq(v.stringify(), "[1,2,3]")
     _ => fail("expected Value::Json")
@@ -610,7 +603,7 @@ test "timestamp_codec_text_roundtrip" {
     codec,
     timestamp_oid,
     @value.Format::Text,
-    encoded,
+    encoded.unwrap(),
   )
   match decoded {
     @value.Value::Timestamp(u) => {
@@ -637,7 +630,7 @@ test "timestamp_codec_binary_roundtrip" {
     codec,
     timestamp_oid,
     @value.Format::Binary,
-    encoded,
+    encoded.unwrap(),
   )
   match decoded {
     @value.Value::Timestamp(u) => assert_eq(u, usec)
@@ -659,7 +652,7 @@ test "timestamptz_codec_binary_roundtrip" {
     codec,
     timestamptz_oid,
     @value.Format::Binary,
-    encoded,
+    encoded.unwrap(),
   )
   match decoded {
     @value.Value::Timestamp(u) => assert_eq(u, usec)

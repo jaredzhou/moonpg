@@ -22,12 +22,12 @@ impl Codec for TextCodec with fn encode(
   _oid : Int,
   format : @value.Format,
   value : @value.Value,
-) -> Bytes raise CodecError {
+) -> Bytes? raise CodecError {
   match format {
     @value.Format::Text =>
       match value {
-        @value.Value::String(s) => @utf8.encode(s)
-        @value.Value::Null => Bytes::new(0)
+        @value.Value::String(s) => Some(@utf8.encode(s))
+        @value.Value::Null => None
         _ =>
           raise CodecError::CodecError(
             "TextCodec::encode: expected Value::String or Value::Null",
@@ -67,7 +67,7 @@ impl Codec for TextCodec with fn decode(
 test "text_codec_roundtrip_text" {
   let codec = text_codec
   let val = @value.Value::String("hello world")
-  let encoded = Codec::encode(codec, text_oid, @value.Format::Text, val)
+  let encoded = Codec::encode(codec, text_oid, @value.Format::Text, val).unwrap()
   let decoded = Codec::decode(codec, text_oid, @value.Format::Text, encoded)
   match decoded {
     @value.Value::String(s) => assert_eq(s, "hello world")
@@ -83,7 +83,7 @@ test "text_codec_binary_raises" {
   let _ = Codec::encode(codec, text_oid, @value.Format::Binary, val) catch {
     _ => {
       got_error = true
-      Bytes::new(0)
+      None
     }
   }
   assert_true(got_error, msg="expected CodecError for binary format")

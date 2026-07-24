@@ -15,7 +15,8 @@ pub(open) trait Codec {
   /// codecs that only support text (e.g., JSON) return `Format::Text`.
   fn prefer_format(Self) -> @value.Format
   /// Encode a `Value` into wire-format bytes.
-  fn encode(Self, oid : Int, format : @value.Format, value : @value.Value) -> Bytes raise CodecError
+  /// Returns `None` for `Value::Null` (SQL NULL on the wire).
+  fn encode(Self, oid : Int, format : @value.Format, value : @value.Value) -> Bytes? raise CodecError
   /// Decode wire-format bytes into a `Value`.
   fn decode(Self, oid : Int, format : @value.Format, bytes : Bytes) -> @value.Value raise CodecError
 }
