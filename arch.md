@@ -13,6 +13,13 @@ over TCP.  There are zero C dependencies — no libpq, no native stubs.
                    │  Rows trait  QueryExecutor trait  │
                    └──────────────┬───────────────────┘
                    ┌──────────────┴───────────────────┐
+                   │  wire/                           │  ← wire protocol
+                   │  raw_conn.mbt  result_reader.mbt  │
+                   │  frontend_messages.mbt            │
+                   │  backend_messages.mbt             │
+                   │  config.mbt  auth_md5 / auth_scram│
+                   └──────────────┬───────────────────┘
+                   ┌──────────────┴───────────────────┐
                    │  pgtype/                         │  ← codec registry
                    │  Codec trait  TypeMap  &Codec    │
                    │  12 codecs (Bool, Int, Float, …)  │
@@ -21,13 +28,6 @@ over TCP.  There are zero C dependencies — no libpq, no native stubs.
                    │  value/                          │  ← pure data layer
                    │  Value(9)  Format  ToValue       │
                    │  FromValue  Timestamp            │
-                   └──────────────┬───────────────────┘
-                   ┌──────────────┴───────────────────┐
-                   │  wire/                           │  ← wire protocol
-                   │  raw_conn.mbt  result_reader.mbt  │
-                   │  frontend_messages.mbt            │
-                   │  backend_messages.mbt             │
-                   │  config.mbt  auth_md5 / auth_scram│
                    └──────────────┬───────────────────┘
                    ┌──────────────┴───────────────────┐
                    │  moonbitlang/async                │  ← platform
