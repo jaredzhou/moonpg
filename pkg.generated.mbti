@@ -8,8 +8,6 @@ import {
   "moonbitlang/async/aqueue",
   "moonbitlang/core/debug",
   "moonbitlang/core/ref",
-  "moonbitlang/x/decimal",
-  "moonbitlang/x/uuid",
 }
 
 // Values
@@ -17,31 +15,9 @@ pub async fn[T, B : TxBeginner] begin_func(B, async (&Tx) -> T) -> T raise PgErr
 
 pub fn build_begin_sql(TxOptions) -> String
 
-pub fn build_params(Array[RawValue]) -> (Array[Bytes?], Array[Int])
-
 pub async fn connect(String) -> Connection raise PgError
 
-pub fn default_encode(Value) -> RawValue
-
 pub fn get_env(String) -> String
-
-pub fn pg_data_types() -> Iter[(String, Int)]
-
-pub fn pg_oid_to_name(Int) -> String
-
-pub fn pg_type_for_data_type(String) -> @wire.Type?
-
-pub fn pg_type_for_name(String) -> @wire.Type?
-
-pub fn pg_type_for_oid(Int) -> @wire.Type?
-
-pub let pg_type_map : @wire.TypeMap
-
-pub fn pg_types() -> Iter[@wire.Type]
-
-pub fn[T] raise_binary() -> T raise PgError
-
-pub fn[T] raise_null(String) -> T raise PgError
 
 pub fn row_from_raw(Array[Bytes?], Array[@wire.FieldDescription]) -> Row
 
@@ -85,7 +61,7 @@ pub(all) struct CopyWriter {
   conn : @wire.RawConn
 }
 pub async fn CopyWriter::finish(Self) -> ExecResult raise PgError
-pub async fn CopyWriter::write_row(Self, Array[&ToValue]) -> Unit raise PgError
+pub async fn CopyWriter::write_row(Self, Array[&@value.ToValue]) -> Unit raise PgError
 
 pub(all) struct DbTx {
   conn : Connection
@@ -98,11 +74,6 @@ pub struct ExecResult {
 }
 pub fn ExecResult::affected_rows(Self) -> Int
 pub fn ExecResult::close(Self) -> Unit
-
-pub enum Format {
-  Text
-  Binary
-} derive(Eq)
 
 pub(all) struct IdleConn {
   conn : Connection
@@ -166,9 +137,9 @@ pub(all) struct PoolConn {
   released : @ref.Ref[Bool]
 }
 pub fn PoolConn::close(Self) -> Unit
-pub async fn PoolConn::execute(Self, String, params? : Array[&ToValue]) -> ExecResult raise PgError
-pub async fn PoolConn::query(Self, String, params? : Array[&ToValue]) -> &Rows raise PgError
-pub async fn PoolConn::query_one(Self, String, params? : Array[&ToValue]) -> Row raise PgError
+pub async fn PoolConn::execute(Self, String, params? : Array[&@value.ToValue]) -> ExecResult raise PgError
+pub async fn PoolConn::query(Self, String, params? : Array[&@value.ToValue]) -> &Rows raise PgError
+pub async fn PoolConn::query_one(Self, String, params? : Array[&@value.ToValue]) -> Row raise PgError
 pub fn PoolConn::release(Self) -> Unit
 pub impl TxBeginner for PoolConn
 
@@ -194,25 +165,13 @@ pub(all) struct PoolStats {
   acquire_wait_duration_ms : Int64
 }
 
-pub(all) enum RawValue {
-  Null
-  Bytes(Format, Bytes)
-}
-pub fn RawValue::to_value(Self) -> Value
-
 pub struct Row {
-  values : Array[RawValue]
+  values : Array[Bytes?]
   col_descs : Array[@wire.FieldDescription]
 }
 pub fn Row::columns(Self) -> Array[@wire.FieldDescription]
-pub fn[T : FromRaw] Row::get(Self, Int) -> T raise PgError
-pub fn[T : FromRaw] Row::get_by_name(Self, String) -> T raise PgError
-
-pub(all) struct Timestamp(Int64)
-pub impl FromRaw for Timestamp
-pub impl ToValue for Timestamp
-pub impl @value.FromValue for Timestamp
-pub impl @value.ToValue for Timestamp
+pub fn[T : @value.FromValue] Row::get(Self, Int) -> T raise PgError
+pub fn[T : @value.FromValue] Row::get_by_name(Self, String) -> T raise PgError
 
 pub(all) struct TxOptions {
   isolation_level : IsolationLevel?
@@ -221,40 +180,13 @@ pub(all) struct TxOptions {
 }
 pub fn TxOptions::default() -> Self
 
-pub enum Value {
-  Null
-  Bool(Bool)
-  Int(Int)
-  Int64(Int64)
-  Float(Double)
-  String(String)
-  Bytes(Bytes)
-}
-pub fn Value::pg_type_name(Self) -> String
-pub fn Value::to_raw(Self, Format) -> RawValue
-
 // Type aliases
-pub using @wire {type Type as PGType}
 
 // Traits
-pub(open) trait FromRaw {
-  fn from_raw(RawValue) -> Self raise PgError
-}
-pub impl FromRaw for Bool
-pub impl FromRaw for Int
-pub impl FromRaw for Int64
-pub impl FromRaw for Double
-pub impl FromRaw for String
-pub impl[T : FromRaw] FromRaw for T?
-pub impl FromRaw for Bytes
-pub impl FromRaw for Json
-pub impl FromRaw for @decimal.Decimal
-pub impl FromRaw for @uuid.UUID
-
 pub(open) trait QueryExecutor {
-  async fn query(Self, String, params? : Array[&ToValue]) -> &Rows raise PgError
-  async fn query_one(Self, String, params? : Array[&ToValue]) -> Row raise PgError
-  async fn execute(Self, String, params? : Array[&ToValue]) -> ExecResult raise PgError
+  async fn query(Self, String, params? : Array[&@value.ToValue]) -> &Rows raise PgError
+  async fn query_one(Self, String, params? : Array[&@value.ToValue]) -> Row raise PgError
+  async fn execute(Self, String, params? : Array[&@value.ToValue]) -> ExecResult raise PgError
 }
 
 pub(open) trait Rows {
@@ -263,22 +195,6 @@ pub(open) trait Rows {
   fn columns(Self) -> Array[@wire.FieldDescription]
   async fn close(Self) -> Unit raise PgError
 }
-
-pub(open) trait ToValue {
-  fn to_value(Self) -> Value
-  fn to_raw_value(Self) -> RawValue = _
-  fn pg_type(Self) -> @wire.Type = _
-}
-pub impl ToValue for Bool
-pub impl ToValue for Int
-pub impl ToValue for Int64
-pub impl ToValue for Double
-pub impl ToValue for String
-pub impl[T : ToValue] ToValue for T?
-pub impl ToValue for Bytes
-pub impl ToValue for Json
-pub impl ToValue for @decimal.Decimal
-pub impl ToValue for @uuid.UUID
 
 pub(open) trait Tx : QueryExecutor {
   async fn commit(Self) -> Unit raise PgError

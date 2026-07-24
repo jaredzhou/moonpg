@@ -84,26 +84,45 @@ test "text_codec_prefer_format" {
 }
 
 // --- Edge cases ---
+
+///|
 test "text_codec_null_roundtrip" {
   let codec = text_codec
-  let encoded = Codec::encode(codec, text_oid, @value.Format::Text, @value.Value::Null)
+  let encoded = Codec::encode(
+    codec,
+    text_oid,
+    @value.Format::Text,
+    @value.Value::Null,
+  )
   assert_eq(encoded, None)
   let decoded = Codec::decode(codec, text_oid, @value.Format::Text, None)
   assert_eq(decoded, @value.Value::Null)
 }
 
+///|
 test "text_codec_empty_string" {
   let codec = text_codec
-  let encoded = Codec::encode(codec, text_oid, @value.Format::Text, @value.Value::String(""))
+  let encoded = Codec::encode(
+    codec,
+    text_oid,
+    @value.Format::Text,
+    @value.Value::String(""),
+  )
   let decoded = Codec::decode(codec, text_oid, @value.Format::Text, encoded)
   assert_eq(decoded, @value.Value::String(""))
 }
 
+///|
 test "text_codec_json_compat" {
   let codec = text_codec
   let j = @json.parse("{\"a\":1}")
   // TextCodec stringifies Json
-  let encoded = Codec::encode(codec, text_oid, @value.Format::Text, @value.Value::Json(j))
+  let encoded = Codec::encode(
+    codec,
+    text_oid,
+    @value.Format::Text,
+    @value.Value::Json(j),
+  )
   let decoded = Codec::decode(codec, text_oid, @value.Format::Text, encoded)
   match decoded {
     @value.Value::String(s) => assert_eq(s, "{\"a\":1}")

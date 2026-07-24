@@ -3,6 +3,8 @@ package "jaredzhou/moonpg/value"
 
 import {
   "moonbitlang/core/debug",
+  "moonbitlang/x/decimal",
+  "moonbitlang/x/uuid",
 }
 
 // Values
@@ -17,6 +19,10 @@ pub(all) enum Format {
   Text
   Binary
 } derive(Eq, @debug.Debug)
+
+pub(all) struct Timestamp(Int64) derive(Eq, @debug.Debug)
+pub impl FromValue for Timestamp
+pub impl ToValue for Timestamp
 
 pub(all) enum Value {
   Null
@@ -36,8 +42,28 @@ pub(all) enum Value {
 pub(open) trait FromValue {
   fn from_value(Value) -> Self raise ValueError
 }
+pub impl FromValue for Bool
+pub impl FromValue for Int
+pub impl FromValue for Int64
+pub impl FromValue for Double
+pub impl FromValue for String
+pub impl[T : FromValue] FromValue for T?
+pub impl FromValue for Bytes
+pub impl FromValue for Json
+pub impl FromValue for @decimal.Decimal
+pub impl FromValue for @uuid.UUID
 
 pub(open) trait ToValue {
   fn to_value(Self) -> Value
 }
+pub impl ToValue for Bool
+pub impl ToValue for Int
+pub impl ToValue for Int64
+pub impl ToValue for Double
+pub impl ToValue for String
+pub impl[T : ToValue] ToValue for T?
+pub impl ToValue for Bytes
+pub impl ToValue for Json
+pub impl ToValue for @decimal.Decimal
+pub impl ToValue for @uuid.UUID
 

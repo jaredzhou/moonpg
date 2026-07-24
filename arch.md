@@ -13,9 +13,14 @@ over TCP.  There are zero C dependencies — no libpq, no native stubs.
                    │  Rows trait  QueryExecutor trait  │
                    └──────────────┬───────────────────┘
                    ┌──────────────┴───────────────────┐
-                   │  value.mbt   types.mbt           │  ← encode / decode
-                   │  Value  RawValue  FromRaw        │
-                   │  ToValue  default_encode         │
+                   │  pgtype/                         │  ← codec registry
+                   │  Codec trait  TypeMap  &Codec    │
+                   │  12 codecs (Bool, Int, Float, …)  │
+                   └──────────────┬───────────────────┘
+                   ┌──────────────┴───────────────────┐
+                   │  value/                          │  ← pure data layer
+                   │  Value(9)  Format  ToValue       │
+                   │  FromValue  Timestamp            │
                    └──────────────┬───────────────────┘
                    ┌──────────────┴───────────────────┐
                    │  wire/                           │  ← wire protocol
@@ -30,149 +35,142 @@ over TCP.  There are zero C dependencies — no libpq, no native stubs.
                    └──────────────────────────────────┘
 ```
 
+Dependency chain: `value/` ← `pgtype/` ← `wire/` ← `root`. No cycles.
+
 ## Module walkthrough
 
-### `wire/` — PostgreSQL wire protocol
+### `value/` — Pure data types & conversion traits
 
-The lowest layer.  Communicates with the server via TCP, handles
-startup, authentication, and message framing.
+Zero internal dependencies. Provides the foundational types:
+
+- `Value` enum (9 variants): `Null`, `Bool`, `Int`, `Int64`, `Float`, `String`,
+  `Bytes`, `Timestamp(Int64)`, `Json(Json)`.
+- `Format` enum: `Text` | `Binary`.
+- `ToValue` trait: single method `to_value(Self) -> Value`.
+- `FromValue` trait: single method `from_value(Value) -> Self raise ValueError`.
+- Built-in `ToValue` / `FromValue` impls for `Int`, `Int64`, `Double`, `Bool`,
+  `String`, `Bytes`, `Json`, `Decimal`, `UUID`, `Option[T]`, and `Timestamp`.
+- `Timestamp` struct: Unix-epoch microseconds, with `ToValue`/`FromValue` impls.
+
+No wire encoding knowledge — that lives in `pgtype/`.
+
+### `pgtype/` — Codec registry & type map
+
+Depends on `value/`. Contains the codec system:
 
 | File | Purpose |
 |---|---|
-| `raw_conn.mbt` | Core connection: TCP connect, SSL negotiation, startup, authentication handshake, `send`/`receive` message framing, `simple_query`, `execute_params` (extended query), lock/unlock lifecycle, cancel request. |
-| `result_reader.mbt` | Pull-based result-set reader.  Consumes `DataRow` / `CommandComplete` / `ReadyForQuery` messages.  Supports `has_next()` + `data_row()` streaming and `read()` (eager collect). |
-| `config.mbt` | Connection-string parser.  Supports both URI (`postgres://...`) and key-value (`host=... port=...`) formats. |
-| `frontend_messages.mbt` | All client→server messages: `StartupMessage`, `Query`, `Parse`, `Bind`, `Execute`, `Describe`, `Close`, `Sync`, `PasswordMessage`, `SASLInitialResponse`, `SASLResponse`, `Terminate`, `Flush`. |
-| `backend_messages.mbt` | All server→client messages: `Authentication*`, `BackendKeyData`, `ReadyForQuery`, `RowDescription`, `DataRow`, `CommandComplete`, `ErrorResponse`, `NoticeResponse`, `ParameterStatus`, etc. |
-| `auth_md5.mbt` | MD5 password authentication (`md5` + salt). |
+| `codec.mbt` | `Codec` trait: `prefer_format`, `encode(Value) → Bytes?`, `decode(Bytes?) → Value`. `CodecError` suberror. |
+| `types.mbt` | `Type { name, oid, &Codec }`, `TypeMap` with `codec_for(oid) → &Codec`, ~90 OID constants, `default_map`. |
+| `text_codec.mbt` | `TextCodec` — UTF-8 encode/decode for text/varchar/bpchar/name/unknown. |
+| `numeric_codec.mbt` | `BoolCodec`, `Int2Codec`, `Int4Codec`, `Int8Codec`, `Float4Codec`, `Float8Codec`. |
+| `string_binary_json_codec.mbt` | `ByteaCodec`, `JSONCodec`, `JSONBCodec`, `TimestampCodec`, `TimestamptzCodec`. |
+| `encode_decode.mbt` | Low-level binary helpers (`encode_int4`, `decode_int8`, etc.). |
+
+Key design:
+- Each codec is a stateless struct implementing `Codec`.
+- `Type.codec` is `&Codec` — a MoonBit trait object stored directly in the struct.
+  No enum dispatch needed.
+- `encode` returns `Bytes?` — `None` for SQL NULL, `Some(bytes)` for values.
+- `decode` accepts `Bytes?` — `None` → `Value::Null`.
+- Unknown OIDs fall back to `TextCodec`.
+- Value variant compatibility: e.g. `Int8Codec` accepts `Value::Int` (widens),
+  `JSONCodec` accepts `Value::String` (passes through).
+
+### `wire/` — PostgreSQL wire protocol
+
+| File | Purpose |
+|---|---|
+| `raw_conn.mbt` | TCP connect, SSL negotiation, startup, authentication, `send`/`receive` framing, `simple_query`, `prepare`, `bind`, `describe_statement`, `describe_portal`, `execute`, `execute_statement`, `execute_prepared`, cancel request. |
+| `result_reader.mbt` | Pull-based result-set reader. `has_next()` + `data_row()` streaming, `read()` eager collect. |
+| `config.mbt` | Connection-string parser (URI + key/value). |
+| `frontend_messages.mbt` | All client→server messages. |
+| `backend_messages.mbt` | All server→client messages, `FieldDescription`, `StatementDescription`. |
+| `auth_md5.mbt` | MD5 password authentication. |
 | `auth_scram.mbt` | SCRAM-SHA-256 authentication. |
-| `error.mbt` | `WireError` type hierarchy (`Connect`, `Auth`, `Parse`, `IO`, `InvalidMessage`, `PgServer`). |
-| `bytes_mut.mbt` | Mutable byte buffer for message encoding. |
-| `read_util.mbt` | Pattern-matching helpers for decoding binary payloads (`i32be`, `u32be`, etc.). |
-| `types.mbt` | Shared wire-level types: `CommandTag`, `TransactionStatus`. |
-
-### `value.mbt` — Value encoding / decoding
-
-- `Value` enum: `Null`, `Bool`, `Int`, `Int64`, `Float`, `String`, `Bytes`.
-- `RawValue` enum: `Null` | `Bytes(Format, Bytes)` — what comes back from a result cell.
-- `ToValue` trait: convert MoonBit types → `Value` for parameter binding.
-- `FromRaw` trait: decode `RawValue` → MoonBit type.
-- `default_encode()`, `build_params()`: encode `Value[]` → `(Bytes?[], Int[])` for the wire.
-- Binary encode/decode helpers for `int4`, `int8`, `float8`, `bool`.
-
-### `types.mbt` — Type impls
-
-- `ToValue` / `FromRaw` impls for `Int`, `Int64`, `Double`, `Bool`, `String`, `Bytes`, `Json`, `Decimal`, `UUID`, `Timestamp`, and `Option[T]` (nullable).
-- `Timestamp` struct: Unix-epoch microseconds with PG text/binary round-trip.
+| `error.mbt` | `WireError` suberror (`PgServer`, `Connect`, `Auth`, `Parse`, `IO`, `InvalidMessage`). |
+| `types.mbt` | `CommandTag`, `TransactionStatus`. |
 
 ### `conn.mbt` — Connection & query API (public)
 
-- `Connection` — wraps a wire-level `RawConn`.  Constructed via `connect(conninfo)`.
-- `Rows` trait — polymorphic row reader interface:
-  - `has_next()` — true if a row is pending.
-  - `get_row()` — decode and return the next `Row`.
-  - `columns()` — column metadata.
-  - `close()` — drain remaining rows and release resources.
-- `ConnRows` — `Rows` impl backed by a bare-connection `ResultReader`.
+- `Connection` — wraps a wire-level `RawConn`.
+- `Rows` trait — `has_next()`, `get_row()`, `columns()`, `close()`.
 - `QueryExecutor` trait — `query()`, `query_one()`, `execute()`.
-  - Implemented by `Connection`, `DbTx`, `Pool`, `PoolDbTx`.
-- `Row` — snapshot of one result row (values + column descriptions).
-- `ExecResult` — execution result with `affected_rows()`.
-- `PgError` — public error type (`ConnectionError`, `QueryError`, `NoRows`).
+  Uses `&@value.ToValue` for parameters.
+- `Row` — values as `Array[Bytes?]`, decoded lazily via
+  `codec.decode(oid, format, bytes?)` → `FromValue::from_value(val)`.
+- `ExecResult` — `affected_rows()`.
+- `PgError` — `ConnectionError`, `QueryError`, `NoRows`.
 
 ### `pool.mbt` — Connection pool
 
-- `Pool` — holds an unbounded `@aqueue.Queue` of idle `Connection`s and a
-  `Ref[Int]` counter for total connections.
-- `PoolConfig` — `conninfo`, `max_conns`, `min_idle`, `max_idle_sec`, `max_lifetime_sec`.
-- `Pool::acquire()` — try idle queue first; if empty and below max, create new;
-  if at max, block on `queue.get()`.
-- `PoolConn` — a checked-out connection.  `release()` returns it to the idle
-  queue; `close()` destroys it (decrements total).
-- `PoolRows` — `Rows` impl that releases the `PoolConn` back to the pool on `close()`.
-- `Pool` implements `QueryExecutor` — auto-acquire, delegate, auto-release (or
-  close on error).
-- `PoolDbTx` — transaction from a pooled connection; `commit()` / `rollback()`
-  releases the connection.
+- `Pool` — idle-queue based. `acquire()` / `release()`.
+- `PoolConfig` — `conninfo`, `max_conns`, `min_idle`, `max_idle_sec`,
+  `max_lifetime_sec`, `maintenance_interval_sec`.
+- `PoolConn`, `PoolRows`, `PoolDbTx`.
+- `Pool` implements `QueryExecutor`.
 
 ### `tx.mbt` — Transactions
 
-- `Tx` trait — `commit()` / `rollback()` on top of `QueryExecutor`.
-- `TxBeginner` trait — `begin_tx()` → `DbTx`.
-- `DbTx` — concrete transaction wrapping a `Connection` (and optionally a `Pool`
-  for return-on-commit/rollback).
-- `begin_func(tx, f)` — execute `f(tx)`, commit on success, rollback on error.
+- `Tx` trait — `commit()` / `rollback()`.
+- `TxBeginner` trait — `begin_tx()`.
+- `DbTx` — concrete transaction with `QueryExecutor`.
 
 ## Two query protocols
 
 ### Simple query
 
-Used when `params` is absent.  Sends a single `Query` message; the server
-responds with `RowDescription` + `DataRow`* + `CommandComplete` +
-`ReadyForQuery`.  `simple_query()` in `raw_conn.mbt` runs this loop.
+`simple_query()` sends a single `Query` message. Used when no parameters.
 
 ### Extended query
 
-Used for parameterised queries (`params=[...]`).  Sends a pipeline:
-`Parse` → `Bind` → `Describe(Portal)` → `Execute` → `Sync`.  The
-server responds with `ParseComplete` → `BindComplete` →
-`RowDescription|NoData` → `DataRow`* → `CommandComplete` →
-`ReadyForQuery`.  `execute_params()` in `raw_conn.mbt` orchestrates
-this.
+Parameterised queries use a two-phase flow in `exec_params()`:
+
+1. `prepare("", sql, [])` — Parse + Describe(S) → `StatementDescription` with
+   server-inferred `param_oids` and result `fields`.
+2. Encode each parameter: `codec.encode(param_oids[i], codec.prefer_format(), val)`.
+3. Update `fields[].format` from `codec.prefer_format()`.
+4. `execute_statement(stmt, params, param_formats)` — Bind + Execute + Sync.
+   `result_formats` are optionally synthesized from `stmt.fields[].format`.
+
+```
+Parse → Describe(S) → Sync          ← prepare()
+↓
+codec.encode per param_oid
+↓
+Bind → Execute → Sync               ← execute_statement()
+↓
+ResultReader (DataRow → CommandComplete → ReadyForQuery)
+```
+
+## Encoding / decoding flow
+
+```
+Encode:  UserType ──ToValue──▶ Value ──codec.encode(oid, fmt, val)──▶ Bytes?
+         (param_oids from Describe(S))    (None = SQL NULL)
+
+Decode:  Bytes? ──codec.decode(oid, fmt, bytes?)──▶ Value ──FromValue──▶ UserType
+         (oid + format from FieldDescription)
+```
 
 ## Async model
 
-moonpg is built on `moonbitlang/async`, a single-threaded cooperative
-runtime.  Each connection is an independent TCP socket; when one
-connection blocks waiting for server data, the runtime switches to
-other ready tasks.  This means:
-
-- Multiple connections can run queries **concurrently** — a `pg_sleep(2)`
-  on connection A does not block `SELECT 1` on connection B.
-- The pool can **create new connections while others are busy**.
-- No threads, no locks — just `@aqueue.Queue` and `Ref[Int]` for state.
-
-## Data flow: a parameterised INSERT
-
-```
-User code                      conn.mbt               wire/                  PostgreSQL
-─────────                      ────────               ─────                  ──────────
-conn.execute("INSERT ...",    │                      │                      │
-  params=[42, "x", true])     │                      │                      │
-                               │ build_params()       │                      │
-                               │ 42→"42", true→"t"    │                      │
-                               │                      │                      │
-                               │ execute_params() ────→ Parse ──────────────→
-                               │                      → Bind  ──────────────→
-                               │                      → Describe(Portal) ───→
-                               │                      → Execute ────────────→
-                               │                      → Sync ───────────────→
-                               │                      │                      │
-                               │                      ← ParseComplete ───────
-                               │                      ← BindComplete ────────
-                               │                      ← NoData ──────────────
-                               │                      ← CommandComplete ─────
-                               │                      ← ReadyForQuery ───────
-                               │                      │                      │
-                               │ ← ResultReader       │                      │
-                               │ reader.close() → tag │                      │
-                               │                      │                      │
-                               │ ← ExecResult         │                      │
- result.affected_rows() → 1   │                      │                      │
-```
+Single-threaded cooperative runtime (`moonbitlang/async`). Multiple connections
+run concurrently on independent TCP sockets. No threads, no locks — `@aqueue.Queue`
+and `Ref[Int]` for shared state.
 
 ## Testing strategy
 
 | Layer | Test file | What it covers |
 |---|---|---|
 | Wire protocol | `wire/config_test.mbt` | Connection-string parsing |
-| | `wire/raw_conn_test.mbt` | Connect, auth, simple query, extended query, error paths, row iteration |
-| Value codec | `value.mbt` (inline tests) | `encode_*` / `decode_*` round-trips, `FromRaw` for basic types |
-| Type impls | `types.mbt` (inline tests) | Timestamp parsing, edge cases |
-| Connection API | `conn_test.mbt` | `connect`, `query`, `execute`, `query_one`, `Row` access, `Rows` trait, nullable, UTF-8, error handling, async concurrency |
-| Transactions | `tx_test.mbt` | `begin_tx`, commit, rollback, isolation, `begin_func`, `TxBeginner` trait |
-| Pool | `pool_test.mbt` | Acquire/release, min-idle, max-conns, close, query/execute via pool, pool transactions |
-| Integration | `integration_test.mbt` | Full end-to-end: DDL, DML, all types, `query_one`, nullable, UTF-8 text/columns/errors, async interleaving |
+| | `wire/raw_conn_test.mbt` | Connect, auth, simple query, prepare, bind, execute, execute_statement, execute_prepared, error paths |
+| Value traits | `value/value.mbt` (inline tests) | `ToValue`/`FromValue` round-trips, NULL, mismatches, compatibility, all types including Decimal/UUID/Timestamp |
+| Codec | `pgtype/` (inline tests) | Each codec's text/binary round-trip, NULL, edge values, variant compatibility |
+| Connection API | `conn_test.mbt` | `connect`, `query`, `execute`, `query_one`, `Row` access, `Rows` trait |
+| Transactions | `tx_test.mbt` | `begin_tx`, commit, rollback, isolation, `begin_func` |
+| Pool | `pool_test.mbt` | Acquire/release, min-idle, max-conns, close, pool transactions |
+| Integration | `integration_test.mbt` | End-to-end DDL/DML, all types (incl. jsonb, timestamptz), nullable, binary format, bytea, async interleaving |
 
-Every test that touches a table uses a **unique table name** with `DROP TABLE IF
-EXISTS` / `CREATE TABLE` to guarantee isolation regardless of execution order.
+281 tests total. Every test that touches a table uses `DROP TABLE IF EXISTS` /
+`CREATE TABLE` for isolation.

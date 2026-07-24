@@ -1,5 +1,18 @@
 # moonpg — remaining work
 
+## 21. Codec-based Value encoding/decoding refactor ✅ DONE (2026-07-24)
+
+- **Files:** `value/` (new), `pgtype/` (new), `conn.mbt`, `types.mbt`, `wire/raw_conn.mbt`, `wire/error.mbt`, `wire/backend_messages.mbt`
+- **Done:**
+  - `value/` package: `Value` (9 variants), `Format`, `ToValue` (single method), `FromValue` (single method), `Timestamp` struct, built-in impls for all types.
+  - `pgtype/` package: `Codec` trait (`prefer_format`, `encode(Value)→Bytes?`, `decode(Bytes?)→Value`), `Type{name, oid, &Codec}`, `TypeMap` with `codec_for(oid)`, 12 codecs (Bool, Int2/4/8, Float4/8, Text, Bytea, JSON/JSONB, Timestamp/Timestamptz), ~90 OID constants, `default_map`.
+  - `Row::get` uses `codec.decode(oid, format, bytes?)` → `FromValue::from_value(val)`.
+  - `Connection::query/execute` uses `prepare()` → codec.encode per param OID → `execute_statement()`.
+  - `result_formats` optional on `execute_statement`, synthesized from `stmt.fields[].format`.
+  - Removed: `RawValue`, `FromRaw`, `build_params`, `default_encode`, `Value::to_raw()`, `Value::pg_type_name()`, old `ToValue::to_raw_value()`/`pg_type()`, `execute_params`.
+  - Type compatibility: Bool accepts String, Int8 accepts Int, Float4/8 accept Int/Int64, JSON accepts String, Timestamp accepts String, Text accepts Json.
+  - 281 tests pass (69 new codec/value tests, 18 old execute_params tests deleted).
+
 ## Critical fixes
 
 These are bugs or crash paths in already-implemented features.

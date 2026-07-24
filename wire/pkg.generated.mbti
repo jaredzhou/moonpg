@@ -335,7 +335,7 @@ pub let xml_array_oid : Int
 pub let xml_oid : Int
 
 // Errors
-pub suberror WireError {
+pub(all) suberror WireError {
   PgServer(String)
   Connect(String)
   Auth(String)
@@ -570,7 +570,7 @@ pub(all) struct Execute {
 }
 pub impl Message for Execute
 
-pub struct FieldDescription {
+pub(all) struct FieldDescription {
   name : String
   table_oid : Int
   attr_num : Int
@@ -674,9 +674,8 @@ pub async fn RawConn::describe_statement(Self, String) -> Array[Int] raise WireE
 pub async fn RawConn::end_copy_in(Self) -> Unit raise WireError
 pub async fn RawConn::end_query(Self) -> Unit raise WireError
 pub async fn RawConn::execute(Self, String, Array[FieldDescription], Int) -> ResultReader raise WireError
-pub async fn RawConn::execute_params(Self, String, Array[Bytes?], Array[Int], Array[Int], Array[Int]) -> ResultReader raise WireError
 pub async fn RawConn::execute_prepared(Self, String, Array[Bytes?], Array[Int], Array[Int]) -> ResultReader raise WireError
-pub async fn RawConn::execute_statement(Self, StatementDescription, Array[Bytes?], Array[Int], Array[Int]) -> ResultReader raise WireError
+pub async fn RawConn::execute_statement(Self, StatementDescription, Array[Bytes?], Array[Int], result_formats? : Array[Int]) -> ResultReader raise WireError
 pub async fn RawConn::flush(Self) -> Unit raise WireError
 pub fn RawConn::is_busy(Self) -> Bool
 pub fn RawConn::is_closed(Self) -> Bool
@@ -747,7 +746,7 @@ pub(all) struct StartupMessage {
 }
 pub impl Message for StartupMessage
 
-pub struct StatementDescription {
+pub(all) struct StatementDescription {
   name : String
   sql : String
   param_oids : Array[Int]

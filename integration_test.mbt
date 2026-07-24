@@ -145,7 +145,9 @@ async test "query_iterates_all_basic_types" {
     "SELECT id, i4, i8, f8, flag, name, email, js, created_at FROM moonpg_types",
   )
 
-  let collected : Array[(Int, Int, Int64, Double, Bool, String, String?, Json?, @value.Timestamp?)] = []
+  let collected : Array[
+    (Int, Int, Int64, Double, Bool, String, String?, Json?, @value.Timestamp?),
+  ] = []
   while rows.has_next() {
     let row = rows.get_row()
     let id : Int = row.get(0)
@@ -653,7 +655,11 @@ async test "binary_result_format_roundtrip" {
 
   let raw = @wire.connect(conninfo)
   defer raw.close()
-  let _ = raw.prepare("", "SELECT i4, i8, f8, flag, name, email FROM moonpg_types", [])
+  let _ = raw.prepare(
+    "",
+    "SELECT i4, i8, f8, flag, name, email FROM moonpg_types",
+    [],
+  )
   raw.bind("", "", [], [], [1])
   let cols = raw.describe_portal("")
   let reader = raw.execute("", cols, 0)
@@ -698,7 +704,9 @@ async test "binary_result_format_nullable" {
   let raw = @wire.connect(conninfo)
   defer raw.close()
   let _ = raw.prepare(
-    "", "SELECT i4, flag, email FROM moonpg_types WHERE name = 'null-test'", [],
+    "",
+    "SELECT i4, flag, email FROM moonpg_types WHERE name = 'null-test'",
+    [],
   )
   raw.bind("", "", [], [], [1])
   let cols = raw.describe_portal("")

@@ -285,7 +285,8 @@ impl Codec for TimestampCodec with fn encode(
     @value.Value::String(s) =>
       match format {
         @value.Format::Text => Some(@utf8.encode(s))
-        @value.Format::Binary => Some(encode_int8(parse_ts_text(s) + pg_epoch_offset_usec))
+        @value.Format::Binary =>
+          Some(encode_int8(parse_ts_text(s) + pg_epoch_offset_usec))
       }
     @value.Value::Null => None
     _ =>
@@ -715,36 +716,62 @@ test "timestamptz_codec_binary_roundtrip" {
 // ===========================================================================
 
 // --- ByteaCodec ---
+
+///|
 test "bytea_codec_null" {
   let codec = bytea_codec
-  let encoded = Codec::encode(codec, bytea_oid, @value.Format::Binary, @value.Value::Null)
+  let encoded = Codec::encode(
+    codec,
+    bytea_oid,
+    @value.Format::Binary,
+    @value.Value::Null,
+  )
   assert_eq(encoded, None)
   let decoded = Codec::decode(codec, bytea_oid, @value.Format::Binary, None)
   assert_eq(decoded, @value.Value::Null)
 }
 
+///|
 test "bytea_codec_empty" {
   let codec = bytea_codec
   let data = b""
-  let encoded = Codec::encode(codec, bytea_oid, @value.Format::Binary, @value.Value::Bytes(data))
+  let encoded = Codec::encode(
+    codec,
+    bytea_oid,
+    @value.Format::Binary,
+    @value.Value::Bytes(data),
+  )
   let decoded = Codec::decode(codec, bytea_oid, @value.Format::Binary, encoded)
   assert_eq(decoded, @value.Value::Bytes(data))
 }
 
+///|
 test "bytea_codec_hex_edge" {
   let codec = bytea_codec
   // All byte values 0x00-0xFF should roundtrip
   let data = b"\x00\x01\x7F\x80\xFE\xFF"
-  let encoded = Codec::encode(codec, bytea_oid, @value.Format::Text, @value.Value::Bytes(data))
+  let encoded = Codec::encode(
+    codec,
+    bytea_oid,
+    @value.Format::Text,
+    @value.Value::Bytes(data),
+  )
   let decoded = Codec::decode(codec, bytea_oid, @value.Format::Text, encoded)
   assert_eq(decoded, @value.Value::Bytes(data))
 }
 
 // --- JSONCodec: String compatibility ---
+
+///|
 test "json_codec_string_compat" {
   let codec = json_codec
   // Pass a String value to a json column — text passthrough
-  let encoded = Codec::encode(codec, json_oid, @value.Format::Text, @value.Value::String("{\"a\":1}"))
+  let encoded = Codec::encode(
+    codec,
+    json_oid,
+    @value.Format::Text,
+    @value.Value::String("{\"a\":1}"),
+  )
   let decoded = Codec::decode(codec, json_oid, @value.Format::Text, encoded)
   match decoded {
     @value.Value::Json(j) => assert_eq(j.stringify(), "{\"a\":1}")
@@ -752,27 +779,44 @@ test "json_codec_string_compat" {
   }
 }
 
+///|
 test "json_codec_null" {
   let codec = json_codec
-  let encoded = Codec::encode(codec, json_oid, @value.Format::Text, @value.Value::Null)
+  let encoded = Codec::encode(
+    codec,
+    json_oid,
+    @value.Format::Text,
+    @value.Value::Null,
+  )
   assert_eq(encoded, None)
   let decoded = Codec::decode(codec, json_oid, @value.Format::Text, None)
   assert_eq(decoded, @value.Value::Null)
 }
 
+///|
 test "json_codec_invalid" {
   let codec = json_codec
   let mut ok = false
   let _ = Codec::decode(codec, json_oid, @value.Format::Text, Some(b"not json")) catch {
-    _ => { ok = true; @value.Value::Null }
+    _ => {
+      ok = true
+      @value.Value::Null
+    }
   }
   assert_true(ok, msg="expected error for invalid JSON")
 }
 
 // --- JSONBCodec: String compatibility ---
+
+///|
 test "jsonb_codec_string_compat" {
   let codec = jsonb_codec
-  let encoded = Codec::encode(codec, jsonb_oid, @value.Format::Text, @value.Value::String("[1,2]"))
+  let encoded = Codec::encode(
+    codec,
+    jsonb_oid,
+    @value.Format::Text,
+    @value.Value::String("[1,2]"),
+  )
   let decoded = Codec::decode(codec, jsonb_oid, @value.Format::Text, encoded)
   match decoded {
     @value.Value::Json(j) => assert_eq(j.stringify(), "[1,2]")
@@ -781,48 +825,100 @@ test "jsonb_codec_string_compat" {
 }
 
 // --- TimestampCodec: String compatibility ---
+
+///|
 test "timestamp_codec_string_compat" {
   let codec = timestamp_codec
-  let encoded = Codec::encode(codec, timestamp_oid, @value.Format::Text, @value.Value::String("2024-01-01 00:00:00"))
-  let decoded = Codec::decode(codec, timestamp_oid, @value.Format::Text, encoded)
+  let encoded = Codec::encode(
+    codec,
+    timestamp_oid,
+    @value.Format::Text,
+    @value.Value::String("2024-01-01 00:00:00"),
+  )
+  let decoded = Codec::decode(
+    codec,
+    timestamp_oid,
+    @value.Format::Text,
+    encoded,
+  )
   match decoded {
     @value.Value::Timestamp(u) => assert_true(u > 0L)
     _ => fail("expected Value::Timestamp")
   }
 }
 
+///|
 test "timestamp_codec_null" {
   let codec = timestamp_codec
-  let encoded = Codec::encode(codec, timestamp_oid, @value.Format::Binary, @value.Value::Null)
+  let encoded = Codec::encode(
+    codec,
+    timestamp_oid,
+    @value.Format::Binary,
+    @value.Value::Null,
+  )
   assert_eq(encoded, None)
   let decoded = Codec::decode(codec, timestamp_oid, @value.Format::Binary, None)
   assert_eq(decoded, @value.Value::Null)
 }
 
 // --- TimestamptzCodec ---
+
+///|
 test "timestamptz_codec_null" {
   let codec = timestamptz_codec
-  let encoded = Codec::encode(codec, timestamptz_oid, @value.Format::Binary, @value.Value::Null)
+  let encoded = Codec::encode(
+    codec,
+    timestamptz_oid,
+    @value.Format::Binary,
+    @value.Value::Null,
+  )
   assert_eq(encoded, None)
-  let decoded = Codec::decode(codec, timestamptz_oid, @value.Format::Binary, None)
+  let decoded = Codec::decode(
+    codec,
+    timestamptz_oid,
+    @value.Format::Binary,
+    None,
+  )
   assert_eq(decoded, @value.Value::Null)
 }
 
+///|
 test "timestamptz_codec_string_compat" {
   let codec = timestamptz_codec
-  let encoded = Codec::encode(codec, timestamptz_oid, @value.Format::Text, @value.Value::String("2024-01-01 00:00:00+00"))
-  let decoded = Codec::decode(codec, timestamptz_oid, @value.Format::Text, encoded)
+  let encoded = Codec::encode(
+    codec,
+    timestamptz_oid,
+    @value.Format::Text,
+    @value.Value::String("2024-01-01 00:00:00+00"),
+  )
+  let decoded = Codec::decode(
+    codec,
+    timestamptz_oid,
+    @value.Format::Text,
+    encoded,
+  )
   match decoded {
     @value.Value::Timestamp(u) => assert_true(u > 0L)
     _ => fail("expected Value::Timestamp")
   }
 }
 
+///|
 test "timestamptz_codec_text_roundtrip" {
   let codec = timestamptz_codec
   let usec : Int64 = 1704067200000000L // 2024-01-01 00:00:00 UTC
-  let encoded = Codec::encode(codec, timestamptz_oid, @value.Format::Text, @value.Value::Timestamp(usec))
-  let decoded = Codec::decode(codec, timestamptz_oid, @value.Format::Text, encoded)
+  let encoded = Codec::encode(
+    codec,
+    timestamptz_oid,
+    @value.Format::Text,
+    @value.Value::Timestamp(usec),
+  )
+  let decoded = Codec::decode(
+    codec,
+    timestamptz_oid,
+    @value.Format::Text,
+    encoded,
+  )
   match decoded {
     @value.Value::Timestamp(u) => assert_eq(u, usec)
     _ => fail("expected Value::Timestamp")
@@ -830,20 +926,43 @@ test "timestamptz_codec_text_roundtrip" {
 }
 
 // --- timestamp_codec epoch edge ---
+
+///|
 test "timestamp_codec_epoch" {
   let codec = timestamp_codec
   // Unix epoch
   let usec = 0L
-  let encoded = Codec::encode(codec, timestamp_oid, @value.Format::Binary, @value.Value::Timestamp(usec))
-  let decoded = Codec::decode(codec, timestamp_oid, @value.Format::Binary, encoded)
+  let encoded = Codec::encode(
+    codec,
+    timestamp_oid,
+    @value.Format::Binary,
+    @value.Value::Timestamp(usec),
+  )
+  let decoded = Codec::decode(
+    codec,
+    timestamp_oid,
+    @value.Format::Binary,
+    encoded,
+  )
   assert_eq(decoded, @value.Value::Timestamp(usec))
 }
 
+///|
 test "timestamp_codec_negative" {
   let codec = timestamp_codec
   // Before Unix epoch: 1969-12-31 23:59:59
   let usec = -1000000L
-  let encoded = Codec::encode(codec, timestamp_oid, @value.Format::Binary, @value.Value::Timestamp(usec))
-  let decoded = Codec::decode(codec, timestamp_oid, @value.Format::Binary, encoded)
+  let encoded = Codec::encode(
+    codec,
+    timestamp_oid,
+    @value.Format::Binary,
+    @value.Value::Timestamp(usec),
+  )
+  let decoded = Codec::decode(
+    codec,
+    timestamp_oid,
+    @value.Format::Binary,
+    encoded,
+  )
   assert_eq(decoded, @value.Value::Timestamp(usec))
 }

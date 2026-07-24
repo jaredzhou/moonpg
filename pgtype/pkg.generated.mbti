@@ -278,24 +278,6 @@ pub struct BoolCodec {
 pub struct ByteaCodec {
 }
 
-pub(all) enum CodecImpl {
-  Text(TextCodec)
-  Bool(BoolCodec)
-  Int2(Int2Codec)
-  Int4(Int4Codec)
-  Int8(Int8Codec)
-  Float4(Float4Codec)
-  Float8(Float8Codec)
-  Bytea(ByteaCodec)
-  JSON(JSONCodec)
-  JSONB(JSONBCodec)
-  Timestamp(TimestampCodec)
-  Timestamptz(TimestamptzCodec)
-}
-pub fn CodecImpl::decode(Self, Int, @value.Format, Bytes) -> @value.Value raise CodecError
-pub fn CodecImpl::encode(Self, Int, @value.Format, @value.Value) -> Bytes raise CodecError
-pub fn CodecImpl::prefer_format(Self) -> @value.Format
-
 pub struct Float4Codec {
 }
 
@@ -329,7 +311,7 @@ pub struct TimestamptzCodec {
 pub(all) struct Type {
   name : String
   oid : Int
-  codec : CodecImpl
+  codec : &Codec
 }
 
 pub(all) struct TypeMap {
@@ -337,7 +319,7 @@ pub(all) struct TypeMap {
   name_to_type : @hashmap.HashMap[String, Type]
   data_type_to_oid : @hashmap.HashMap[String, Int]
 }
-pub fn TypeMap::codec_for(Self, Int) -> CodecImpl
+pub fn TypeMap::codec_for(Self, Int) -> &Codec
 pub fn TypeMap::iter(Self) -> Iter[(Int, Type)]
 pub fn TypeMap::iter_data_types(Self) -> Iter[(String, Int)]
 pub fn TypeMap::type_for_data_type(Self, String) -> Type?
@@ -349,7 +331,7 @@ pub fn TypeMap::type_for_oid(Self, Int) -> Type?
 // Traits
 pub(open) trait Codec {
   fn prefer_format(Self) -> @value.Format
-  fn encode(Self, Int, @value.Format, @value.Value) -> Bytes raise CodecError
-  fn decode(Self, Int, @value.Format, Bytes) -> @value.Value raise CodecError
+  fn encode(Self, Int, @value.Format, @value.Value) -> Bytes? raise CodecError
+  fn decode(Self, Int, @value.Format, Bytes?) -> @value.Value raise CodecError
 }
 

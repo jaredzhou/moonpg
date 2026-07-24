@@ -454,12 +454,19 @@ async fn exec_params(
       let codec = @pgtype.default_map.codec_for(f.type_oid)
       @wire.FieldDescription::{
         ..f,
-        format: if codec.prefer_format() == @value.Format::Binary { 1 } else { 0 },
+        format: if codec.prefer_format() == @value.Format::Binary {
+          1
+        } else {
+          0
+        },
       }
     },
   )
   let stmt2 = @wire.StatementDescription::{
-    name: stmt.name, sql: stmt.sql, param_oids: stmt.param_oids, fields,
+    name: stmt.name,
+    sql: stmt.sql,
+    param_oids: stmt.param_oids,
+    fields,
   }
   conn.execute_statement(stmt2, param_values, param_formats)
 }
