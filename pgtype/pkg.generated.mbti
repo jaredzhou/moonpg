@@ -1,0 +1,355 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "jaredzhou/moonpg/pgtype"
+
+import {
+  "jaredzhou/moonpg/value",
+  "moonbitlang/core/debug",
+  "moonbitlang/core/hashmap",
+}
+
+// Values
+pub let aclitem_array_oid : Int
+
+pub let aclitem_oid : Int
+
+pub let bit_array_oid : Int
+
+pub let bit_oid : Int
+
+pub let bool_array_oid : Int
+
+pub let bool_codec : BoolCodec
+
+pub let bool_oid : Int
+
+pub let box_array_oid : Int
+
+pub let box_oid : Int
+
+pub let bpchar_array_oid : Int
+
+pub let bpchar_oid : Int
+
+pub let bytea_array_oid : Int
+
+pub let bytea_codec : ByteaCodec
+
+pub let bytea_oid : Int
+
+pub let char_array_oid : Int
+
+pub let char_oid : Int
+
+pub let cid_array_oid : Int
+
+pub let cid_oid : Int
+
+pub let cidr_oid : Int
+
+pub let circle_array_oid : Int
+
+pub let circle_oid : Int
+
+pub let date_array_oid : Int
+
+pub let date_oid : Int
+
+pub let datemultirange_array_oid : Int
+
+pub let datemultirange_oid : Int
+
+pub let daterange_array_oid : Int
+
+pub let daterange_oid : Int
+
+pub let default_map : TypeMap
+
+pub let float4_array_oid : Int
+
+pub let float4_codec : Float4Codec
+
+pub let float4_oid : Int
+
+pub let float8_array_oid : Int
+
+pub let float8_codec : Float8Codec
+
+pub let float8_oid : Int
+
+pub let inet_array_oid : Int
+
+pub let inet_oid : Int
+
+pub let int2_array_oid : Int
+
+pub let int2_codec : Int2Codec
+
+pub let int2_oid : Int
+
+pub let int4_array_oid : Int
+
+pub let int4_codec : Int4Codec
+
+pub let int4_oid : Int
+
+pub let int4multirange_array_oid : Int
+
+pub let int4multirange_oid : Int
+
+pub let int4range_array_oid : Int
+
+pub let int4range_oid : Int
+
+pub let int8_array_oid : Int
+
+pub let int8_codec : Int8Codec
+
+pub let int8_oid : Int
+
+pub let int8multirange_array_oid : Int
+
+pub let int8multirange_oid : Int
+
+pub let int8range_array_oid : Int
+
+pub let int8range_oid : Int
+
+pub let interval_array_oid : Int
+
+pub let interval_oid : Int
+
+pub let json_array_oid : Int
+
+pub let json_codec : JSONCodec
+
+pub let json_oid : Int
+
+pub let jsonb_array_oid : Int
+
+pub let jsonb_codec : JSONBCodec
+
+pub let jsonb_oid : Int
+
+pub let jsonpath_array_oid : Int
+
+pub let jsonpath_oid : Int
+
+pub let line_array_oid : Int
+
+pub let line_oid : Int
+
+pub let lseg_array_oid : Int
+
+pub let lseg_oid : Int
+
+pub let macaddr8_oid : Int
+
+pub let macaddr_array_oid : Int
+
+pub let macaddr_oid : Int
+
+pub let name_array_oid : Int
+
+pub let name_oid : Int
+
+pub fn name_to_oid(String) -> Int
+
+pub let numeric_array_oid : Int
+
+pub let numeric_oid : Int
+
+pub let nummultirange_array_oid : Int
+
+pub let nummultirange_oid : Int
+
+pub let numrange_array_oid : Int
+
+pub let numrange_oid : Int
+
+pub let oid_array_oid : Int
+
+pub let oid_oid : Int
+
+pub fn oid_to_name(Int) -> String
+
+pub let path_array_oid : Int
+
+pub let path_oid : Int
+
+pub let point_array_oid : Int
+
+pub let point_oid : Int
+
+pub let polygon_array_oid : Int
+
+pub let polygon_oid : Int
+
+pub let record_array_oid : Int
+
+pub let record_oid : Int
+
+pub let text_array_oid : Int
+
+pub let text_codec : TextCodec
+
+pub let text_oid : Int
+
+pub let tid_array_oid : Int
+
+pub let tid_oid : Int
+
+pub let time_array_oid : Int
+
+pub let time_oid : Int
+
+pub let timestamp_array_oid : Int
+
+pub let timestamp_codec : TimestampCodec
+
+pub let timestamp_oid : Int
+
+pub let timestamptz_array_oid : Int
+
+pub let timestamptz_codec : TimestamptzCodec
+
+pub let timestamptz_oid : Int
+
+pub let timetz_array_oid : Int
+
+pub let timetz_oid : Int
+
+pub let tsmultirange_array_oid : Int
+
+pub let tsmultirange_oid : Int
+
+pub let tsrange_array_oid : Int
+
+pub let tsrange_oid : Int
+
+pub let tstzmultirange_array_oid : Int
+
+pub let tstzmultirange_oid : Int
+
+pub let tstzrange_array_oid : Int
+
+pub let tstzrange_oid : Int
+
+pub let tsvector_array_oid : Int
+
+pub let tsvector_oid : Int
+
+pub fn type_for_data_type(String) -> Type?
+
+pub let unknown_oid : Int
+
+pub let uuid_array_oid : Int
+
+pub let uuid_oid : Int
+
+pub let varbit_array_oid : Int
+
+pub let varbit_oid : Int
+
+pub let varchar_array_oid : Int
+
+pub let varchar_oid : Int
+
+pub let xid8_array_oid : Int
+
+pub let xid8_oid : Int
+
+pub let xid_array_oid : Int
+
+pub let xid_oid : Int
+
+pub let xml_array_oid : Int
+
+pub let xml_oid : Int
+
+// Errors
+pub(all) suberror CodecError {
+  CodecError(String)
+} derive(@debug.Debug)
+
+// Types and methods
+pub struct BoolCodec {
+}
+
+pub struct ByteaCodec {
+}
+
+pub(all) enum CodecImpl {
+  Text(TextCodec)
+  Bool(BoolCodec)
+  Int2(Int2Codec)
+  Int4(Int4Codec)
+  Int8(Int8Codec)
+  Float4(Float4Codec)
+  Float8(Float8Codec)
+  Bytea(ByteaCodec)
+  JSON(JSONCodec)
+  JSONB(JSONBCodec)
+  Timestamp(TimestampCodec)
+  Timestamptz(TimestamptzCodec)
+}
+pub fn CodecImpl::decode(Self, Int, @value.Format, Bytes) -> @value.Value raise CodecError
+pub fn CodecImpl::encode(Self, Int, @value.Format, @value.Value) -> Bytes raise CodecError
+pub fn CodecImpl::prefer_format(Self) -> @value.Format
+
+pub struct Float4Codec {
+}
+
+pub struct Float8Codec {
+}
+
+pub struct Int2Codec {
+}
+
+pub struct Int4Codec {
+}
+
+pub struct Int8Codec {
+}
+
+pub struct JSONBCodec {
+}
+
+pub struct JSONCodec {
+}
+
+pub struct TextCodec {
+}
+
+pub struct TimestampCodec {
+}
+
+pub struct TimestamptzCodec {
+}
+
+pub(all) struct Type {
+  name : String
+  oid : Int
+  codec : CodecImpl
+}
+
+pub(all) struct TypeMap {
+  oid_to_type : @hashmap.HashMap[Int, Type]
+  name_to_type : @hashmap.HashMap[String, Type]
+  data_type_to_oid : @hashmap.HashMap[String, Int]
+}
+pub fn TypeMap::codec_for(Self, Int) -> CodecImpl
+pub fn TypeMap::iter(Self) -> Iter[(Int, Type)]
+pub fn TypeMap::iter_data_types(Self) -> Iter[(String, Int)]
+pub fn TypeMap::type_for_data_type(Self, String) -> Type?
+pub fn TypeMap::type_for_name(Self, String) -> Type?
+pub fn TypeMap::type_for_oid(Self, Int) -> Type?
+
+// Type aliases
+
+// Traits
+pub(open) trait Codec {
+  fn prefer_format(Self) -> @value.Format
+  fn encode(Self, Int, @value.Format, @value.Value) -> Bytes raise CodecError
+  fn decode(Self, Int, @value.Format, Bytes) -> @value.Value raise CodecError
+}
+

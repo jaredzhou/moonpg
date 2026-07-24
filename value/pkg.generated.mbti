@@ -1,0 +1,43 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "jaredzhou/moonpg/value"
+
+import {
+  "moonbitlang/core/debug",
+}
+
+// Values
+
+// Errors
+pub(all) suberror ValueError {
+  ValueError(String)
+} derive(@debug.Debug)
+
+// Types and methods
+pub(all) enum Format {
+  Text
+  Binary
+} derive(Eq, @debug.Debug)
+
+pub(all) enum Value {
+  Null
+  Bool(Bool)
+  Int(Int)
+  Int64(Int64)
+  Float(Double)
+  String(String)
+  Bytes(Bytes)
+  Timestamp(Int64)
+  Json(Json)
+} derive(Eq, @debug.Debug)
+
+// Type aliases
+
+// Traits
+pub(open) trait FromValue {
+  fn from_value(Value) -> Self raise ValueError
+}
+
+pub(open) trait ToValue {
+  fn to_value(Self) -> Value
+}
+

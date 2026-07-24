@@ -790,6 +790,7 @@ pub(all) struct TypeMap {
   data_type_to_oid : @hashmap.HashMap[String, Int]
 }
 pub fn TypeMap::iter(Self) -> Iter[(Int, Type)]
+pub fn TypeMap::iter_data_types(Self) -> Iter[(String, Int)]
 pub fn TypeMap::type_for_data_type(Self, String) -> Type?
 pub fn TypeMap::type_for_name(Self, String) -> Type?
 pub fn TypeMap::type_for_oid(Self, Int) -> Type?

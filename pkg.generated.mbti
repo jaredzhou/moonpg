@@ -2,6 +2,7 @@
 package "jaredzhou/moonpg"
 
 import {
+  "jaredzhou/moonpg/value",
   "jaredzhou/moonpg/wire",
   "moonbitlang/async",
   "moonbitlang/async/aqueue",
@@ -23,6 +24,8 @@ pub async fn connect(String) -> Connection raise PgError
 pub fn default_encode(Value) -> RawValue
 
 pub fn get_env(String) -> String
+
+pub fn pg_data_types() -> Iter[(String, Int)]
 
 pub fn pg_oid_to_name(Int) -> String
 
@@ -208,6 +211,8 @@ pub fn[T : FromRaw] Row::get_by_name(Self, String) -> T raise PgError
 pub(all) struct Timestamp(Int64)
 pub impl FromRaw for Timestamp
 pub impl ToValue for Timestamp
+pub impl @value.FromValue for Timestamp
+pub impl @value.ToValue for Timestamp
 
 pub(all) struct TxOptions {
   isolation_level : IsolationLevel?

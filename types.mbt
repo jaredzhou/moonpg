@@ -351,3 +351,23 @@ test "timestamp_before_epoch" {
   let ts = parse_ts("1969-12-31 23:59:59")
   assert_eq(ts.0, -1000000L, msg="before epoch")
 }
+
+// ---------------------------------------------------------------------------
+// New @value.ToValue / @value.FromValue impls (only for types defined here)
+// ---------------------------------------------------------------------------
+
+///|
+pub impl @value.ToValue for Timestamp with fn to_value(self) {
+  @value.Value::Timestamp(self.0)
+}
+
+///|
+pub impl @value.FromValue for Timestamp with fn from_value(v : @value.Value) {
+  match v {
+    @value.Value::Timestamp(u) => Timestamp(u)
+    _ =>
+      raise @value.ValueError::ValueError(
+        "expected Value::Timestamp, got other variant",
+      )
+  }
+}

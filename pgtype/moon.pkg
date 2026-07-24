@@ -1,0 +1,12 @@
+import {
+  "jaredzhou/moonpg/value",
+  "moonbitlang/core/hashmap",
+  "moonbitlang/core/encoding/utf8",
+  "moonbitlang/core/buffer",
+  "moonbitlang/core/string",
+  "moonbitlang/core/strconv",
+  "moonbitlang/core/json",
+  "moonbitlang/x/time",
+}
+
+supported_targets = "+native"

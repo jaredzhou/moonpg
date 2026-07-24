@@ -1,4 +1,6 @@
 import {
+  "jaredzhou/moonpg/pgtype",
+  "jaredzhou/moonpg/value",
   "jaredzhou/moonpg/wire",
   "moonbitlang/async",
   "moonbitlang/async/aqueue",
