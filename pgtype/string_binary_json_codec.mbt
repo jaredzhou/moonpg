@@ -44,15 +44,18 @@ impl Codec for ByteaCodec with fn decode(
   _self : ByteaCodec,
   _oid : Int,
   format : @value.Format,
-  bytes : Bytes,
+  bytes : Bytes?,
 ) -> @value.Value raise CodecError {
-  match format {
+  match bytes {
+    None => @value.Value::Null
+    Some(bytes) => match format {
     @value.Format::Text => {
       let s = decode_string(bytes)
       @value.Value::Bytes(decode_bytea_hex(s))
     }
     @value.Format::Binary => @value.Value::Bytes(bytes)
   }
+}
 }
 
 ///|
@@ -149,9 +152,11 @@ impl Codec for JSONCodec with fn decode(
   _self : JSONCodec,
   _oid : Int,
   format : @value.Format,
-  bytes : Bytes,
+  bytes : Bytes?,
 ) -> @value.Value raise CodecError {
-  match format {
+  match bytes {
+    None => @value.Value::Null
+    Some(bytes) => match format {
     @value.Format::Text => {
       let s = decode_string(bytes)
       let j = @json.parse(s) catch {
@@ -164,6 +169,7 @@ impl Codec for JSONCodec with fn decode(
         "JSONCodec::decode: binary format not supported",
       )
   }
+}
 }
 
 // ===========================================================================
@@ -208,9 +214,11 @@ impl Codec for JSONBCodec with fn decode(
   _self : JSONBCodec,
   _oid : Int,
   format : @value.Format,
-  bytes : Bytes,
+  bytes : Bytes?,
 ) -> @value.Value raise CodecError {
-  match format {
+  match bytes {
+    None => @value.Value::Null
+    Some(bytes) => match format {
     @value.Format::Text => {
       let s = decode_string(bytes)
       let j = @json.parse(s) catch {
@@ -223,6 +231,7 @@ impl Codec for JSONBCodec with fn decode(
         "JSONBCodec::decode: binary format not supported",
       )
   }
+}
 }
 
 // ===========================================================================
@@ -266,9 +275,11 @@ impl Codec for TimestampCodec with fn decode(
   _self : TimestampCodec,
   _oid : Int,
   format : @value.Format,
-  bytes : Bytes,
+  bytes : Bytes?,
 ) -> @value.Value raise CodecError {
-  match format {
+  match bytes {
+    None => @value.Value::Null
+    Some(bytes) => match format {
     @value.Format::Text => {
       let s = decode_string(bytes)
       @value.Value::Timestamp(parse_ts_text(s))
@@ -281,6 +292,7 @@ impl Codec for TimestampCodec with fn decode(
       @value.Value::Timestamp(pg_usec - pg_epoch_offset_usec)
     }
   }
+}
 }
 
 // ===========================================================================
@@ -324,9 +336,11 @@ impl Codec for TimestamptzCodec with fn decode(
   _self : TimestamptzCodec,
   _oid : Int,
   format : @value.Format,
-  bytes : Bytes,
+  bytes : Bytes?,
 ) -> @value.Value raise CodecError {
-  match format {
+  match bytes {
+    None => @value.Value::Null
+    Some(bytes) => match format {
     @value.Format::Text => {
       let s = decode_string(bytes)
       @value.Value::Timestamp(parse_tstz_text(s))
@@ -341,6 +355,7 @@ impl Codec for TimestamptzCodec with fn decode(
       @value.Value::Timestamp(pg_usec - pg_epoch_offset_usec)
     }
   }
+}
 }
 
 // ===========================================================================
@@ -530,7 +545,7 @@ test "bytea_codec_text_roundtrip" {
     @value.Format::Text,
     @value.Value::Bytes(data),
   )
-  let decoded = Codec::decode(codec, bytea_oid, @value.Format::Text, encoded.unwrap())
+  let decoded = Codec::decode(codec, bytea_oid, @value.Format::Text, encoded)
   match decoded {
     @value.Value::Bytes(b) => assert_eq(b, data)
     _ => fail("expected Value::Bytes")
@@ -547,7 +562,7 @@ test "bytea_codec_binary_roundtrip" {
     @value.Format::Binary,
     @value.Value::Bytes(data),
   )
-  let decoded = Codec::decode(codec, bytea_oid, @value.Format::Binary, encoded.unwrap())
+  let decoded = Codec::decode(codec, bytea_oid, @value.Format::Binary, encoded)
   match decoded {
     @value.Value::Bytes(b) => assert_eq(b, data)
     _ => fail("expected Value::Bytes")
@@ -564,7 +579,7 @@ test "json_codec_text_roundtrip" {
     @value.Format::Text,
     @value.Value::Json(j),
   )
-  let decoded = Codec::decode(codec, json_oid, @value.Format::Text, encoded.unwrap())
+  let decoded = Codec::decode(codec, json_oid, @value.Format::Text, encoded)
   match decoded {
     @value.Value::Json(v) => assert_eq(v.stringify(), "{\"a\":1}")
     _ => fail("expected Value::Json")
@@ -581,7 +596,7 @@ test "jsonb_codec_text_roundtrip" {
     @value.Format::Text,
     @value.Value::Json(j),
   )
-  let decoded = Codec::decode(codec, jsonb_oid, @value.Format::Text, encoded.unwrap())
+  let decoded = Codec::decode(codec, jsonb_oid, @value.Format::Text, encoded)
   match decoded {
     @value.Value::Json(v) => assert_eq(v.stringify(), "[1,2,3]")
     _ => fail("expected Value::Json")
@@ -603,7 +618,7 @@ test "timestamp_codec_text_roundtrip" {
     codec,
     timestamp_oid,
     @value.Format::Text,
-    encoded.unwrap(),
+    encoded,
   )
   match decoded {
     @value.Value::Timestamp(u) => {
@@ -630,7 +645,7 @@ test "timestamp_codec_binary_roundtrip" {
     codec,
     timestamp_oid,
     @value.Format::Binary,
-    encoded.unwrap(),
+    encoded,
   )
   match decoded {
     @value.Value::Timestamp(u) => assert_eq(u, usec)
@@ -652,7 +667,7 @@ test "timestamptz_codec_binary_roundtrip" {
     codec,
     timestamptz_oid,
     @value.Format::Binary,
-    encoded.unwrap(),
+    encoded,
   )
   match decoded {
     @value.Value::Timestamp(u) => assert_eq(u, usec)

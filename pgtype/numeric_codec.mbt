@@ -41,9 +41,11 @@ impl Codec for BoolCodec with fn decode(
   _self : BoolCodec,
   _oid : Int,
   format : @value.Format,
-  bytes : Bytes,
+  bytes : Bytes?,
 ) -> @value.Value raise CodecError {
-  match format {
+  match bytes {
+    None => @value.Value::Null
+    Some(bytes) => match format {
     @value.Format::Text => {
       let s = decode_string(bytes)
       match s {
@@ -64,6 +66,7 @@ impl Codec for BoolCodec with fn decode(
       @value.Value::Bool(decode_bool(bytes))
     }
   }
+}
 }
 
 // ===========================================================================
@@ -104,9 +107,11 @@ impl Codec for Int2Codec with fn decode(
   _self : Int2Codec,
   _oid : Int,
   format : @value.Format,
-  bytes : Bytes,
+  bytes : Bytes?,
 ) -> @value.Value raise CodecError {
-  match format {
+  match bytes {
+    None => @value.Value::Null
+    Some(bytes) => match format {
     @value.Format::Text => {
       let s = decode_string(bytes)
       let v = @string.parse_int(s) catch {
@@ -124,6 +129,7 @@ impl Codec for Int2Codec with fn decode(
       @value.Value::Int(decode_int2(bytes))
     }
   }
+}
 }
 
 // ===========================================================================
@@ -164,9 +170,11 @@ impl Codec for Int4Codec with fn decode(
   _self : Int4Codec,
   _oid : Int,
   format : @value.Format,
-  bytes : Bytes,
+  bytes : Bytes?,
 ) -> @value.Value raise CodecError {
-  match format {
+  match bytes {
+    None => @value.Value::Null
+    Some(bytes) => match format {
     @value.Format::Text => {
       let s = decode_string(bytes)
       let v = @string.parse_int(s) catch {
@@ -184,6 +192,7 @@ impl Codec for Int4Codec with fn decode(
       @value.Value::Int(decode_int4(bytes))
     }
   }
+}
 }
 
 // ===========================================================================
@@ -225,9 +234,11 @@ impl Codec for Int8Codec with fn decode(
   _self : Int8Codec,
   _oid : Int,
   format : @value.Format,
-  bytes : Bytes,
+  bytes : Bytes?,
 ) -> @value.Value raise CodecError {
-  match format {
+  match bytes {
+    None => @value.Value::Null
+    Some(bytes) => match format {
     @value.Format::Text => {
       let s = decode_string(bytes)
       let v = @string.parse_int64(s) catch {
@@ -245,6 +256,7 @@ impl Codec for Int8Codec with fn decode(
       @value.Value::Int64(decode_int8(bytes))
     }
   }
+}
 }
 
 // ===========================================================================
@@ -286,9 +298,11 @@ impl Codec for Float4Codec with fn decode(
   _self : Float4Codec,
   _oid : Int,
   format : @value.Format,
-  bytes : Bytes,
+  bytes : Bytes?,
 ) -> @value.Value raise CodecError {
-  match format {
+  match bytes {
+    None => @value.Value::Null
+    Some(bytes) => match format {
     @value.Format::Text => {
       let s = decode_string(bytes)
       let v = @string.parse_double(s) catch {
@@ -308,6 +322,7 @@ impl Codec for Float4Codec with fn decode(
       @value.Value::Float(decode_float4(bytes))
     }
   }
+}
 }
 
 // ===========================================================================
@@ -349,9 +364,11 @@ impl Codec for Float8Codec with fn decode(
   _self : Float8Codec,
   _oid : Int,
   format : @value.Format,
-  bytes : Bytes,
+  bytes : Bytes?,
 ) -> @value.Value raise CodecError {
-  match format {
+  match bytes {
+    None => @value.Value::Null
+    Some(bytes) => match format {
     @value.Format::Text => {
       let s = decode_string(bytes)
       let v = @string.parse_double(s) catch {
@@ -372,6 +389,7 @@ impl Codec for Float8Codec with fn decode(
     }
   }
 }
+}
 
 // ===========================================================================
 // Tests
@@ -387,7 +405,7 @@ test "bool_codec_text_roundtrip" {
       @value.Format::Text,
       @value.Value::Bool(v),
     )
-    let decoded = Codec::decode(codec, bool_oid, @value.Format::Text, encoded.unwrap())
+    let decoded = Codec::decode(codec, bool_oid, @value.Format::Text, encoded)
     match decoded {
       @value.Value::Bool(b) => assert_eq(b, v)
       _ => fail("expected Value::Bool")
@@ -405,7 +423,7 @@ test "bool_codec_binary_roundtrip" {
       @value.Format::Binary,
       @value.Value::Bool(v),
     )
-    let decoded = Codec::decode(codec, bool_oid, @value.Format::Binary, encoded.unwrap())
+    let decoded = Codec::decode(codec, bool_oid, @value.Format::Binary, encoded)
     match decoded {
       @value.Value::Bool(b) => assert_eq(b, v)
       _ => fail("expected Value::Bool")
@@ -423,7 +441,7 @@ test "int4_codec_text_roundtrip" {
       @value.Format::Text,
       @value.Value::Int(v),
     )
-    let decoded = Codec::decode(codec, int4_oid, @value.Format::Text, encoded.unwrap())
+    let decoded = Codec::decode(codec, int4_oid, @value.Format::Text, encoded)
     match decoded {
       @value.Value::Int(n) => assert_eq(n, v)
       _ => fail("expected Value::Int")
@@ -441,7 +459,7 @@ test "int4_codec_binary_roundtrip" {
       @value.Format::Binary,
       @value.Value::Int(v),
     )
-    let decoded = Codec::decode(codec, int4_oid, @value.Format::Binary, encoded.unwrap())
+    let decoded = Codec::decode(codec, int4_oid, @value.Format::Binary, encoded)
     match decoded {
       @value.Value::Int(n) => assert_eq(n, v)
       _ => fail("expected Value::Int")
@@ -459,7 +477,7 @@ test "int8_codec_text_roundtrip" {
       @value.Format::Text,
       @value.Value::Int64(v),
     )
-    let decoded = Codec::decode(codec, int8_oid, @value.Format::Text, encoded.unwrap())
+    let decoded = Codec::decode(codec, int8_oid, @value.Format::Text, encoded)
     match decoded {
       @value.Value::Int64(n) => assert_eq(n, v)
       _ => fail("expected Value::Int64")
@@ -477,7 +495,7 @@ test "int8_codec_binary_roundtrip" {
       @value.Format::Binary,
       @value.Value::Int64(v),
     )
-    let decoded = Codec::decode(codec, int8_oid, @value.Format::Binary, encoded.unwrap())
+    let decoded = Codec::decode(codec, int8_oid, @value.Format::Binary, encoded)
     match decoded {
       @value.Value::Int64(n) => assert_eq(n, v)
       _ => fail("expected Value::Int64")
@@ -495,7 +513,7 @@ test "float8_codec_text_roundtrip" {
     @value.Format::Text,
     @value.Value::Float(v),
   )
-  let decoded = Codec::decode(codec, float8_oid, @value.Format::Text, encoded.unwrap())
+  let decoded = Codec::decode(codec, float8_oid, @value.Format::Text, encoded)
   match decoded {
     @value.Value::Float(f) => assert_true((f - v).abs() < 0.0001)
     _ => fail("expected Value::Float")
@@ -512,7 +530,7 @@ test "float8_codec_binary_roundtrip" {
     @value.Format::Binary,
     @value.Value::Float(v),
   )
-  let decoded = Codec::decode(codec, float8_oid, @value.Format::Binary, encoded.unwrap())
+  let decoded = Codec::decode(codec, float8_oid, @value.Format::Binary, encoded)
   match decoded {
     @value.Value::Float(f) => assert_true((f - v).abs() < 1.0e-15)
     _ => fail("expected Value::Float")

@@ -45,9 +45,11 @@ impl Codec for TextCodec with fn decode(
   _self : TextCodec,
   _oid : Int,
   format : @value.Format,
-  bytes : Bytes,
+  bytes : Bytes?,
 ) -> @value.Value raise CodecError {
-  match format {
+  match bytes {
+    None => @value.Value::Null
+    Some(bytes) => match format {
     @value.Format::Text => {
       let s = @utf8.decode(bytes) catch { _ => bytes.to_unchecked_string() }
       @value.Value::String(s)
@@ -58,6 +60,7 @@ impl Codec for TextCodec with fn decode(
       )
   }
 }
+}
 
 // ===========================================================================
 // Tests
@@ -67,7 +70,7 @@ impl Codec for TextCodec with fn decode(
 test "text_codec_roundtrip_text" {
   let codec = text_codec
   let val = @value.Value::String("hello world")
-  let encoded = Codec::encode(codec, text_oid, @value.Format::Text, val).unwrap()
+  let encoded = Codec::encode(codec, text_oid, @value.Format::Text, val)
   let decoded = Codec::decode(codec, text_oid, @value.Format::Text, encoded)
   match decoded {
     @value.Value::String(s) => assert_eq(s, "hello world")

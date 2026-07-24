@@ -18,5 +18,6 @@ pub(open) trait Codec {
   /// Returns `None` for `Value::Null` (SQL NULL on the wire).
   fn encode(Self, oid : Int, format : @value.Format, value : @value.Value) -> Bytes? raise CodecError
   /// Decode wire-format bytes into a `Value`.
-  fn decode(Self, oid : Int, format : @value.Format, bytes : Bytes) -> @value.Value raise CodecError
+  /// Receives `None` for SQL NULL → returns `Value::Null`.
+  fn decode(Self, oid : Int, format : @value.Format, bytes : Bytes?) -> @value.Value raise CodecError
 }
