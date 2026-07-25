@@ -6,7 +6,6 @@ A pure MoonBit PostgreSQL client — wire protocol from scratch, zero C dependen
 
 ```moonbit nocheck
 let conn = @moonpg.connect("postgres://user:pw@localhost:5432/db")
-defer conn.close()
 
 // Execute DDL / DML
 conn.execute("CREATE TABLE users (id SERIAL PRIMARY KEY, name TEXT, email TEXT)") |> ignore
@@ -110,7 +109,6 @@ let pool = Pool::new(PoolConfig::new(
   max_conns=10,
   min_idle=2,
 ))
-defer pool.close()
 
 // Auto-acquire + auto-release — fetch/rows.close() returns conn to pool
 let names : Array[String] = &QueryExecutor::fetch(pool, "SELECT name FROM users")
@@ -128,7 +126,7 @@ try {
 // Explicit acquire
 let pc = pool.acquire()
 pc.execute("DELETE FROM users WHERE id = $1", params=[1]) |> ignore
-pc.close()
+pc.release()
 
 // Inspect pool
 let stats = pool.stats()
@@ -158,17 +156,25 @@ let result = begin_func(conn, async fn(tx) {
   &QueryExecutor::fetch_one(tx, "SELECT id FROM users WHERE name = $1", params=["alice"])
 })
 
-// Manual transaction
+// Manual transaction — try { commit } catch { rollback }
 let tx = conn.begin_tx()
-tx.execute("UPDATE users SET name = $1 WHERE id = $2", params=["bob", 1]) |> ignore
-let name : String = &QueryExecutor::fetch_one(tx, "SELECT name FROM users WHERE id = $1", params=[1])
-tx.close() // no commit → rollback
+try {
+  tx.execute("UPDATE users SET name = $1 WHERE id = $2", params=["bob", 1]) |> ignore
+  let name : String = &QueryExecutor::fetch_one(tx, "SELECT name FROM users WHERE id = $1", params=[1])
+  tx.commit()
+} catch {
+  e => { tx.rollback(); raise e }
+}
 
-// Pooled transaction — connection auto-released on close
+// Pooled transaction — connection auto-returns to pool on commit/rollback
 let pool = Pool::new(PoolConfig::new(conninfo, max_conns=4))
 let tx2 = pool.begin_tx()
-tx2.execute("DELETE FROM users WHERE id = $1", params=[99]) |> ignore
-tx2.close()
+try {
+  tx2.execute("DELETE FROM users WHERE id = $1", params=[99]) |> ignore
+  tx2.commit()
+} catch {
+  e => { tx2.rollback(); raise e }
+}
 ```
 
 ## ToValue / FromValue

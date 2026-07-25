@@ -69,11 +69,6 @@ pub impl QueryExecutor for DbTx with fn execute(
 }
 
 ///|
-pub impl Closer for DbTx with fn close(self : DbTx) -> Unit {
-  self.conn.close()
-}
-
-///|
 pub impl Tx for DbTx with fn commit(self : DbTx) -> Unit raise PgError {
   Connection::execute(self.conn, "COMMIT") |> ignore
 }

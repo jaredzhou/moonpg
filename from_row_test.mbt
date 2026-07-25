@@ -455,7 +455,7 @@ async test "fetch_pooldbtx" {
   assert_eq(vals.length(), 2)
   assert_eq(vals[0], 1)
   assert_eq(vals[1], 2)
-  Closer::close(tx)
+  tx.rollback()
   pool.close()
 }
 
@@ -471,7 +471,7 @@ async test "fetch_one_pooldbtx" {
   |> ignore
   let v : Int = &QueryExecutor::fetch_one(tx, "SELECT int_val FROM \{tbl}")
   assert_eq(v, 99)
-  Closer::close(tx)
+  tx.rollback()
   pool.close()
 }
 

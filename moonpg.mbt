@@ -280,12 +280,10 @@ pub(open) trait FromRow {
 ///|
 /// A database transaction. Extends `QueryExecutor` with commit/rollback.
 /// Concrete impl: `DbTx`. Users can impl this trait on mock types for testing.
-pub(open) trait Tx: QueryExecutor + Closer {
+pub(open) trait Tx: QueryExecutor {
   async fn commit(Self) -> Unit raise PgError
   async fn rollback(Self) -> Unit raise PgError
 }
-
-// extend &Tx with Closer::{close}
 
 ///|
 /// Transaction isolation level.

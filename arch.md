@@ -48,9 +48,9 @@ Central API surface. Re-exports `Value` and `Format` from `value/`.
 | Error types | `PgError` (ConnectionError, QueryError, NoRows), `ValueError` |
 | Value traits | `ToValue`, `FromValue` |
 | Row traits | `Rows` trait, `Row` struct + `get()` / `get_by_name()`, `ExecResult` |
-| Query executor | `QueryExecutor` trait (query, query_one, execute, close) + `fetch` / `fetch_one` extension methods on `&QueryExecutor` |
+| Query executor | `QueryExecutor` trait (query, query_one, execute) + `Closer` trait (close) + `fetch` / `fetch_one` extension methods on `&QueryExecutor` |
 | Row mapping | `FromRow` trait |
-| Transactions | `Tx` trait, `TxBeginner` trait, `TxOptions`, `IsolationLevel`, `DbTx` |
+| Transactions | `Tx` trait (commit/rollback), `TxBeginner` trait, `TxOptions`, `IsolationLevel`, `DbTx` |
 | Transaction helpers | `begin_func` |
 
 ### `from_row.mbt` — FromRow implementations
@@ -72,7 +72,7 @@ Central API surface. Re-exports `Value` and `Format` from `value/`.
 - `Listener` — async notification receiver.
 - `CopyWriter` — streaming COPY FROM STDIN.
 - `exec_params` — prepare → encode → execute flow for parameterised queries.
-- `Connection` implements `QueryExecutor`, `TxBeginner`.
+- `Connection` implements `QueryExecutor`, `TxBeginner`, `Closer`.
 
 ### `pool.mbt` — Connection pool
 
@@ -80,6 +80,7 @@ Central API surface. Re-exports `Value` and `Format` from `value/`.
 - `PoolConfig` — `conninfo`, `max_conns`, `min_idle`, `max_idle_sec`, `max_lifetime_sec`, `maintenance_interval_sec`.
 - `PoolConn`, `PoolRows`, `PoolDbTx`.
 - `Pool`, `PoolConn`, `PoolDbTx` all implement `QueryExecutor`.
+- `Pool`, `PoolConn` implement `Closer`.
 - `Pool` and `PoolConn` implement `TxBeginner`.
 
 ### `tx.mbt` — Transaction implementations

@@ -602,9 +602,6 @@ pub impl QueryExecutor for PoolDbTx with fn execute(
 }
 
 ///|
-pub impl Closer for PoolDbTx with fn close(self : PoolDbTx) -> Unit {
-  self.pc.release()
-}
 
 ///|
 pub impl Tx for PoolDbTx with fn commit(self : PoolDbTx) -> Unit raise PgError {
