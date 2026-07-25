@@ -63,6 +63,10 @@ impl FromRow for User with fn from_row(r : Row) -> User raise PgError {
   User::{ id: r.get(0), name: r.get(1), email: r.get(2) }
 }
 let users : Array[User] = &QueryExecutor::fetch(conn, "SELECT id, name, email FROM users")
+// Or cast to &QueryExecutor for dot-syntax:
+let q : &QueryExecutor = conn
+let count : Int = q.fetch_one("SELECT COUNT(*) FROM users")
+let names : Array[String] = q.fetch("SELECT name FROM users")
 ```
 
 ### query / query_one

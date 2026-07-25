@@ -423,7 +423,7 @@ pub impl QueryExecutor for Connection with fn execute(
 
 ///|
 /// Close the database connection.
-pub impl QueryExecutor for Connection with fn close(self : Connection) -> Unit {
+pub impl Closer for Connection with fn close(self : Connection) -> Unit {
   self.conn.close()
 }
 

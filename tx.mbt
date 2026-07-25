@@ -69,7 +69,7 @@ pub impl QueryExecutor for DbTx with fn execute(
 }
 
 ///|
-pub impl QueryExecutor for DbTx with fn close(self : DbTx) -> Unit {
+pub impl Closer for DbTx with fn close(self : DbTx) -> Unit {
   self.conn.close()
 }
 

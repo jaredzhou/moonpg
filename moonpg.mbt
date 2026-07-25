@@ -181,6 +181,11 @@ pub(open) trait QueryExecutor {
   async fn query(Self, String, params? : Array[&ToValue]) -> &Rows raise PgError
   async fn query_one(Self, String, params? : Array[&ToValue]) -> Row raise PgError
   async fn execute(Self, String, params? : Array[&ToValue]) -> ExecResult raise PgError
+}
+
+///|
+/// Types that can be closed to release resources.
+pub(open) trait Closer {
   fn close(Self) -> Unit
 }
 
@@ -275,7 +280,7 @@ pub(open) trait FromRow {
 ///|
 /// A database transaction. Extends `QueryExecutor` with commit/rollback.
 /// Concrete impl: `DbTx`. Users can impl this trait on mock types for testing.
-pub(open) trait Tx: QueryExecutor {
+pub(open) trait Tx: QueryExecutor + Closer {
   async fn commit(Self) -> Unit raise PgError
   async fn rollback(Self) -> Unit raise PgError
 }

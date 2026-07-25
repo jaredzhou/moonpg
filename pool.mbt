@@ -477,7 +477,7 @@ pub fn PoolConn::release(self : PoolConn) -> Unit {
 ///|
 /// Destroy this pooled connection (does NOT return it to the pool).
 /// Prefer `release()` to recycle the connection.
-pub impl QueryExecutor for PoolConn with fn close(self : PoolConn) -> Unit {
+pub impl Closer for PoolConn with fn close(self : PoolConn) -> Unit {
   self.released.val = true
   self.conn.close()
   self.pool.count.val = self.pool.count.val - 1
@@ -485,7 +485,7 @@ pub impl QueryExecutor for PoolConn with fn close(self : PoolConn) -> Unit {
 
 ///|
 /// Close the pool and all idle connections.
-pub impl QueryExecutor for Pool with fn close(self : Pool) -> Unit {
+pub impl Closer for Pool with fn close(self : Pool) -> Unit {
   self.running.val = false
   self.queue.close()
   for ;; {
@@ -602,7 +602,7 @@ pub impl QueryExecutor for PoolDbTx with fn execute(
 }
 
 ///|
-pub impl QueryExecutor for PoolDbTx with fn close(self : PoolDbTx) -> Unit {
+pub impl Closer for PoolDbTx with fn close(self : PoolDbTx) -> Unit {
   self.pc.release()
 }
 
