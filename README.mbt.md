@@ -4,10 +4,8 @@ A pure MoonBit PostgreSQL client — wire protocol from scratch, zero C dependen
 
 ## Features
 
-- **Query** — `query` / `query_one` / `execute` with `$1`-style parameters via extended query protocol.
-- **Fetch** — `fetch` / `fetch_one` with `FromRow` auto-map rows to structs or tuples, auto-close.
-- **FromValue** — typed decoding: `Int`, `Int64`, `Double`, `Bool`, `String`, `Bytes`, `Json`, `Timestamp`, `Decimal`, `UUID`, `Option<T>`.
-- **ToValue** — typed encoding for parameters, all base types + `Option<T>` → SQL NULL.
+- **Query & Fetch** — `query`/`query_one`/`execute` for manual control, `fetch`/`fetch_one` with `FromRow` for typed auto-mapping to structs or tuples.
+- **Type-safe codec** — `ToValue` encodes parameters, `FromValue` decodes results; all base types, `Json`, `Timestamp`, `Decimal`, `UUID`, `Option<T>` supported.
 - **Connection pool** — bounded pool with acquire/release, min-idle, idle-timeout, health check, background maintenance.
 - **Transactions** — `begin_tx` / `commit` / `rollback` + `begin_func` auto-commit/rollback.
 - **Async** — multiple connections run concurrently; slow queries never block others.
