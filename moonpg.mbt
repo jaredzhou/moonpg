@@ -285,6 +285,8 @@ pub(open) trait Tx: QueryExecutor + Closer {
   async fn rollback(Self) -> Unit raise PgError
 }
 
+// extend &Tx with Closer::{close}
+
 ///|
 /// Transaction isolation level.
 pub(all) enum IsolationLevel {
