@@ -1,6 +1,7 @@
 # jaredzhou/moonpg
 
 A pure MoonBit PostgreSQL client — wire protocol from scratch, zero C dependencies.
+Feature-complete with a simple, ergonomic API.
 
 ## Features
 
