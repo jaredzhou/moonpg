@@ -72,7 +72,6 @@ pub async fn CopyWriter::write_row(Self, Array[&ToValue]) -> Unit raise PgError
 pub(all) struct DbTx {
   conn : Connection
 }
-pub impl Closer for DbTx
 pub impl QueryExecutor for DbTx
 pub impl Tx for DbTx
 
@@ -155,7 +154,6 @@ pub(all) struct PoolDbTx {
   inner : DbTx
   pc : PoolConn
 }
-pub impl Closer for PoolDbTx
 pub impl QueryExecutor for PoolDbTx
 pub impl Tx for PoolDbTx
 
@@ -270,7 +268,7 @@ pub impl ToValue for Json
 pub impl ToValue for @decimal.Decimal
 pub impl ToValue for @uuid.UUID
 
-pub(open) trait Tx : QueryExecutor + Closer {
+pub(open) trait Tx : QueryExecutor {
   async fn commit(Self) -> Unit raise PgError
   async fn rollback(Self) -> Unit raise PgError
 }
