@@ -5,7 +5,7 @@ A pure MoonBit PostgreSQL client — wire protocol from scratch, zero C dependen
 ## Quickstart
 
 ```moonbit nocheck
-let conn : &QueryExecutor = @moonpg.connect("postgres://user:pw@localhost:5432/db")
+let conn = @moonpg.connect("postgres://user:pw@localhost:5432/db")
 defer conn.close()
 
 // Execute DDL / DML
@@ -16,12 +16,12 @@ conn.execute(
 ) |> ignore
 
 // fetch — typed array of rows (auto-closes)
-let names : Array[String] = conn.fetch("SELECT name FROM users ORDER BY id")
-let count : Int = conn.fetch_one("SELECT COUNT(*) FROM users")
+let names : Array[String] = &QueryExecutor::fetch(conn, "SELECT name FROM users ORDER BY id")
+let count : Int = &QueryExecutor::fetch_one(conn, "SELECT COUNT(*) FROM users")
 
 // fetch with tuples
-let users : Array[(Int, String)] = conn.fetch("SELECT id, name FROM users")
-let (id, name) = conn.fetch_one("SELECT id, name FROM users WHERE id = $1", params=[1])
+let users : Array[(Int, String)] = &QueryExecutor::fetch(conn, "SELECT id, name FROM users")
+let (id, name) = &QueryExecutor::fetch_one(conn, "SELECT id, name FROM users WHERE id = $1", params=[1])
 
 // query — manual iteration (MUST close rows in try-catch)
 let rows = conn.query("SELECT id, name FROM users")
@@ -44,17 +44,17 @@ try {
 `fetch` and `fetch_one` collect rows into typed results and **auto-close** — no manual `rows.close()` or try-catch needed. They're the recommended way to read data.
 
 ```moonbit nocheck
-let conn : &QueryExecutor = @moonpg.connect(conninfo)
+let conn = @moonpg.connect(conninfo)
 
 // Scalar
-let count : Int = conn.fetch_one("SELECT COUNT(*) FROM users")
+let count : Int = &QueryExecutor::fetch_one(conn, "SELECT COUNT(*) FROM users")
 
 // Nullable
-let email : String? = conn.fetch_one("SELECT email FROM users WHERE id = $1", params=[1])
+let email : String? = &QueryExecutor::fetch_one(conn, "SELECT email FROM users WHERE id = $1", params=[1])
 
 // Tuples — no struct needed
-let pairs : Array[(Int, String)] = conn.fetch("SELECT id, name FROM users")
-let (id, name, email) : (Int, String, String) = conn.fetch_one(
+let pairs : Array[(Int, String)] = &QueryExecutor::fetch(conn, "SELECT id, name FROM users")
+let (id, name, email) : (Int, String, String) = &QueryExecutor::fetch_one(conn,
   "SELECT id, name, email FROM users WHERE id = $1", params=[1],
 )
 
@@ -62,7 +62,7 @@ let (id, name, email) : (Int, String, String) = conn.fetch_one(
 impl FromRow for User with fn from_row(r : Row) -> User raise PgError {
   User::{ id: r.get(0), name: r.get(1), email: r.get(2) }
 }
-let users : Array[User] = conn.fetch("SELECT id, name, email FROM users")
+let users : Array[User] = &QueryExecutor::fetch(conn, "SELECT id, name, email FROM users")
 ```
 
 ### query / query_one
@@ -101,7 +101,7 @@ conn.execute(
 ## Pool
 
 ```moonbit nocheck
-let pool : &QueryExecutor = Pool::new(PoolConfig::new(
+let pool = Pool::new(PoolConfig::new(
   "postgres://user:pw@localhost:5432/db",
   max_conns=10,
   min_idle=2,
@@ -109,7 +109,7 @@ let pool : &QueryExecutor = Pool::new(PoolConfig::new(
 defer pool.close()
 
 // Auto-acquire + auto-release — fetch/rows.close() returns conn to pool
-let names : Array[String] = pool.fetch("SELECT name FROM users")
+let names : Array[String] = &QueryExecutor::fetch(pool, "SELECT name FROM users")
 pool.execute("INSERT INTO users (name) VALUES ($1)", params=["bob"]) |> ignore
 
 // Manual query with try-catch
@@ -122,7 +122,7 @@ try {
 }
 
 // Explicit acquire
-let pc : &QueryExecutor = pool.acquire()
+let pc = pool.acquire()
 pc.execute("DELETE FROM users WHERE id = $1", params=[1]) |> ignore
 pc.close()
 
@@ -146,23 +146,23 @@ pool2.start_maintenance()
 ## Transactions
 
 ```moonbit nocheck
-let conn : &QueryExecutor = @moonpg.connect(conninfo)
+let conn = @moonpg.connect(conninfo)
 
 // begin_func — auto-commit on success, auto-rollback on error
 let result = begin_func(conn, async fn(tx) {
   tx.execute("INSERT INTO users (name) VALUES ($1)", params=["alice"]) |> ignore
-  tx.fetch_one("SELECT id FROM users WHERE name = $1", params=["alice"])
+  &QueryExecutor::fetch_one(tx, "SELECT id FROM users WHERE name = $1", params=["alice"])
 })
 
 // Manual transaction
-let tx : &QueryExecutor = conn.begin_tx()
+let tx = conn.begin_tx()
 tx.execute("UPDATE users SET name = $1 WHERE id = $2", params=["bob", 1]) |> ignore
-let name : String = tx.fetch_one("SELECT name FROM users WHERE id = $1", params=[1])
+let name : String = &QueryExecutor::fetch_one(tx, "SELECT name FROM users WHERE id = $1", params=[1])
 tx.close() // no commit → rollback
 
 // Pooled transaction — connection auto-released on close
-let pool : &QueryExecutor = Pool::new(PoolConfig::new(conninfo, max_conns=4))
-let tx2 : &QueryExecutor = pool.begin_tx()
+let pool = Pool::new(PoolConfig::new(conninfo, max_conns=4))
+let tx2 = pool.begin_tx()
 tx2.execute("DELETE FROM users WHERE id = $1", params=[99]) |> ignore
 tx2.close()
 ```
@@ -197,18 +197,18 @@ impl FromValue for MyType with fn from_value(v : Value) -> MyType raise ValueErr
 
 ```moonbit nocheck
 // Single-column rows: built-in impls for all FromValue types
-let count : Int = conn.fetch_one("SELECT COUNT(*) FROM users")
-let name : String? = conn.fetch_one("SELECT name FROM users WHERE id = $1", params=[1])
+let count : Int = &QueryExecutor::fetch_one(conn, "SELECT COUNT(*) FROM users")
+let name : String? = &QueryExecutor::fetch_one(conn, "SELECT name FROM users WHERE id = $1", params=[1])
 
 // Custom struct
 impl FromRow for User with fn from_row(r : Row) -> User raise PgError {
   User::{ id: r.get(0), name: r.get(1), email: r.get(2) }
 }
-let users : Array[User] = conn.fetch("SELECT id, name, email FROM users")
+let users : Array[User] = &QueryExecutor::fetch(conn, "SELECT id, name, email FROM users")
 
 // Tuple impls (2–10)
-let pairs : Array[(Int, String)] = conn.fetch("SELECT id, name FROM users")
-let (id, name, email) : (Int, String, String) = conn.fetch_one(
+let pairs : Array[(Int, String)] = &QueryExecutor::fetch(conn, "SELECT id, name FROM users")
+let (id, name, email) : (Int, String, String) = &QueryExecutor::fetch_one(conn,
   "SELECT id, name, email FROM users WHERE id = $1", params=[1],
 )
 ```
