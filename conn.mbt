@@ -1,38 +1,9 @@
 ///|
-pub(all) suberror PgError {
-  ConnectionError(String)
-  QueryError(String)
-  NoRows
-} derive(Debug)
-
-///|
 /// Connection status.
 pub enum ConnStatus {
   OK
   Bad
 } derive(Debug, Eq)
-
-// ---------------------------------------------------------------------------
-// Rows trait — polymorphic row iteration
-// ---------------------------------------------------------------------------
-
-///|
-/// A pull-based row reader. Both `ConnRows` (bare connection) and
-/// `PoolRows` (pooled connection) implement this trait.
-///
-/// ```moonbit nocheck
-/// while rows.has_next() {
-///   let row = rows.get_row()
-///   let v : Int = row.get(0)
-/// }
-/// rows.close()
-/// ```
-pub(open) trait Rows {
-  async fn has_next(Self) -> Bool raise PgError
-  fn get_row(Self) -> Row raise PgError
-  fn columns(Self) -> Array[@wire.FieldDescription]
-  async fn close(Self) -> Unit raise PgError
-}
 
 // ---------------------------------------------------------------------------
 // ConnRows — bare connection rows
@@ -72,90 +43,6 @@ pub impl Rows for ConnRows with fn close(self : ConnRows) -> Unit raise PgError 
 }
 
 // ---------------------------------------------------------------------------
-// Row — a single result row
-// ---------------------------------------------------------------------------
-
-///|
-/// A single row from a query result.
-pub struct Row {
-  values : Array[Bytes?]
-  col_descs : Array[@wire.FieldDescription]
-}
-
-///|
-/// Read the value at column `col` (zero-based index) as `T`.
-pub fn[T : @value.FromValue] Row::get(self : Row, col : Int) -> T raise PgError {
-  let desc = self.col_descs[col]
-  let format = if desc.format == 0 {
-    @value.Format::Text
-  } else {
-    @value.Format::Binary
-  }
-  let codec = @pgtype.default_map.codec_for(desc.type_oid)
-  let val = codec.decode(desc.type_oid, format, self.values[col]) catch {
-    e => {
-      let msg = match e {
-        @pgtype.CodecError::CodecError(m) => m
-      }
-      raise PgError::QueryError("codec decode error: \{msg}")
-    }
-  }
-  T::from_value(val) catch {
-    e => {
-      let msg = match e {
-        @value.ValueError::ValueError(m) => m
-      }
-      raise PgError::QueryError("from_value error: \{msg}")
-    }
-  }
-}
-
-///|
-/// Read the value of column `name` as `T`.
-pub fn[T : @value.FromValue] Row::get_by_name(
-  self : Row,
-  name : String,
-) -> T raise PgError {
-  for i = 0; i < self.col_descs.length(); i = i + 1 {
-    if self.col_descs[i].name == name {
-      return self.get(i)
-    }
-  }
-  raise PgError::QueryError("column '\{name}' not found")
-}
-
-///|
-/// Return the column descriptions of this row's result set.
-pub fn Row::columns(self : Row) -> Array[@wire.FieldDescription] {
-  self.col_descs
-}
-
-// ---------------------------------------------------------------------------
-// ExecResult
-// ---------------------------------------------------------------------------
-
-///|
-/// Execution result (for INSERT/UPDATE/DELETE/DDL).
-pub struct ExecResult {
-  tag : @wire.CommandTag
-}
-
-///|
-/// Return the number of rows affected by an INSERT/UPDATE/DELETE.
-pub fn ExecResult::affected_rows(self : ExecResult) -> Int {
-  match self.tag.rows_affected() {
-    Some(n) => n
-    None => 0
-  }
-}
-
-///|
-/// Close the execution result. No-op.
-pub fn ExecResult::close(_self : ExecResult) -> Unit {
-
-}
-
-// ---------------------------------------------------------------------------
 // Connection
 // ---------------------------------------------------------------------------
 
@@ -170,12 +57,6 @@ pub struct Connection {
 pub async fn connect(conninfo : String) -> Connection raise PgError {
   let inner = @wire.connect(conninfo) catch { e => raise map_wire_error(e) }
   Connection::{ conn: inner }
-}
-
-///|
-/// Close the database connection.
-pub fn Connection::close(self : Connection) -> Unit {
-  self.conn.close()
 }
 
 ///|
@@ -373,7 +254,7 @@ pub async fn Connection::begin_copy(
 /// backslash-escaped strings) and sent immediately — no batching in memory.
 pub async fn CopyWriter::write_row(
   self : CopyWriter,
-  row : Array[&@value.ToValue],
+  row : Array[&ToValue],
 ) -> Unit raise PgError {
   let parts : Array[String] = []
   for v in row {
@@ -424,7 +305,7 @@ pub fn Connection::status(self : Connection) -> ConnStatus {
 async fn exec_params(
   conn : @wire.RawConn,
   sql : String,
-  params : Array[&@value.ToValue],
+  params : Array[&ToValue],
 ) -> @wire.ResultReader raise @wire.WireError {
   let stmt = conn.prepare("", sql, [])
   let n = params.length()
@@ -472,18 +353,6 @@ async fn exec_params(
 }
 
 // ---------------------------------------------------------------------------
-// QueryExecutor trait
-// ---------------------------------------------------------------------------
-
-///|
-/// Types that can execute SQL queries.
-pub(open) trait QueryExecutor {
-  async fn query(Self, String, params? : Array[&@value.ToValue]) -> &Rows raise PgError
-  async fn query_one(Self, String, params? : Array[&@value.ToValue]) -> Row raise PgError
-  async fn execute(Self, String, params? : Array[&@value.ToValue]) -> ExecResult raise PgError
-}
-
-// ---------------------------------------------------------------------------
 // Connection: QueryExecutor impl
 // ---------------------------------------------------------------------------
 
@@ -492,7 +361,7 @@ pub(open) trait QueryExecutor {
 pub impl QueryExecutor for Connection with fn query(
   self : Connection,
   sql : String,
-  params? : Array[&@value.ToValue],
+  params? : Array[&ToValue],
 ) -> &Rows raise PgError {
   match params {
     None => {
@@ -514,7 +383,7 @@ pub impl QueryExecutor for Connection with fn query(
 pub impl QueryExecutor for Connection with fn query_one(
   self : Connection,
   sql : String,
-  params? : Array[&@value.ToValue],
+  params? : Array[&ToValue],
 ) -> Row raise PgError {
   let rows = self.query(sql, params?)
   if rows.has_next() {
@@ -530,7 +399,7 @@ pub impl QueryExecutor for Connection with fn query_one(
 pub impl QueryExecutor for Connection with fn execute(
   self : Connection,
   sql : String,
-  params? : Array[&@value.ToValue],
+  params? : Array[&ToValue],
 ) -> ExecResult raise PgError {
   match params {
     None => {
@@ -548,6 +417,14 @@ pub impl QueryExecutor for Connection with fn execute(
       ExecResult::{ tag, }
     }
   }
+}
+
+///|
+
+///|
+/// Close the database connection.
+pub impl QueryExecutor for Connection with fn close(self : Connection) -> Unit {
+  self.conn.close()
 }
 
 ///|

@@ -630,3 +630,298 @@ async test "async_concurrent_queries_dont_block" {
   c2.close()
   c3.close()
 }
+
+// ===========================================================================
+// server_version
+// ===========================================================================
+
+///|
+async test "server_version_is_positive" {
+  let conn = connect(test_conninfo)
+  defer conn.close()
+  let v = conn.server_version()
+  assert_true(v > 0, msg="server_version > 0")
+}
+
+// ===========================================================================
+// COPY protocol
+// ===========================================================================
+
+///|
+async test "copy_in" {
+  let c = connect(test_conninfo)
+  defer c.close()
+  let tbl = "moonpg_copy_in"
+  c.execute("DROP TABLE IF EXISTS \{tbl}") |> ignore
+  c.execute("CREATE TABLE \{tbl} (id INTEGER, name TEXT, val REAL)") |> ignore
+
+  let rows = ["1\tAlice\t3.14\n", "2\tBob\t2.71\n", "3\tCarol\t1.41\n"]
+  c.copy_in("COPY \{tbl} FROM STDIN", rows.iter()) |> ignore
+
+  let result = c.query("SELECT id, name, val FROM \{tbl} ORDER BY id")
+  assert_true(result.has_next())
+  let r1 = result.get_row()
+  assert_eq(r1.get(0), 1)
+  assert_eq(r1.get(1), "Alice")
+  assert_eq(r1.get(2), 3.14)
+  assert_true(result.has_next())
+  let r2 = result.get_row()
+  assert_eq(r2.get(0), 2)
+  result.close()
+}
+
+///|
+async test "copy_writer_streaming" {
+  let tbl = "moonpg_copy_writer"
+  let c = connect(test_conninfo)
+  c.execute("DROP TABLE IF EXISTS \{tbl}") |> ignore
+  c.execute("CREATE TABLE \{tbl} (name TEXT, age INTEGER)") |> ignore
+
+  let w = c.begin_copy(tbl, ["name", "age"])
+  w.write_row(["Alice", 30])
+  w.write_row(["Bob", 25])
+  w.finish() |> ignore
+
+  let c2 = connect(test_conninfo)
+  defer c2.close()
+  let result = c2.query("SELECT name, age FROM \{tbl} ORDER BY age")
+  assert_true(result.has_next())
+  let r1 = result.get_row()
+  assert_eq(r1.get(0), "Bob")
+  assert_eq(r1.get(1), 25)
+  assert_true(result.has_next())
+  let r2 = result.get_row()
+  assert_eq(r2.get(0), "Alice")
+  assert_eq(r2.get(1), 30)
+  result.close()
+}
+
+// ===========================================================================
+// LISTEN / NOTIFY
+// ===========================================================================
+
+///|
+async test "listen_notify_queue" {
+  @async.with_task_group() <| group => {
+    let c1 = connect(test_conninfo)
+    let listener = c1.listen("moonpg_test_channel", group)
+    println("Listening on channel: moonpg_test_channel")
+    let c2_task = group.spawn(() => {
+      let c2 = connect(test_conninfo)
+      c2.notify("moonpg_test_channel", payload="hello")
+      c2.close()
+    })
+
+    let notif = listener.recv()
+    println(notif.payload)
+    assert_eq(notif.channel, "moonpg_test_channel")
+    assert_eq(notif.payload, "hello")
+    let _ = c2_task.wait()
+    group.return_immediately(())
+  }
+}
+
+// ===========================================================================
+// deallocate
+// ===========================================================================
+
+///|
+async test "deallocate_unnamed_statement" {
+  let c = connect(test_conninfo)
+  defer c.close()
+
+  c.execute("SELECT $1::integer", params=[42]) |> ignore
+  c.deallocate("")
+}
+
+// ===========================================================================
+// Binary result format
+// ===========================================================================
+
+///|
+async test "binary_result_format_roundtrip" {
+  let tbl = "t_binary_r"
+  let c = connect(test_conninfo)
+  c.execute("DROP TABLE IF EXISTS \{tbl}") |> ignore
+  c.execute(
+    "CREATE TABLE \{tbl} (num INTEGER NOT NULL, name TEXT NOT NULL, flag BOOLEAN NOT NULL)",
+  )
+  |> ignore
+
+  c.execute("INSERT INTO \{tbl} (num, name, flag) VALUES ($1, $2, $3)", params=[
+    42, "binary-test", true,
+  ])
+  |> ignore
+
+  let raw = @wire.connect(test_conninfo)
+  defer raw.close()
+  let _ = raw.prepare("", "SELECT num, name, flag FROM \{tbl}", [])
+  raw.bind("", "", [], [], [1])
+  let cols = raw.describe_portal("")
+  let reader = raw.execute("", cols, 0)
+
+  let cols = reader.columns()
+  assert_eq(cols.length(), 3, msg="3 columns")
+  for col in cols {
+    assert_eq(col.format, 1, msg="column \{col.name} should be binary format")
+  }
+
+  if reader.has_next() {
+    let raw_row = reader.data_row()
+    let row = row_from_raw(raw_row, cols)
+
+    assert_eq(row.get(0), 42, msg="binary num")
+    assert_eq(row.get(1), "binary-test", msg="binary name")
+    assert_eq(row.get(2), true, msg="binary flag")
+  } else {
+    fail("expected a row")
+  }
+
+  let _ = reader.close()
+  c.close()
+}
+
+///|
+async test "binary_result_format_nullable" {
+  let tbl = "t_binary_null"
+  let c = connect(test_conninfo)
+  defer c.close()
+  c.execute("DROP TABLE IF EXISTS \{tbl}") |> ignore
+  c.execute(
+    "CREATE TABLE \{tbl} (id SERIAL PRIMARY KEY, num INTEGER, flag BOOLEAN, email TEXT)",
+  )
+  |> ignore
+
+  let null_email : String? = None
+  c.execute("INSERT INTO \{tbl} (num, flag, email) VALUES ($1, $2, $3)", params=[
+    1, false, null_email,
+  ])
+  |> ignore
+
+  let raw = @wire.connect(test_conninfo)
+  defer raw.close()
+  let _ = raw.prepare("", "SELECT num, flag, email FROM \{tbl}", [])
+  raw.bind("", "", [], [], [1])
+  let cols = raw.describe_portal("")
+  let reader = raw.execute("", cols, 0)
+
+  if reader.has_next() {
+    let raw_row = reader.data_row()
+    let cols = reader.columns()
+    let row = row_from_raw(raw_row, cols)
+
+    assert_eq(row.get(0), 1, msg="binary num")
+    assert_eq(row.get(1), false, msg="binary flag")
+    let email : String? = row.get(2)
+    assert_true(email == None, msg="binary null → None")
+  } else {
+    fail("expected a row")
+  }
+
+  let _ = reader.close()
+}
+
+///|
+async test "binary_result_format_bytea" {
+  let c = connect(test_conninfo)
+  defer c.close()
+
+  c.execute("DROP TABLE IF EXISTS moonpg_bytea_test") |> ignore
+  c.execute("CREATE TABLE moonpg_bytea_test (data BYTEA)") |> ignore
+
+  c.execute(
+    "INSERT INTO moonpg_bytea_test (data) VALUES (decode('000102DEADBEEFFF', 'hex'))",
+  )
+  |> ignore
+
+  let input : Bytes = b"\x00\x01\x02\xDE\xAD\xBE\xEF\xFF"
+
+  let raw = @wire.connect(test_conninfo)
+  defer raw.close()
+  let _ = raw.prepare("", "SELECT data FROM moonpg_bytea_test", [])
+  raw.bind("", "", [], [], [1])
+  let cols = raw.describe_portal("")
+  let reader = raw.execute("", cols, 0)
+
+  let cols = reader.columns()
+  assert_eq(cols.length(), 1, msg="1 column")
+  assert_eq(cols[0].format, 1, msg="bytea column binary format")
+
+  if reader.has_next() {
+    let raw_row = reader.data_row()
+    let row = row_from_raw(raw_row, cols)
+    let result : Bytes = row.get(0)
+    assert_eq(result, input, msg="binary bytea roundtrip")
+  } else {
+    fail("expected a row")
+  }
+
+  let _ = reader.close()
+}
+
+// ===========================================================================
+// Async runtime interleaving
+// ===========================================================================
+
+///|
+async test "async_all_interleaves" {
+  let wall = @async.now()
+  let a_ms : Ref[Int64] = Ref(0)
+  let b_ms : Ref[Int64] = Ref(0)
+
+  let _ = @async.all([
+    async fn() {
+      for _ in 0..<200 {
+        @async.pause() catch {
+          _ => ()
+        }
+      }
+      a_ms.val = @async.now() - wall
+    },
+    async fn() {
+      for _ in 0..<5 {
+        @async.pause() catch {
+          _ => ()
+        }
+      }
+      b_ms.val = @async.now() - wall
+    },
+  ])
+
+  println("A=\{a_ms.val}ms B=\{b_ms.val}ms (interleaved)")
+  if a_ms.val > 10L {
+    assert_true(b_ms.val < a_ms.val, msg="B=\{b_ms.val} A=\{a_ms.val}")
+  }
+}
+
+///|
+async test "async_all_interleaves_array" {
+  let wall = @async.now()
+  let a_ms : Ref[Int64] = Ref(0)
+  let b_ms : Ref[Int64] = Ref(0)
+
+  let tasks : Array[async () -> Unit] = [
+    async fn() {
+      for _ in 0..<200 {
+        @async.pause() catch {
+          _ => ()
+        }
+      }
+      a_ms.val = @async.now() - wall
+    },
+    async fn() {
+      for _ in 0..<5 {
+        @async.pause() catch {
+          _ => ()
+        }
+      }
+      b_ms.val = @async.now() - wall
+    },
+  ]
+  @async.all(tasks) |> ignore
+
+  println("A=\{a_ms.val}ms B=\{b_ms.val}ms (array interleaved)")
+  if a_ms.val > 10L {
+    assert_true(b_ms.val < a_ms.val, msg="B=\{b_ms.val} A=\{a_ms.val}")
+  }
+}
