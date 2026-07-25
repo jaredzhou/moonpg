@@ -187,14 +187,12 @@ pub(open) trait QueryExecutor {
 ///|
 /// Execute a SELECT query and collect all rows as an array of `T`.
 ///
-/// Rows are automatically drained and the connection is released back to the
-/// pool (when used with `Pool`).  The caller does not need to call `close()`
-/// manually.
+/// Rows are automatically drained. Works on any `QueryExecutor`.
 ///
-/// # Example
-/// ```
-/// let users : Array[User] = pool.fetch("SELECT id, name FROM users")
-/// let names : Array[String] = conn.fetch("SELECT name FROM users")
+/// ```moonbit nocheck
+/// let users : Array[User] = conn.fetch("SELECT id, name FROM users")
+///
+/// let names : Array[String] = pool.fetch("SELECT name FROM users")
 /// ```
 pub async fn[T : FromRow] &QueryExecutor::fetch(
   self : &QueryExecutor,
@@ -220,13 +218,12 @@ pub async fn[T : FromRow] &QueryExecutor::fetch(
 ///|
 /// Execute a SELECT query and return exactly one row as `T`.
 ///
-/// Raises `NoRows` when the query returns zero rows.  The row is automatically
-/// drained and the connection is released back to the pool.
+/// Raises `NoRows` when the query returns zero rows.
 ///
-/// # Example
-/// ```
-/// let user : User = pool.fetch_one("SELECT id, name FROM users WHERE id = $1", params=[&1])
-/// let count : Int = conn.fetch_one("SELECT COUNT(*) FROM users")
+/// ```moonbit nocheck
+/// let user : User = conn.fetch_one("SELECT id, name FROM users WHERE id = $1", params=[
+///   1,
+/// ])
 /// ```
 pub async fn[T : FromRow] &QueryExecutor::fetch_one(
   self : &QueryExecutor,
