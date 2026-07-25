@@ -2,6 +2,25 @@
 
 A pure MoonBit PostgreSQL client — wire protocol from scratch, zero C dependencies.
 
+## Features
+
+- **Pure MoonBit** — wire protocol (v3) over TCP, zero C dependencies, no libpq.
+- **Connection pool** — bounded pool with acquire/release, min-idle, idle-timeout, health check, background maintenance.
+- **Typed queries** — `fetch` / `fetch_one` with `FromRow` auto-map rows to structs or tuples.
+- **Parameterised** — `$1`-style placeholders via extended query protocol; `ToValue` trait for all base types + `Option<T>`.
+- **Codec-based** — per-PG-type codecs with OID dispatch; text and binary format transparently.
+- **Transactions** — `begin_tx` / `commit` / `rollback` + `begin_func` auto-commit/rollback.
+- **Async** — multiple connections run concurrently; slow queries never block others.
+- **COPY** — streaming bulk insert from iterators.
+- **LISTEN / NOTIFY** — async notification support.
+- **TLS** — `sslmode` support (disable, require, verify-ca, verify-full) with client certificates.
+
+## Install
+
+```bash
+moon add jaredzhou/moonpg
+```
+
 ## Quickstart
 
 ```moonbit nocheck
