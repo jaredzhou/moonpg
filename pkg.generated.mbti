@@ -265,6 +265,7 @@ pub impl ToValue for Double
 pub impl ToValue for String
 pub impl[T : ToValue] ToValue for T?
 pub impl ToValue for Bytes
+pub impl ToValue for @value.Value
 pub impl[T : ToValue] ToValue for Array[T]
 pub impl ToValue for Json
 pub impl ToValue for @decimal.Decimal

@@ -13,6 +13,16 @@ pub(all) struct Timestamp(Int64) derive(Eq, Debug)
 // ===========================================================================
 
 // ---------------------------------------------------------------------------
+// Value — identity
+// ---------------------------------------------------------------------------
+
+///|
+/// A `Value` is already a `Value`: pass through unchanged.
+pub impl ToValue for @value.Value with fn to_value(self) {
+  self
+}
+
+// ---------------------------------------------------------------------------
 // Int
 // ---------------------------------------------------------------------------
 
@@ -297,6 +307,15 @@ pub impl[T : FromValue] FromValue for Array[T] with fn from_value(
 // ===========================================================================
 // Tests
 // ===========================================================================
+
+///|
+test "to_value_value_identity" {
+  let v = @value.Value::String("hello")
+  let val = ToValue::to_value(v)
+  assert_eq(val, v)
+  let null_val = ToValue::to_value(@value.Value::Null)
+  assert_eq(null_val, @value.Value::Null)
+}
 
 ///|
 test "to_value_int" {
