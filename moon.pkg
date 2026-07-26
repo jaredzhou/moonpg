@@ -17,5 +17,5 @@ import {
 supported_targets = "+native"
 
 options(
-  "max-concurrent-tests": 1,
+  "max-concurrent-tests": 5,
 )

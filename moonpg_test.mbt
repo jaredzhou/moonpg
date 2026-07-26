@@ -8,22 +8,11 @@ let mt_conninfo : String = @env.get_env_var("PGCONN").unwrap_or(
 )
 
 ///|
-async fn mt_setup() -> Unit raise PgError {
+async fn mt_setup(name : String) -> Unit raise PgError {
   let c = connect(mt_conninfo)
   defer c.close()
-  let ddl =
-    #|CREATE TABLE IF NOT EXISTS moonpg_types (
-    #|  id         SERIAL PRIMARY KEY,
-    #|  i4         INTEGER       NOT NULL,
-    #|  i8         BIGINT        NOT NULL,
-    #|  f8         DOUBLE PRECISION NOT NULL,
-    #|  flag       BOOLEAN       NOT NULL,
-    #|  name       TEXT          NOT NULL,
-    #|  email      TEXT,
-    #|  js         JSONB,
-    #|  created_at TIMESTAMPTZ
-    #|)
-  c.execute("DROP TABLE IF EXISTS moonpg_types") |> ignore
+  let ddl = "CREATE TABLE \{name} (id SERIAL PRIMARY KEY, i4 INTEGER NOT NULL, i8 BIGINT NOT NULL, f8 DOUBLE PRECISION NOT NULL, flag BOOLEAN NOT NULL, name TEXT NOT NULL, email TEXT, js JSONB, created_at TIMESTAMPTZ)"
+  c.execute("DROP TABLE IF EXISTS \{name}") |> ignore
   c.execute(ddl) |> ignore
 }
 
@@ -33,16 +22,17 @@ async fn mt_setup() -> Unit raise PgError {
 
 ///|
 async test "debug_fresh_table_then_insert" {
-  mt_setup()
+  let tbl = "mt_debug_fresh_table_then_insert"
+  mt_setup(tbl)
   let c = connect(mt_conninfo)
   defer c.close()
   let r = c.execute(
-    "INSERT INTO moonpg_types (i4, i8, f8, flag, name, email) VALUES ($1, $2, $3, $4, $5, $6)",
+    "INSERT INTO \{tbl} (i4, i8, f8, flag, name, email) VALUES ($1, $2, $3, $4, $5, $6)",
     params=[42, 0L, 0.0, true, "alice", "a@b.com"],
   )
   assert_eq(r.affected_rows(), 1)
   r.close()
-  let rows = c.query("SELECT name FROM moonpg_types")
+  let rows = c.query("SELECT name FROM \{tbl}")
   assert_true(rows.has_next())
   let row = rows.get_row()
   let name : String = row.get(0)
@@ -52,7 +42,8 @@ async test "debug_fresh_table_then_insert" {
 
 ///|
 async test "execute_ddl_and_dml_with_params" {
-  mt_setup()
+  let tbl = "mt_execute_ddl_and_dml_with_params"
+  mt_setup(tbl)
   let conn = connect(mt_conninfo)
   defer conn.close()
 
@@ -64,17 +55,15 @@ async test "execute_ddl_and_dml_with_params" {
   let p_email : String = "alice@example.com"
   let r1 = conn.execute(
     (
-      #|INSERT INTO moonpg_types (i4, i8, f8, flag, name, email)
-      #|VALUES ($1, $2, $3, $4, $5, $6)
+      $|INSERT INTO \{tbl} (i4, i8, f8, flag, name, email)
+      $|VALUES ($1, $2, $3, $4, $5, $6)
     ),
     params=[p_i4, p_i8, p_f8, p_flag, p_name, p_email],
   )
   assert_eq(r1.affected_rows(), 1, msg="insert affected_rows")
   r1.close()
 
-  let rows = conn.query(
-    "SELECT i4, i8, f8, flag, name, email FROM moonpg_types",
-  )
+  let rows = conn.query("SELECT i4, i8, f8, flag, name, email FROM \{tbl}")
   if rows.has_next() {
     let row = rows.get_row()
     assert_eq(row.get_by_name("i4"), 42, msg="i4 round-trip")
@@ -96,17 +85,15 @@ async test "execute_ddl_and_dml_with_params" {
   rows.close()
 
   let p_flag_false : Bool = false
-  let r2 = conn.execute("UPDATE moonpg_types SET flag = $1", params=[
-    p_flag_false,
-  ])
+  let r2 = conn.execute("UPDATE \{tbl} SET flag = $1", params=[p_flag_false])
   assert_eq(r2.affected_rows(), 1, msg="update affected_rows")
   r2.close()
 
   let p_email_none : String? = None
   let r2b = conn.execute(
     (
-      #|INSERT INTO moonpg_types (i4, i8, f8, flag, name, email)
-      #|VALUES (1, 1, 1.0, true, 'no-email', $1)
+      $|INSERT INTO \{tbl} (i4, i8, f8, flag, name, email)
+      $|VALUES (1, 1, 1.0, true, 'no-email', $1)
     ),
     params=[p_email_none],
   )
@@ -114,27 +101,26 @@ async test "execute_ddl_and_dml_with_params" {
   r2b.close()
 
   let p_who : String = "alice"
-  let r3 = conn.execute("DELETE FROM moonpg_types WHERE name = $1", params=[
-    p_who,
-  ])
+  let r3 = conn.execute("DELETE FROM \{tbl} WHERE name = $1", params=[p_who])
   assert_eq(r3.affected_rows(), 1, msg="delete affected_rows")
   r3.close()
 }
 
 ///|
 async test "query_iterates_all_basic_types" {
-  mt_setup()
+  let tbl = "mt_query_iterates_all_basic_types"
+  mt_setup(tbl)
   let conn = connect(mt_conninfo)
   defer conn.close()
 
   conn.execute(
-    "INSERT INTO moonpg_types (i4, i8, f8, flag, name, email, js, created_at) VALUES (7, 1234567890123, 2.71828, true, 'bob', NULL, $1, $2)",
+    "INSERT INTO \{tbl} (i4, i8, f8, flag, name, email, js, created_at) VALUES (7, 1234567890123, 2.71828, true, 'bob', NULL, $1, $2)",
     params=["{\"k\":\"v\"}", "2024-01-01 00:00:00"],
   )
   |> ignore
 
   let rows = conn.query(
-    "SELECT id, i4, i8, f8, flag, name, email, js, created_at FROM moonpg_types",
+    "SELECT id, i4, i8, f8, flag, name, email, js, created_at FROM \{tbl}",
   )
 
   let collected : Array[
@@ -179,18 +165,17 @@ async test "query_iterates_all_basic_types" {
 
 ///|
 async test "get_by_name" {
-  mt_setup()
+  let tbl = "mt_get_by_name"
+  mt_setup(tbl)
   let conn = connect(mt_conninfo)
   defer conn.close()
 
   conn.execute(
-    "INSERT INTO moonpg_types (i4, i8, f8, flag, name, email) VALUES (-1, -9223372036854775808, -0.5, false, 'carol', 'c@x.io')",
+    "INSERT INTO \{tbl} (i4, i8, f8, flag, name, email) VALUES (-1, -9223372036854775808, -0.5, false, 'carol', 'c@x.io')",
   )
   |> ignore
 
-  let rows = conn.query(
-    "SELECT i4, i8, f8, flag, name, email FROM moonpg_types",
-  )
+  let rows = conn.query("SELECT i4, i8, f8, flag, name, email FROM \{tbl}")
 
   if rows.has_next() {
     let row = rows.get_row()
@@ -211,16 +196,17 @@ async test "get_by_name" {
 
 ///|
 async test "null_raises_for_basic_types" {
-  mt_setup()
+  let tbl = "mt_null_raises_for_basic_types"
+  mt_setup(tbl)
   let conn = connect(mt_conninfo)
   defer conn.close()
 
   conn.execute(
-    "INSERT INTO moonpg_types (i4, i8, f8, flag, name, email) VALUES (0, 0, 0.0, true, 'no-email', NULL)",
+    "INSERT INTO \{tbl} (i4, i8, f8, flag, name, email) VALUES (0, 0, 0.0, true, 'no-email', NULL)",
   )
   |> ignore
 
-  let rows = conn.query("SELECT email FROM moonpg_types")
+  let rows = conn.query("SELECT email FROM \{tbl}")
 
   if rows.has_next() {
     let row = rows.get_row()
@@ -240,14 +226,15 @@ async test "null_raises_for_basic_types" {
 
 ///|
 async test "unknown_column_raises" {
-  mt_setup()
+  let tbl = "mt_unknown_column_raises"
+  mt_setup(tbl)
   let conn = connect(mt_conninfo)
   defer conn.close()
   conn.execute(
-    "INSERT INTO moonpg_types (i4, i8, f8, flag, name, email) VALUES (1, 1, 1.0, true, 'd', NULL)",
+    "INSERT INTO \{tbl} (i4, i8, f8, flag, name, email) VALUES (1, 1, 1.0, true, 'd', NULL)",
   )
   |> ignore
-  let rows = conn.query("SELECT i4 FROM moonpg_types")
+  let rows = conn.query("SELECT i4 FROM \{tbl}")
 
   if rows.has_next() {
     let row = rows.get_row()
@@ -265,21 +252,22 @@ async test "unknown_column_raises" {
 
 ///|
 async test "iter_collects_multiple_rows" {
-  mt_setup()
+  let tbl = "mt_iter_collects_multiple_rows"
+  mt_setup(tbl)
   let conn = connect(mt_conninfo)
   defer conn.close()
 
   conn.execute(
     (
-      #|INSERT INTO moonpg_types (i4, i8, f8, flag, name, email)
-      #|VALUES (1, 1, 1.0, true,  'one',   NULL),
-      #|       (2, 2, 2.0, false, 'two',   NULL),
-      #|       (3, 3, 3.0, true,  'three', NULL)
+      $|INSERT INTO \{tbl} (i4, i8, f8, flag, name, email)
+      $|VALUES (1, 1, 1.0, true,  'one',   NULL),
+      $|       (2, 2, 2.0, false, 'two',   NULL),
+      $|       (3, 3, 3.0, true,  'three', NULL)
     ),
   )
   |> ignore
 
-  let rows = conn.query("SELECT name FROM moonpg_types ORDER BY i4")
+  let rows = conn.query("SELECT name FROM \{tbl} ORDER BY i4")
   let names : Array[String] = []
   while rows.has_next() {
     let row = rows.get_row()
@@ -299,19 +287,19 @@ async test "iter_collects_multiple_rows" {
 
 ///|
 async test "query_one_returns_single_row" {
-  mt_setup()
+  let tbl = "mt_query_one_returns_single_row"
+  mt_setup(tbl)
   let conn = connect(mt_conninfo)
   defer conn.close()
 
   conn.execute(
-    "INSERT INTO moonpg_types (i4, i8, f8, flag, name, email) VALUES (7, 7, 7.0, true, 'solo', NULL)",
+    "INSERT INTO \{tbl} (i4, i8, f8, flag, name, email) VALUES (7, 7, 7.0, true, 'solo', NULL)",
   )
   |> ignore
 
-  let row = conn.query_one(
-    "SELECT i4, name FROM moonpg_types WHERE name = $1",
-    params=["solo"],
-  )
+  let row = conn.query_one("SELECT i4, name FROM \{tbl} WHERE name = $1", params=[
+    "solo",
+  ])
   let i4 : Int = row.get(0)
   let name : String = row.get(1)
   assert_eq(i4, 7, msg="query_one i4")
@@ -320,11 +308,12 @@ async test "query_one_returns_single_row" {
 
 ///|
 async test "query_one_raises_when_no_match" {
-  mt_setup()
+  let tbl = "mt_query_one_raises_when_no_match"
+  mt_setup(tbl)
   let conn = connect(mt_conninfo)
   defer conn.close()
   try {
-    let _ = conn.query_one("SELECT i4 FROM moonpg_types WHERE name = $1", params=[
+    let _ = conn.query_one("SELECT i4 FROM \{tbl} WHERE name = $1", params=[
       "ghost",
     ])
     fail("expected query_one on empty table to raise")
@@ -339,20 +328,21 @@ async test "query_one_raises_when_no_match" {
 
 ///|
 async test "query_one_returns_first_when_multiple_match" {
-  mt_setup()
+  let tbl = "mt_query_one_returns_first_when_multiple_match"
+  mt_setup(tbl)
   let conn = connect(mt_conninfo)
   defer conn.close()
 
   conn.execute(
-    "INSERT INTO moonpg_types (i4, i8, f8, flag, name, email) VALUES (1, 1, 1.0, true, 'first', NULL)",
+    "INSERT INTO \{tbl} (i4, i8, f8, flag, name, email) VALUES (1, 1, 1.0, true, 'first', NULL)",
   )
   |> ignore
   conn.execute(
-    "INSERT INTO moonpg_types (i4, i8, f8, flag, name, email) VALUES (2, 2, 2.0, false, 'second', NULL)",
+    "INSERT INTO \{tbl} (i4, i8, f8, flag, name, email) VALUES (2, 2, 2.0, false, 'second', NULL)",
   )
   |> ignore
 
-  let row = conn.query_one("SELECT name FROM moonpg_types ORDER BY i4")
+  let row = conn.query_one("SELECT name FROM \{tbl} ORDER BY i4")
   let name : String = row.get(0)
   assert_eq(name, "first", msg="query_one returns first row by ORDER BY")
 }
@@ -363,7 +353,8 @@ async test "query_one_returns_first_when_multiple_match" {
 
 ///|
 async test "text_round_trips_utf8" {
-  mt_setup()
+  let tbl = "mt_text_round_trips_utf8"
+  mt_setup(tbl)
   let conn = connect(mt_conninfo)
   defer conn.close()
 
@@ -371,15 +362,15 @@ async test "text_round_trips_utf8" {
   let p_email : String = "café@exämple.日本"
   let r = conn.execute(
     (
-      #|INSERT INTO moonpg_types (i4, i8, f8, flag, name, email)
-      #|VALUES (0, 0, 0.0, true, $1, $2)
+      $|INSERT INTO \{tbl} (i4, i8, f8, flag, name, email)
+      $|VALUES (0, 0, 0.0, true, $1, $2)
     ),
     params=[p_name, p_email],
   )
   assert_eq(r.affected_rows(), 1, msg="utf8 insert affected_rows")
   r.close()
 
-  let rows = conn.query("SELECT name, email FROM moonpg_types")
+  let rows = conn.query("SELECT name, email FROM \{tbl}")
 
   if rows.has_next() {
     let row = rows.get_row()
