@@ -925,3 +925,115 @@ async test "async_all_interleaves_array" {
     assert_true(b_ms.val < a_ms.val, msg="B=\{b_ms.val} A=\{a_ms.val}")
   }
 }
+
+// ===========================================================================
+// Array type roundtrip
+// ===========================================================================
+
+///|
+async test "array_int4_roundtrip" {
+  let tbl = "t_arr_int4"
+  let c = connect(test_conninfo)
+  c.execute("DROP TABLE IF EXISTS \{tbl}") |> ignore
+  c.execute("CREATE TABLE \{tbl} (id SERIAL PRIMARY KEY, vals INTEGER[])")
+  |> ignore
+  c.execute("INSERT INTO \{tbl} (vals) VALUES ($1)", params=[[1, 2, 3, 42, -5]])
+  |> ignore
+  let rows = c.query("SELECT vals FROM \{tbl} ORDER BY id")
+  assert_true(rows.has_next(), msg="expected at least one row")
+  let row = rows.get_row()
+  let vals : Array[Int] = row.get(0)
+  assert_eq(vals.length(), 5)
+  assert_eq(vals[0], 1)
+  assert_eq(vals[1], 2)
+  assert_eq(vals[2], 3)
+  assert_eq(vals[3], 42)
+  assert_eq(vals[4], -5)
+  rows.close()
+  c.close()
+}
+
+///|
+async test "array_text_roundtrip" {
+  let tbl = "t_arr_text"
+  let c = connect(test_conninfo)
+  c.execute("DROP TABLE IF EXISTS \{tbl}") |> ignore
+  c.execute("CREATE TABLE \{tbl} (id SERIAL PRIMARY KEY, vals TEXT[])")
+  |> ignore
+  c.execute("INSERT INTO \{tbl} (vals) VALUES ($1)", params=[
+    ["hello", "world, with comma", "say \"quote\""],
+  ])
+  |> ignore
+  let rows = c.query("SELECT vals FROM \{tbl} ORDER BY id")
+  assert_true(rows.has_next(), msg="expected at least one row")
+  let row = rows.get_row()
+  let vals : Array[String] = row.get(0)
+  assert_eq(vals.length(), 3)
+  assert_eq(vals[0], "hello")
+  assert_eq(vals[1], "world, with comma")
+  assert_eq(vals[2], "say \"quote\"")
+  rows.close()
+  c.close()
+}
+
+///|
+async test "array_int4_with_null_elements" {
+  let tbl = "t_arr_nullable"
+  let c = connect(test_conninfo)
+  c.execute("DROP TABLE IF EXISTS \{tbl}") |> ignore
+  c.execute("CREATE TABLE \{tbl} (id SERIAL PRIMARY KEY, vals INTEGER[])")
+  |> ignore
+  let arr : Array[Int?] = [Some(1), None, Some(3)]
+  c.execute("INSERT INTO \{tbl} (vals) VALUES ($1)", params=[arr]) |> ignore
+  let rows = c.query("SELECT vals FROM \{tbl} ORDER BY id")
+  assert_true(rows.has_next(), msg="expected at least one row")
+  let row = rows.get_row()
+  let vals : Array[Int?] = row.get(0)
+  assert_eq(vals.length(), 3)
+  assert_eq(vals[0], Some(1))
+  assert_eq(vals[1], None)
+  assert_eq(vals[2], Some(3))
+  rows.close()
+  c.close()
+}
+
+///|
+async test "array_bool_roundtrip" {
+  let tbl = "t_arr_bool"
+  let c = connect(test_conninfo)
+  c.execute("DROP TABLE IF EXISTS \{tbl}") |> ignore
+  c.execute("CREATE TABLE \{tbl} (id SERIAL PRIMARY KEY, vals BOOLEAN[])")
+  |> ignore
+  c.execute("INSERT INTO \{tbl} (vals) VALUES ($1)", params=[
+    [true, false, true],
+  ])
+  |> ignore
+  let rows = c.query("SELECT vals FROM \{tbl} ORDER BY id")
+  assert_true(rows.has_next(), msg="expected at least one row")
+  let row = rows.get_row()
+  let vals : Array[Bool] = row.get(0)
+  assert_eq(vals.length(), 3)
+  assert_eq(vals[0], true)
+  assert_eq(vals[1], false)
+  assert_eq(vals[2], true)
+  rows.close()
+  c.close()
+}
+
+///|
+async test "array_empty" {
+  let tbl = "t_arr_empty"
+  let c = connect(test_conninfo)
+  c.execute("DROP TABLE IF EXISTS \{tbl}") |> ignore
+  c.execute("CREATE TABLE \{tbl} (id SERIAL PRIMARY KEY, vals INTEGER[])")
+  |> ignore
+  let arr : Array[Int] = []
+  c.execute("INSERT INTO \{tbl} (vals) VALUES ($1)", params=[arr]) |> ignore
+  let rows = c.query("SELECT vals FROM \{tbl} ORDER BY id")
+  assert_true(rows.has_next(), msg="expected at least one row")
+  let row = rows.get_row()
+  let vals : Array[Int] = row.get(0)
+  assert_eq(vals.length(), 0)
+  rows.close()
+  c.close()
+}

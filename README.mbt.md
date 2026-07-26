@@ -200,7 +200,7 @@ try {
 ```moonbit nocheck
 // ToValue — MoonBit → PostgreSQL
 // Built-in impls: Int, Int64, Double, Bool, String, Bytes, Json,
-//                 Timestamp, Decimal, UUID, Option<T>
+//                 Timestamp, Decimal, UUID, Option<T>, Array<T>
 let params = [42, 3.14, true, "hello", None] // None → SQL NULL
 conn.execute("INSERT INTO t (a, b, c, d, e) VALUES ($1, $2, $3, $4, $5)", params=params)
 
@@ -211,6 +211,15 @@ let b : String? = row.get(1)        // nullable: NULL → None
 let c : Bool = row.get_by_name("c") // by column name
 let d : Json = row.get(3)           // jsonb → Json
 let e : Timestamp = row.get(4)      // timestamptz → Unix µs
+
+// Arrays — PostgreSQL array columns
+conn.execute(
+  "INSERT INTO items (tags) VALUES ($1)",
+  params=[["red", "green", "blue"]],
+) |> ignore
+let row2 = conn.query_one("SELECT tags FROM items")
+let tags : Array[String] = row2.get(0)       // strict: no NULL elements
+let tags2 : Array[String?] = row2.get(0)     // nullable: NULL elements → None
 
 // Custom impl
 impl ToValue for MyType with fn to_value(self) -> Value {

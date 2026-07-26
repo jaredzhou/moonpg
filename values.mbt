@@ -114,6 +114,19 @@ pub impl ToValue for Timestamp with fn to_value(self) {
   @value.Value::Timestamp(self.0)
 }
 
+// ---------------------------------------------------------------------------
+// Array[T]
+// ---------------------------------------------------------------------------
+
+///|
+pub impl[T : ToValue] ToValue for Array[T] with fn to_value(self) {
+  let arr : Array[@value.Value] = []
+  for i = 0; i < self.length(); i = i + 1 {
+    arr.push(self[i].to_value())
+  }
+  @value.Value::Array(arr)
+}
+
 // ===========================================================================
 // FromValue impls
 // ===========================================================================
@@ -258,6 +271,26 @@ pub impl FromValue for Timestamp with fn from_value(v : @value.Value) {
   match v {
     @value.Value::Timestamp(u) => Timestamp(u)
     _ => raise ValueError::ValueError("expected Value::Timestamp")
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Array[T]
+// ---------------------------------------------------------------------------
+
+///|
+pub impl[T : FromValue] FromValue for Array[T] with fn from_value(
+  v : @value.Value,
+) {
+  match v {
+    @value.Value::Array(arr) => {
+      let result : Array[T] = []
+      for i = 0; i < arr.length(); i = i + 1 {
+        result.push(T::from_value(arr[i]))
+      }
+      result
+    }
+    _ => raise ValueError::ValueError("expected Value::Array")
   }
 }
 
@@ -530,4 +563,126 @@ test "bool_from_value_mismatch" {
     }
   }
   assert_true(ok)
+}
+
+// --- Array roundtrip ---
+
+///|
+test "array_to_value_int" {
+  let arr : Array[Int] = [1, 2, 3]
+  let val = ToValue::to_value(arr)
+  match val {
+    @value.Value::Array(vals) => {
+      assert_eq(vals.length(), 3)
+      assert_eq(vals[0], @value.Value::Int(1))
+      assert_eq(vals[1], @value.Value::Int(2))
+      assert_eq(vals[2], @value.Value::Int(3))
+    }
+    _ => fail("expected Value::Array")
+  }
+}
+
+///|
+test "array_from_value_int" {
+  let val = @value.Value::Array([
+    @value.Value::Int(1),
+    @value.Value::Int(2),
+    @value.Value::Int(3),
+  ])
+  let arr : Array[Int] = FromValue::from_value(val)
+  assert_eq(arr.length(), 3)
+  assert_eq(arr[0], 1)
+  assert_eq(arr[1], 2)
+  assert_eq(arr[2], 3)
+}
+
+///|
+test "array_to_value_int_nullable" {
+  let arr : Array[Int?] = [Some(1), None, Some(3)]
+  let val = ToValue::to_value(arr)
+  match val {
+    @value.Value::Array(vals) => {
+      assert_eq(vals.length(), 3)
+      assert_eq(vals[0], @value.Value::Int(1))
+      assert_eq(vals[1], @value.Value::Null)
+      assert_eq(vals[2], @value.Value::Int(3))
+    }
+    _ => fail("expected Value::Array")
+  }
+}
+
+///|
+test "array_from_value_int_nullable" {
+  let val = @value.Value::Array([
+    @value.Value::Int(1),
+    @value.Value::Null,
+    @value.Value::Int(3),
+  ])
+  let arr : Array[Int?] = FromValue::from_value(val)
+  assert_eq(arr.length(), 3)
+  assert_eq(arr[0], Some(1))
+  assert_eq(arr[1], None)
+  assert_eq(arr[2], Some(3))
+}
+
+///|
+test "array_to_value_bool" {
+  let arr : Array[Bool] = [true, false, true]
+  let val = ToValue::to_value(arr)
+  match val {
+    @value.Value::Array(vals) => {
+      assert_eq(vals.length(), 3)
+      assert_eq(vals[0], @value.Value::Bool(true))
+      assert_eq(vals[1], @value.Value::Bool(false))
+      assert_eq(vals[2], @value.Value::Bool(true))
+    }
+    _ => fail("expected Value::Array")
+  }
+}
+
+///|
+test "array_from_value_string" {
+  let val = @value.Value::Array([
+    @value.Value::String("hello"),
+    @value.Value::String("world"),
+  ])
+  let arr : Array[String] = FromValue::from_value(val)
+  assert_eq(arr.length(), 2)
+  assert_eq(arr[0], "hello")
+  assert_eq(arr[1], "world")
+}
+
+///|
+test "array_from_value_requires_non_null" {
+  let val = @value.Value::Array([
+    @value.Value::Int(1),
+    @value.Value::Null,
+    @value.Value::Int(3),
+  ])
+  let mut ok = false
+  let _ = FromValue::from_value(val) catch {
+    _ => {
+      ok = true
+      ([] : Array[Int])
+    }
+  }
+  assert_true(ok)
+}
+
+///|
+test "array_from_value_empty" {
+  let val = @value.Value::Array([])
+  let arr : Array[Int] = FromValue::from_value(val)
+  assert_eq(arr.length(), 0)
+}
+
+///|
+test "array_roundtrip_string" {
+  let orig : Array[String] = ["hello", "moonbit", "world"]
+  let val = ToValue::to_value(orig)
+  let back : Array[String] = FromValue::from_value(val)
+  assert_eq(back.length(), 3)
+  assert_eq(back[0], "hello")
+  assert_eq(back[1], "moonbit")
+  assert_eq(back[2], "world")
 }

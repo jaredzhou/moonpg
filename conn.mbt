@@ -492,6 +492,13 @@ fn encode_copy_text(v : @value.Value) -> String {
     @value.Value::Bytes(v) => "\\\\x" + encode_hex(v)
     @value.Value::Timestamp(u) => u.to_string()
     @value.Value::Json(j) => escape_copy_string(j.stringify())
+    @value.Value::Array(arr) => {
+      let parts : Array[String] = []
+      for i = 0; i < arr.length(); i = i + 1 {
+        parts.push(encode_copy_text(arr[i]))
+      }
+      "{" + parts.join(",") + "}"
+    }
   }
 }
 
