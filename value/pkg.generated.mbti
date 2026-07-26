@@ -25,6 +25,7 @@ pub(all) enum Value {
   Bytes(Bytes)
   Timestamp(Int64)
   Json(Json)
+  Array(Array[Value])
 } derive(Eq, @debug.Debug)
 
 // Type aliases

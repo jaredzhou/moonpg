@@ -235,6 +235,7 @@ pub impl FromValue for Double
 pub impl FromValue for String
 pub impl[T : FromValue] FromValue for T?
 pub impl FromValue for Bytes
+pub impl[T : FromValue] FromValue for Array[T]
 pub impl FromValue for Json
 pub impl FromValue for @decimal.Decimal
 pub impl FromValue for @uuid.UUID
@@ -264,6 +265,7 @@ pub impl ToValue for Double
 pub impl ToValue for String
 pub impl[T : ToValue] ToValue for T?
 pub impl ToValue for Bytes
+pub impl[T : ToValue] ToValue for Array[T]
 pub impl ToValue for Json
 pub impl ToValue for @decimal.Decimal
 pub impl ToValue for @uuid.UUID

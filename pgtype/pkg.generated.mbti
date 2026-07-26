@@ -272,6 +272,11 @@ pub(all) suberror CodecError {
 } derive(@debug.Debug)
 
 // Types and methods
+pub struct ArrayCodec {
+  elem_type : Type
+}
+pub fn ArrayCodec::new(Type) -> Self
+
 pub struct BoolCodec {
 }
 
