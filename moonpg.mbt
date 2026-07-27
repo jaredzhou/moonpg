@@ -43,7 +43,7 @@ pub(all) suberror ValueError {
 ///   ...
 /// }
 /// ```
-pub(open) trait ToValue {
+pub(open) trait ToValue: Debug {
   fn to_value(Self) -> @value.Value
 }
 
@@ -61,7 +61,7 @@ pub(open) trait ToValue {
 ///   }
 /// }
 /// ```
-pub(open) trait FromValue {
+pub(open) trait FromValue: Debug {
   fn from_value(@value.Value) -> Self raise ValueError
 }
 

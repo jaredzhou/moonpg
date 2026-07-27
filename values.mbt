@@ -717,3 +717,76 @@ test "array_roundtrip_string" {
   assert_eq(back[1], "moonbit")
   assert_eq(back[2], "world")
 }
+
+// ===========================================================================
+// Debug tests — ToValue : Debug + FromValue : Debug
+// ===========================================================================
+
+///|
+test "debug_to_value_int" {
+  debug_inspect(42, content="42")
+}
+
+///|
+test "debug_to_value_bool" {
+  debug_inspect(true, content="true")
+}
+
+///|
+test "debug_to_value_double" {
+  debug_inspect(3.14, content="3.14")
+}
+
+///|
+test "debug_to_value_int64" {
+  debug_inspect(42L, content="42")
+}
+
+///|
+test "debug_to_value_string" {
+  debug_inspect("hello", content="\"hello\"")
+}
+
+///|
+test "debug_to_value_option_some" {
+  debug_inspect(Some(42), content="Some(42)")
+}
+
+///|
+test "debug_to_value_option_none" {
+  debug_inspect((None : Int?), content="None")
+}
+
+///|
+test "debug_to_value_null" {
+  debug_inspect(null, content="Null")
+}
+
+///|
+test "debug_to_value_timestamp" {
+  let v = Timestamp(1720528496000000L)
+  debug_inspect(v, content="Timestamp(1720528496000000)")
+}
+
+///|
+test "debug_to_value_array" {
+  debug_inspect([1, 2, 3], content="[1, 2, 3]")
+}
+
+///|
+test "debug_from_value_int" {
+  let v : Int = FromValue::from_value(@value.Value::Int(42))
+  debug_inspect(v, content="42")
+}
+
+///|
+test "debug_from_value_bool" {
+  let v : Bool = FromValue::from_value(@value.Value::Bool(true))
+  debug_inspect(v, content="true")
+}
+
+///|
+test "debug_from_value_option_null" {
+  let v : Int? = FromValue::from_value(@value.Value::Null)
+  debug_inspect(v, content="None")
+}

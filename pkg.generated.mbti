@@ -21,6 +21,8 @@ pub async fn connect(String) -> Connection raise PgError
 
 pub fn get_env(String) -> String
 
+pub let null : @value.Value
+
 pub fn row_from_raw(Array[Bytes?], Array[@wire.FieldDescription]) -> Row
 
 // Errors
@@ -225,7 +227,7 @@ pub impl[A : FromValue, B : FromValue, C : FromValue, D : FromValue, E : FromVal
 pub impl[A : FromValue, B : FromValue, C : FromValue, D : FromValue, E : FromValue, F : FromValue, G : FromValue, H : FromValue, I : FromValue] FromRow for (A, B, C, D, E, F, G, H, I)
 pub impl[A : FromValue, B : FromValue, C : FromValue, D : FromValue, E : FromValue, F : FromValue, G : FromValue, H : FromValue, I : FromValue, J : FromValue] FromRow for (A, B, C, D, E, F, G, H, I, J)
 
-pub(open) trait FromValue {
+pub(open) trait FromValue : @debug.Debug {
   fn from_value(@value.Value) -> Self raise ValueError
 }
 pub impl FromValue for Bool
@@ -255,10 +257,9 @@ pub(open) trait Rows {
   async fn close(Self) -> Unit raise PgError
 }
 
-pub(open) trait ToValue {
+pub(open) trait ToValue : @debug.Debug {
   fn to_value(Self) -> @value.Value
 }
-pub impl ToValue for Unit
 pub impl ToValue for Bool
 pub impl ToValue for Int
 pub impl ToValue for Int64
