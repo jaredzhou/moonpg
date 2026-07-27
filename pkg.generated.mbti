@@ -258,6 +258,7 @@ pub(open) trait Rows {
 pub(open) trait ToValue {
   fn to_value(Self) -> @value.Value
 }
+pub impl ToValue for Unit
 pub impl ToValue for Bool
 pub impl ToValue for Int
 pub impl ToValue for Int64

@@ -171,9 +171,8 @@ async test "execute_with_params_nullable_none" {
   let c = connect(test_conninfo)
   c.execute("DROP TABLE IF EXISTS \{tbl}") |> ignore
   c.execute("CREATE TABLE \{tbl} (id SERIAL PRIMARY KEY, email TEXT)") |> ignore
-  let email_none : String? = None
   let r = c.execute("INSERT INTO \{tbl} (email) VALUES ($1)", params=[
-    email_none,
+    (None : String?),
   ])
   assert_eq(r.affected_rows(), 1)
   r.close()

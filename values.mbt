@@ -86,6 +86,20 @@ pub impl ToValue for Json with fn to_value(self) {
 }
 
 // ---------------------------------------------------------------------------
+// Unit — enables inline `None` in params arrays
+// ---------------------------------------------------------------------------
+
+///|
+/// Enables `None` as an inline parameter value (e.g. `params=[None, 42]`).
+///
+/// When the compiler cannot infer the type of a bare `None`, it defaults the
+/// type variable to `Unit`.  This impl satisfies the `ToValue` bound so that
+/// `None : Unit?` can be converted to `&ToValue` and ultimately to SQL NULL.
+pub impl ToValue for Unit with fn to_value(_self) {
+  @value.Value::Null
+}
+
+// ---------------------------------------------------------------------------
 // Option[T] — nullable
 // ---------------------------------------------------------------------------
 
