@@ -61,7 +61,7 @@ pub(open) trait ToValue: Debug {
 ///   }
 /// }
 /// ```
-pub(open) trait FromValue: Debug {
+pub(open) trait FromValue {
   fn from_value(@value.Value) -> Self raise ValueError
 }
 
