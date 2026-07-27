@@ -227,7 +227,7 @@ pub impl[A : FromValue, B : FromValue, C : FromValue, D : FromValue, E : FromVal
 pub impl[A : FromValue, B : FromValue, C : FromValue, D : FromValue, E : FromValue, F : FromValue, G : FromValue, H : FromValue, I : FromValue] FromRow for (A, B, C, D, E, F, G, H, I)
 pub impl[A : FromValue, B : FromValue, C : FromValue, D : FromValue, E : FromValue, F : FromValue, G : FromValue, H : FromValue, I : FromValue, J : FromValue] FromRow for (A, B, C, D, E, F, G, H, I, J)
 
-pub(open) trait FromValue : @debug.Debug {
+pub(open) trait FromValue {
   fn from_value(@value.Value) -> Self raise ValueError
 }
 pub impl FromValue for Bool

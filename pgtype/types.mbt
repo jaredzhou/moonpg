@@ -458,6 +458,396 @@ pub let datemultirange_array_oid : Int = 6155
 pub let int8multirange_array_oid : Int = 6157
 
 // ===========================================================================
+// Type name constants — for use when referencing PG types by name
+// ===========================================================================
+
+///|
+/// Base type names
+pub let text_name : String = "text"
+
+///|
+pub let varchar_name : String = "varchar"
+
+///|
+pub let bpchar_name : String = "bpchar"
+
+///|
+pub let name_name : String = "name"
+
+///|
+pub let unknown_name : String = "unknown"
+
+///|
+pub let bool_name : String = "bool"
+
+///|
+pub let int8_name : String = "int8"
+
+///|
+pub let int2_name : String = "int2"
+
+///|
+pub let int4_name : String = "int4"
+
+///|
+pub let float4_name : String = "float4"
+
+///|
+pub let float8_name : String = "float8"
+
+///|
+pub let bytea_name : String = "bytea"
+
+///|
+pub let json_name : String = "json"
+
+///|
+pub let jsonb_name : String = "jsonb"
+
+///|
+pub let timestamp_name : String = "timestamp"
+
+///|
+pub let timestamptz_name : String = "timestamptz"
+
+///|
+pub let char_name : String = "char"
+
+///|
+pub let oid_name : String = "oid"
+
+///|
+pub let tid_name : String = "tid"
+
+///|
+pub let xid_name : String = "xid"
+
+///|
+pub let cid_name : String = "cid"
+
+///|
+pub let xml_name : String = "xml"
+
+///|
+pub let point_name : String = "point"
+
+///|
+pub let lseg_name : String = "lseg"
+
+///|
+pub let path_name : String = "path"
+
+///|
+pub let box_name : String = "box"
+
+///|
+pub let polygon_name : String = "polygon"
+
+///|
+pub let line_name : String = "line"
+
+///|
+pub let cidr_name : String = "cidr"
+
+///|
+pub let circle_name : String = "circle"
+
+///|
+pub let macaddr8_name : String = "macaddr8"
+
+///|
+pub let macaddr_name : String = "macaddr"
+
+///|
+pub let inet_name : String = "inet"
+
+///|
+pub let aclitem_name : String = "aclitem"
+
+///|
+pub let date_name : String = "date"
+
+///|
+pub let time_name : String = "time"
+
+///|
+pub let interval_name : String = "interval"
+
+///|
+pub let timetz_name : String = "timetz"
+
+///|
+pub let bit_name : String = "bit"
+
+///|
+pub let varbit_name : String = "varbit"
+
+///|
+pub let numeric_name : String = "numeric"
+
+///|
+pub let record_name : String = "record"
+
+///|
+pub let uuid_name : String = "uuid"
+
+///|
+pub let tsvector_name : String = "tsvector"
+
+///|
+pub let jsonpath_name : String = "jsonpath"
+
+///|
+pub let xid8_name : String = "xid8"
+
+///|
+/// Range type names
+pub let int4range_name : String = "int4range"
+
+///|
+pub let numrange_name : String = "numrange"
+
+///|
+pub let tsrange_name : String = "tsrange"
+
+///|
+pub let tstzrange_name : String = "tstzrange"
+
+///|
+pub let daterange_name : String = "daterange"
+
+///|
+pub let int8range_name : String = "int8range"
+
+///|
+/// Multirange type names
+pub let int4multirange_name : String = "int4multirange"
+
+///|
+pub let nummultirange_name : String = "nummultirange"
+
+///|
+pub let tsmultirange_name : String = "tsmultirange"
+
+///|
+pub let tstzmultirange_name : String = "tstzmultirange"
+
+///|
+pub let datemultirange_name : String = "datemultirange"
+
+///|
+pub let int8multirange_name : String = "int8multirange"
+
+///|
+/// Array type names (internal PG prefix convention: `_type`)
+pub let _bool_name : String = "_bool"
+
+///|
+pub let _int4_name : String = "_int4"
+
+///|
+pub let _text_name : String = "_text"
+
+///|
+pub let _varchar_name : String = "_varchar"
+
+///|
+pub let _float4_name : String = "_float4"
+
+///|
+pub let _float8_name : String = "_float8"
+
+///|
+pub let _timestamp_name : String = "_timestamp"
+
+///|
+pub let _timestamptz_name : String = "_timestamptz"
+
+///|
+pub let _uuid_name : String = "_uuid"
+
+///|
+pub let _json_name : String = "_json"
+
+///|
+pub let _jsonb_name : String = "_jsonb"
+
+///|
+pub let _bytea_name : String = "_bytea"
+
+///|
+pub let _char_name : String = "_char"
+
+///|
+pub let _name_name : String = "_name"
+
+///|
+pub let _int2_name : String = "_int2"
+
+///|
+pub let _int8_name : String = "_int8"
+
+///|
+pub let _numeric_name : String = "_numeric"
+
+///|
+pub let _date_name : String = "_date"
+
+///|
+pub let _time_name : String = "_time"
+
+///|
+pub let _timetz_name : String = "_timetz"
+
+///|
+pub let _interval_name : String = "_interval"
+
+///|
+pub let _bit_name : String = "_bit"
+
+///|
+pub let _varbit_name : String = "_varbit"
+
+///|
+pub let _record_name : String = "_record"
+
+///|
+pub let _tid_name : String = "_tid"
+
+///|
+pub let _xid_name : String = "_xid"
+
+///|
+pub let _cid_name : String = "_cid"
+
+///|
+pub let _oid_name : String = "_oid"
+
+///|
+pub let _aclitem_name : String = "_aclitem"
+
+///|
+pub let _bpchar_name : String = "_bpchar"
+
+///|
+pub let _point_name : String = "_point"
+
+///|
+pub let _lseg_name : String = "_lseg"
+
+///|
+pub let _path_name : String = "_path"
+
+///|
+pub let _box_name : String = "_box"
+
+///|
+pub let _polygon_name : String = "_polygon"
+
+///|
+pub let _line_name : String = "_line"
+
+///|
+pub let _circle_name : String = "_circle"
+
+///|
+pub let _macaddr_name : String = "_macaddr"
+
+///|
+pub let _inet_name : String = "_inet"
+
+///|
+pub let _tsvector_name : String = "_tsvector"
+
+///|
+pub let _xml_name : String = "_xml"
+
+///|
+pub let _jsonpath_name : String = "_jsonpath"
+
+///|
+pub let _xid8_name : String = "_xid8"
+
+///|
+pub let _daterange_name : String = "_daterange"
+
+///|
+pub let _int4range_name : String = "_int4range"
+
+///|
+pub let _numrange_name : String = "_numrange"
+
+///|
+pub let _tsrange_name : String = "_tsrange"
+
+///|
+pub let _tstzrange_name : String = "_tstzrange"
+
+///|
+pub let _int8range_name : String = "_int8range"
+
+///|
+pub let _int4multirange_name : String = "_int4multirange"
+
+///|
+pub let _nummultirange_name : String = "_nummultirange"
+
+///|
+pub let _tsmultirange_name : String = "_tsmultirange"
+
+///|
+pub let _tstzmultirange_name : String = "_tstzmultirange"
+
+///|
+pub let _datemultirange_name : String = "_datemultirange"
+
+///|
+pub let _int8multirange_name : String = "_int8multirange"
+
+// ===========================================================================
+// information_schema.data_type name constants (dt_ prefix)
+// ===========================================================================
+
+///|
+pub let dt_integer : String = "integer"
+
+///|
+pub let dt_bigint : String = "bigint"
+
+///|
+pub let dt_smallint : String = "smallint"
+
+///|
+pub let dt_boolean : String = "boolean"
+
+///|
+pub let dt_character_varying : String = "character varying"
+
+///|
+pub let dt_character : String = "character"
+
+///|
+pub let dt_double_precision : String = "double precision"
+
+///|
+pub let dt_real : String = "real"
+
+///|
+pub let dt_timestamp_with_time_zone : String = "timestamp with time zone"
+
+///|
+pub let dt_timestamp_without_time_zone : String = "timestamp without time zone"
+
+///|
+pub let dt_time_with_time_zone : String = "time with time zone"
+
+///|
+pub let dt_time_without_time_zone : String = "time without time zone"
+
+///|
+pub let dt_ARRAY : String = "ARRAY"
+
+// ===========================================================================
 // Default type map
 // ===========================================================================
 
@@ -467,68 +857,68 @@ pub let int8multirange_array_oid : Int = 6157
 fn build_default_map() -> TypeMap {
   let m = TypeMap::new()
     // Base types — text family
-    .register("text", text_oid, text_codec)
-    .register("varchar", varchar_oid, text_codec)
-    .register("bpchar", bpchar_oid, text_codec)
-    .register("name", name_oid, text_codec)
-    .register("unknown", unknown_oid, text_codec)
+    .register(text_name, text_oid, text_codec)
+    .register(varchar_name, varchar_oid, text_codec)
+    .register(bpchar_name, bpchar_oid, text_codec)
+    .register(name_name, name_oid, text_codec)
+    .register(unknown_name, unknown_oid, text_codec)
     // Base types — typed codecs
-    .register("bool", bool_oid, bool_codec)
-    .register("int8", int8_oid, int8_codec)
-    .register("int2", int2_oid, int2_codec)
-    .register("int4", int4_oid, int4_codec)
-    .register("float4", float4_oid, float4_codec)
-    .register("float8", float8_oid, float8_codec)
-    .register("bytea", bytea_oid, bytea_codec)
-    .register("json", json_oid, json_codec)
-    .register("jsonb", jsonb_oid, jsonb_codec)
-    .register("timestamp", timestamp_oid, timestamp_codec)
-    .register("timestamptz", timestamptz_oid, timestamptz_codec)
+    .register(bool_name, bool_oid, bool_codec)
+    .register(int8_name, int8_oid, int8_codec)
+    .register(int2_name, int2_oid, int2_codec)
+    .register(int4_name, int4_oid, int4_codec)
+    .register(float4_name, float4_oid, float4_codec)
+    .register(float8_name, float8_oid, float8_codec)
+    .register(bytea_name, bytea_oid, bytea_codec)
+    .register(json_name, json_oid, json_codec)
+    .register(jsonb_name, jsonb_oid, jsonb_codec)
+    .register(timestamp_name, timestamp_oid, timestamp_codec)
+    .register(timestamptz_name, timestamptz_oid, timestamptz_codec)
     // Base types — text fallback (not yet implemented as dedicated codecs)
-    .register("char", char_oid, text_codec)
-    .register("oid", oid_oid, text_codec)
-    .register("tid", tid_oid, text_codec)
-    .register("xid", xid_oid, text_codec)
-    .register("cid", cid_oid, text_codec)
-    .register("xml", xml_oid, text_codec)
-    .register("point", point_oid, text_codec)
-    .register("lseg", lseg_oid, text_codec)
-    .register("path", path_oid, text_codec)
-    .register("box", box_oid, text_codec)
-    .register("polygon", polygon_oid, text_codec)
-    .register("line", line_oid, text_codec)
-    .register("cidr", cidr_oid, text_codec)
-    .register("circle", circle_oid, text_codec)
-    .register("macaddr8", macaddr8_oid, text_codec)
-    .register("macaddr", macaddr_oid, text_codec)
-    .register("inet", inet_oid, text_codec)
-    .register("aclitem", aclitem_oid, text_codec)
-    .register("date", date_oid, text_codec)
-    .register("time", time_oid, text_codec)
-    .register("interval", interval_oid, text_codec)
-    .register("timetz", timetz_oid, text_codec)
-    .register("bit", bit_oid, text_codec)
-    .register("varbit", varbit_oid, text_codec)
-    .register("numeric", numeric_oid, text_codec)
-    .register("record", record_oid, text_codec)
-    .register("uuid", uuid_oid, text_codec)
-    .register("tsvector", tsvector_oid, text_codec)
-    .register("jsonpath", jsonpath_oid, text_codec)
-    .register("xid8", xid8_oid, text_codec)
+    .register(char_name, char_oid, text_codec)
+    .register(oid_name, oid_oid, text_codec)
+    .register(tid_name, tid_oid, text_codec)
+    .register(xid_name, xid_oid, text_codec)
+    .register(cid_name, cid_oid, text_codec)
+    .register(xml_name, xml_oid, text_codec)
+    .register(point_name, point_oid, text_codec)
+    .register(lseg_name, lseg_oid, text_codec)
+    .register(path_name, path_oid, text_codec)
+    .register(box_name, box_oid, text_codec)
+    .register(polygon_name, polygon_oid, text_codec)
+    .register(line_name, line_oid, text_codec)
+    .register(cidr_name, cidr_oid, text_codec)
+    .register(circle_name, circle_oid, text_codec)
+    .register(macaddr8_name, macaddr8_oid, text_codec)
+    .register(macaddr_name, macaddr_oid, text_codec)
+    .register(inet_name, inet_oid, text_codec)
+    .register(aclitem_name, aclitem_oid, text_codec)
+    .register(date_name, date_oid, text_codec)
+    .register(time_name, time_oid, text_codec)
+    .register(interval_name, interval_oid, text_codec)
+    .register(timetz_name, timetz_oid, text_codec)
+    .register(bit_name, bit_oid, text_codec)
+    .register(varbit_name, varbit_oid, text_codec)
+    .register(numeric_name, numeric_oid, text_codec)
+    .register(record_name, record_oid, text_codec)
+    .register(uuid_name, uuid_oid, text_codec)
+    .register(tsvector_name, tsvector_oid, text_codec)
+    .register(jsonpath_name, jsonpath_oid, text_codec)
+    .register(xid8_name, xid8_oid, text_codec)
     // Range types
-    .register("int4range", int4range_oid, text_codec)
-    .register("numrange", numrange_oid, text_codec)
-    .register("tsrange", tsrange_oid, text_codec)
-    .register("tstzrange", tstzrange_oid, text_codec)
-    .register("daterange", daterange_oid, text_codec)
-    .register("int8range", int8range_oid, text_codec)
+    .register(int4range_name, int4range_oid, text_codec)
+    .register(numrange_name, numrange_oid, text_codec)
+    .register(tsrange_name, tsrange_oid, text_codec)
+    .register(tstzrange_name, tstzrange_oid, text_codec)
+    .register(daterange_name, daterange_oid, text_codec)
+    .register(int8range_name, int8range_oid, text_codec)
     // Multirange types
-    .register("int4multirange", int4multirange_oid, text_codec)
-    .register("nummultirange", nummultirange_oid, text_codec)
-    .register("tsmultirange", tsmultirange_oid, text_codec)
-    .register("tstzmultirange", tstzmultirange_oid, text_codec)
-    .register("datemultirange", datemultirange_oid, text_codec)
-    .register("int8multirange", int8multirange_oid, text_codec)
+    .register(int4multirange_name, int4multirange_oid, text_codec)
+    .register(nummultirange_name, nummultirange_oid, text_codec)
+    .register(tsmultirange_name, tsmultirange_oid, text_codec)
+    .register(tstzmultirange_name, tstzmultirange_oid, text_codec)
+    .register(datemultirange_name, datemultirange_oid, text_codec)
+    .register(int8multirange_name, int8multirange_oid, text_codec)
   // Array types — all wired to element codecs
   m
   .register(
@@ -807,19 +1197,19 @@ fn build_default_map() -> TypeMap {
     ArrayCodec::new(m.type_for_oid(int8multirange_oid).unwrap()),
   )
   // information_schema.data_type aliases
-  .register_data_type("integer", int4_oid)
-  .register_data_type("bigint", int8_oid)
-  .register_data_type("smallint", int2_oid)
-  .register_data_type("boolean", bool_oid)
-  .register_data_type("character varying", varchar_oid)
-  .register_data_type("character", bpchar_oid)
-  .register_data_type("double precision", float8_oid)
-  .register_data_type("real", float4_oid)
-  .register_data_type("timestamp with time zone", timestamptz_oid)
-  .register_data_type("timestamp without time zone", timestamp_oid)
-  .register_data_type("time with time zone", timetz_oid)
-  .register_data_type("time without time zone", time_oid)
-  .register_data_type("ARRAY", record_oid)
+  .register_data_type(dt_integer, int4_oid)
+  .register_data_type(dt_bigint, int8_oid)
+  .register_data_type(dt_smallint, int2_oid)
+  .register_data_type(dt_boolean, bool_oid)
+  .register_data_type(dt_character_varying, varchar_oid)
+  .register_data_type(dt_character, bpchar_oid)
+  .register_data_type(dt_double_precision, float8_oid)
+  .register_data_type(dt_real, float4_oid)
+  .register_data_type(dt_timestamp_with_time_zone, timestamptz_oid)
+  .register_data_type(dt_timestamp_without_time_zone, timestamp_oid)
+  .register_data_type(dt_time_with_time_zone, timetz_oid)
+  .register_data_type(dt_time_without_time_zone, time_oid)
+  .register_data_type(dt_ARRAY, record_oid)
 }
 
 ///|
