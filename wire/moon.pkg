@@ -12,6 +12,7 @@ import {
   "moonbitlang/x/crypto",
   "moonbitlang/x/codec/base64",
   "jaredzhou/libs/url",
+  "jaredzhou/moonpg/pgtype",
 }
 
 supported_targets = "+native"

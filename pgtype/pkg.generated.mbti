@@ -8,11 +8,125 @@ import {
 }
 
 // Values
+pub let _aclitem_name : String
+
+pub let _bit_name : String
+
+pub let _bool_name : String
+
+pub let _box_name : String
+
+pub let _bpchar_name : String
+
+pub let _bytea_name : String
+
+pub let _char_name : String
+
+pub let _cid_name : String
+
+pub let _circle_name : String
+
+pub let _date_name : String
+
+pub let _datemultirange_name : String
+
+pub let _daterange_name : String
+
+pub let _float4_name : String
+
+pub let _float8_name : String
+
+pub let _inet_name : String
+
+pub let _int2_name : String
+
+pub let _int4_name : String
+
+pub let _int4multirange_name : String
+
+pub let _int4range_name : String
+
+pub let _int8_name : String
+
+pub let _int8multirange_name : String
+
+pub let _int8range_name : String
+
+pub let _interval_name : String
+
+pub let _json_name : String
+
+pub let _jsonb_name : String
+
+pub let _jsonpath_name : String
+
+pub let _line_name : String
+
+pub let _lseg_name : String
+
+pub let _macaddr_name : String
+
+pub let _name_name : String
+
+pub let _numeric_name : String
+
+pub let _nummultirange_name : String
+
+pub let _numrange_name : String
+
+pub let _oid_name : String
+
+pub let _path_name : String
+
+pub let _point_name : String
+
+pub let _polygon_name : String
+
+pub let _record_name : String
+
+pub let _text_name : String
+
+pub let _tid_name : String
+
+pub let _time_name : String
+
+pub let _timestamp_name : String
+
+pub let _timestamptz_name : String
+
+pub let _timetz_name : String
+
+pub let _tsmultirange_name : String
+
+pub let _tsrange_name : String
+
+pub let _tstzmultirange_name : String
+
+pub let _tstzrange_name : String
+
+pub let _tsvector_name : String
+
+pub let _uuid_name : String
+
+pub let _varbit_name : String
+
+pub let _varchar_name : String
+
+pub let _xid8_name : String
+
+pub let _xid_name : String
+
+pub let _xml_name : String
+
 pub let aclitem_array_oid : Int
+
+pub let aclitem_name : String
 
 pub let aclitem_oid : Int
 
 pub let bit_array_oid : Int
+
+pub let bit_name : String
 
 pub let bit_oid : Int
 
@@ -20,13 +134,19 @@ pub let bool_array_oid : Int
 
 pub let bool_codec : BoolCodec
 
+pub let bool_name : String
+
 pub let bool_oid : Int
 
 pub let box_array_oid : Int
 
+pub let box_name : String
+
 pub let box_oid : Int
 
 pub let bpchar_array_oid : Int
+
+pub let bpchar_name : String
 
 pub let bpchar_oid : Int
 
@@ -34,39 +154,83 @@ pub let bytea_array_oid : Int
 
 pub let bytea_codec : ByteaCodec
 
+pub let bytea_name : String
+
 pub let bytea_oid : Int
 
 pub let char_array_oid : Int
+
+pub let char_name : String
 
 pub let char_oid : Int
 
 pub let cid_array_oid : Int
 
+pub let cid_name : String
+
 pub let cid_oid : Int
+
+pub let cidr_name : String
 
 pub let cidr_oid : Int
 
 pub let circle_array_oid : Int
 
+pub let circle_name : String
+
 pub let circle_oid : Int
 
 pub let date_array_oid : Int
+
+pub let date_name : String
 
 pub let date_oid : Int
 
 pub let datemultirange_array_oid : Int
 
+pub let datemultirange_name : String
+
 pub let datemultirange_oid : Int
 
 pub let daterange_array_oid : Int
+
+pub let daterange_name : String
 
 pub let daterange_oid : Int
 
 pub let default_map : TypeMap
 
+pub let dt_ARRAY : String
+
+pub let dt_bigint : String
+
+pub let dt_boolean : String
+
+pub let dt_character : String
+
+pub let dt_character_varying : String
+
+pub let dt_double_precision : String
+
+pub let dt_integer : String
+
+pub let dt_real : String
+
+pub let dt_smallint : String
+
+pub let dt_time_with_time_zone : String
+
+pub let dt_time_without_time_zone : String
+
+pub let dt_timestamp_with_time_zone : String
+
+pub let dt_timestamp_without_time_zone : String
+
 pub let float4_array_oid : Int
 
 pub let float4_codec : Float4Codec
+
+pub let float4_name : String
 
 pub let float4_oid : Int
 
@@ -74,9 +238,13 @@ pub let float8_array_oid : Int
 
 pub let float8_codec : Float8Codec
 
+pub let float8_name : String
+
 pub let float8_oid : Int
 
 pub let inet_array_oid : Int
+
+pub let inet_name : String
 
 pub let inet_oid : Int
 
@@ -84,19 +252,27 @@ pub let int2_array_oid : Int
 
 pub let int2_codec : Int2Codec
 
+pub let int2_name : String
+
 pub let int2_oid : Int
 
 pub let int4_array_oid : Int
 
 pub let int4_codec : Int4Codec
 
+pub let int4_name : String
+
 pub let int4_oid : Int
 
 pub let int4multirange_array_oid : Int
 
+pub let int4multirange_name : String
+
 pub let int4multirange_oid : Int
 
 pub let int4range_array_oid : Int
+
+pub let int4range_name : String
 
 pub let int4range_oid : Int
 
@@ -104,17 +280,25 @@ pub let int8_array_oid : Int
 
 pub let int8_codec : Int8Codec
 
+pub let int8_name : String
+
 pub let int8_oid : Int
 
 pub let int8multirange_array_oid : Int
+
+pub let int8multirange_name : String
 
 pub let int8multirange_oid : Int
 
 pub let int8range_array_oid : Int
 
+pub let int8range_name : String
+
 pub let int8range_oid : Int
 
 pub let interval_array_oid : Int
+
+pub let interval_name : String
 
 pub let interval_oid : Int
 
@@ -122,33 +306,49 @@ pub let json_array_oid : Int
 
 pub let json_codec : JSONCodec
 
+pub let json_name : String
+
 pub let json_oid : Int
 
 pub let jsonb_array_oid : Int
 
 pub let jsonb_codec : JSONBCodec
 
+pub let jsonb_name : String
+
 pub let jsonb_oid : Int
 
 pub let jsonpath_array_oid : Int
+
+pub let jsonpath_name : String
 
 pub let jsonpath_oid : Int
 
 pub let line_array_oid : Int
 
+pub let line_name : String
+
 pub let line_oid : Int
 
 pub let lseg_array_oid : Int
 
+pub let lseg_name : String
+
 pub let lseg_oid : Int
+
+pub let macaddr8_name : String
 
 pub let macaddr8_oid : Int
 
 pub let macaddr_array_oid : Int
 
+pub let macaddr_name : String
+
 pub let macaddr_oid : Int
 
 pub let name_array_oid : Int
+
+pub let name_name : String
 
 pub let name_oid : Int
 
@@ -156,17 +356,25 @@ pub fn name_to_oid(String) -> Int
 
 pub let numeric_array_oid : Int
 
+pub let numeric_name : String
+
 pub let numeric_oid : Int
 
 pub let nummultirange_array_oid : Int
+
+pub let nummultirange_name : String
 
 pub let nummultirange_oid : Int
 
 pub let numrange_array_oid : Int
 
+pub let numrange_name : String
+
 pub let numrange_oid : Int
 
 pub let oid_array_oid : Int
+
+pub let oid_name : String
 
 pub let oid_oid : Int
 
@@ -174,17 +382,25 @@ pub fn oid_to_name(Int) -> String
 
 pub let path_array_oid : Int
 
+pub let path_name : String
+
 pub let path_oid : Int
 
 pub let point_array_oid : Int
+
+pub let point_name : String
 
 pub let point_oid : Int
 
 pub let polygon_array_oid : Int
 
+pub let polygon_name : String
+
 pub let polygon_oid : Int
 
 pub let record_array_oid : Int
+
+pub let record_name : String
 
 pub let record_oid : Int
 
@@ -192,13 +408,19 @@ pub let text_array_oid : Int
 
 pub let text_codec : TextCodec
 
+pub let text_name : String
+
 pub let text_oid : Int
 
 pub let tid_array_oid : Int
 
+pub let tid_name : String
+
 pub let tid_oid : Int
 
 pub let time_array_oid : Int
+
+pub let time_name : String
 
 pub let time_oid : Int
 
@@ -206,63 +428,93 @@ pub let timestamp_array_oid : Int
 
 pub let timestamp_codec : TimestampCodec
 
+pub let timestamp_name : String
+
 pub let timestamp_oid : Int
 
 pub let timestamptz_array_oid : Int
 
 pub let timestamptz_codec : TimestamptzCodec
 
+pub let timestamptz_name : String
+
 pub let timestamptz_oid : Int
 
 pub let timetz_array_oid : Int
+
+pub let timetz_name : String
 
 pub let timetz_oid : Int
 
 pub let tsmultirange_array_oid : Int
 
+pub let tsmultirange_name : String
+
 pub let tsmultirange_oid : Int
 
 pub let tsrange_array_oid : Int
+
+pub let tsrange_name : String
 
 pub let tsrange_oid : Int
 
 pub let tstzmultirange_array_oid : Int
 
+pub let tstzmultirange_name : String
+
 pub let tstzmultirange_oid : Int
 
 pub let tstzrange_array_oid : Int
+
+pub let tstzrange_name : String
 
 pub let tstzrange_oid : Int
 
 pub let tsvector_array_oid : Int
 
+pub let tsvector_name : String
+
 pub let tsvector_oid : Int
 
 pub fn type_for_data_type(String) -> Type?
+
+pub let unknown_name : String
 
 pub let unknown_oid : Int
 
 pub let uuid_array_oid : Int
 
+pub let uuid_name : String
+
 pub let uuid_oid : Int
 
 pub let varbit_array_oid : Int
+
+pub let varbit_name : String
 
 pub let varbit_oid : Int
 
 pub let varchar_array_oid : Int
 
+pub let varchar_name : String
+
 pub let varchar_oid : Int
 
 pub let xid8_array_oid : Int
+
+pub let xid8_name : String
 
 pub let xid8_oid : Int
 
 pub let xid_array_oid : Int
 
+pub let xid_name : String
+
 pub let xid_oid : Int
 
 pub let xml_array_oid : Int
+
+pub let xml_name : String
 
 pub let xml_oid : Int
 

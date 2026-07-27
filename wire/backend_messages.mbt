@@ -24,7 +24,7 @@ pub(all) struct FieldDescription {
 /// Looks up `type_oid` in the built-in OID map; returns `"unknown"` for
 /// unrecognised OIDs.  No database round-trip.
 pub fn FieldDescription::type_name(self : FieldDescription) -> String {
-  oid_to_name(self.type_oid)
+  @pgtype.oid_to_name(self.type_oid)
 }
 
 ///|

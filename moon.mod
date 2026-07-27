@@ -3,7 +3,7 @@
 
 name = "jaredzhou/moonpg"
 
-version = "0.8.10"
+version = "0.8.11"
 
 readme = "README.mbt.md"
 
