@@ -115,7 +115,7 @@ let id : Int = row.get(0)
 ```moonbit nocheck
 conn.execute(
   "UPDATE users SET email = $1 WHERE id = $2",
-  params=[None, 42],  // Option[T] → SQL NULL
+  params=[null, 42],  // null → SQL NULL
 ) |> ignore
 ```
 
@@ -201,7 +201,7 @@ try {
 // ToValue — MoonBit → PostgreSQL
 // Built-in impls: Int, Int64, Double, Bool, String, Bytes, Json,
 //                 Timestamp, Decimal, UUID, Option<T>, Array<T>
-let params = [42, 3.14, true, "hello", None] // None → SQL NULL
+let params = [42, 3.14, true, "hello", null] // null → SQL NULL
 conn.execute("INSERT INTO t (a, b, c, d, e) VALUES ($1, $2, $3, $4, $5)", params=params)
 
 // FromValue — PostgreSQL → MoonBit

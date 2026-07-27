@@ -86,18 +86,16 @@ pub impl ToValue for Json with fn to_value(self) {
 }
 
 // ---------------------------------------------------------------------------
-// Unit — enables inline `None` in params arrays
+// null — SQL NULL sentinel
 // ---------------------------------------------------------------------------
 
 ///|
-/// Enables `None` as an inline parameter value (e.g. `params=[None, 42]`).
+/// SQL NULL sentinel for use in parameter arrays.
 ///
-/// When the compiler cannot infer the type of a bare `None`, it defaults the
-/// type variable to `Unit`.  This impl satisfies the `ToValue` bound so that
-/// `None : Unit?` can be converted to `&ToValue` and ultimately to SQL NULL.
-pub impl ToValue for Unit with fn to_value(_self) {
-  @value.Value::Null
-}
+/// ```moonbit nocheck
+/// conn.execute("UPDATE t SET email = $1 WHERE id = $2", params=[null, 42])
+/// ```
+pub let null : @value.Value = @value.Value::Null
 
 // ---------------------------------------------------------------------------
 // Option[T] — nullable
