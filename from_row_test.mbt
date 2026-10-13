@@ -264,8 +264,7 @@ async test "fetch_connection_int" {
   fr_setup(tbl)
   let c = @moonpg.connect(fr_test_conninfo)
   c.execute("INSERT INTO \{tbl} (int_val) VALUES (1), (2), (3)") |> ignore
-  let vals : Array[Int32] = &QueryExecutor::fetch(
-    c,
+  let vals : Array[Int32] = c.fetch(
     "SELECT int_val FROM \{tbl} ORDER BY int_val",
   )
   assert_eq(vals.length(), 3)
@@ -280,10 +279,7 @@ async test "fetch_connection_empty" {
   let tbl = "fr_fetch_empty"
   fr_setup(tbl)
   let c = @moonpg.connect(fr_test_conninfo)
-  let vals : Array[Int32] = &QueryExecutor::fetch(
-    c,
-    "SELECT int_val FROM \{tbl}",
-  )
+  let vals : Array[Int32] = c.fetch("SELECT int_val FROM \{tbl}")
   assert_eq(vals.length(), 0)
   c.close()
 }
@@ -295,8 +291,7 @@ async test "fetch_one_connection" {
   let c = @moonpg.connect(fr_test_conninfo)
   c.execute("INSERT INTO \{tbl} (int_val, text_val) VALUES (42, 'answer')")
   |> ignore
-  let (n, s) : (Int32, String) = &QueryExecutor::fetch_one(
-    c,
+  let (n, s) : (Int32, String) = c.fetch_one(
     "SELECT int_val, text_val FROM \{tbl}",
   )
   assert_eq(n, 42)
@@ -310,7 +305,7 @@ async test "fetch_one_connection_no_rows" {
   fr_setup(tbl)
   let c = @moonpg.connect(fr_test_conninfo)
   try {
-    let _ : Int32 = &QueryExecutor::fetch_one(c, "SELECT int_val FROM \{tbl}")
+    let _ : Int32 = c.fetch_one("SELECT int_val FROM \{tbl}")
     fail("expected NoRows")
   } catch {
     e => assert_true(Repr(e).to_string().contains("NoRows"))
@@ -324,10 +319,7 @@ async test "fetch_one_connection_nullable_some" {
   fr_setup(tbl)
   let c = @moonpg.connect(fr_test_conninfo)
   c.execute("INSERT INTO \{tbl} (text_val) VALUES ('present')") |> ignore
-  let val : String? = &QueryExecutor::fetch_one(
-    c,
-    "SELECT text_val FROM \{tbl}",
-  )
+  let val : String? = c.fetch_one("SELECT text_val FROM \{tbl}")
   match val {
     Some(s) => assert_eq(s, "present")
     None => fail("expected Some")
@@ -341,10 +333,7 @@ async test "fetch_one_connection_nullable_none" {
   fr_setup(tbl)
   let c = @moonpg.connect(fr_test_conninfo)
   c.execute("INSERT INTO \{tbl} (text_val) VALUES (NULL)") |> ignore
-  let val : String? = &QueryExecutor::fetch_one(
-    c,
-    "SELECT text_val FROM \{tbl}",
-  )
+  let val : String? = c.fetch_one("SELECT text_val FROM \{tbl}")
   match val {
     Some(_) => fail("expected None")
     None => ()
@@ -364,8 +353,7 @@ async test "fetch_pool" {
     @moonpg.PoolConfig::new(fr_test_conninfo, max_conns=2),
   )
   pool.execute("INSERT INTO \{tbl} (int_val) VALUES (10), (20), (30)") |> ignore
-  let vals : Array[Int32] = &QueryExecutor::fetch(
-    pool,
+  let vals : Array[Int32] = pool.fetch(
     "SELECT int_val FROM \{tbl} ORDER BY int_val",
   )
   assert_eq(vals.length(), 3)
@@ -384,8 +372,7 @@ async test "fetch_one_pool" {
   )
   pool.execute("INSERT INTO \{tbl} (int_val, text_val) VALUES (7, 'pool_f1')")
   |> ignore
-  let (n, s) : (Int32, String) = &QueryExecutor::fetch_one(
-    pool,
+  let (n, s) : (Int32, String) = pool.fetch_one(
     "SELECT int_val, text_val FROM \{tbl}",
   )
   assert_eq(n, 7)
@@ -400,10 +387,7 @@ async test "fetch_pool_empty" {
   let pool = @moonpg.Pool::new(
     @moonpg.PoolConfig::new(fr_test_conninfo, max_conns=2),
   )
-  let vals : Array[String] = &QueryExecutor::fetch(
-    pool,
-    "SELECT text_val FROM \{tbl}",
-  )
+  let vals : Array[String] = pool.fetch("SELECT text_val FROM \{tbl}")
   assert_eq(vals.length(), 0)
   pool.close()
 }
@@ -421,8 +405,7 @@ async test "fetch_poolconn" {
   )
   let pc = pool.acquire()
   pc.execute("INSERT INTO \{tbl} (text_val) VALUES ('a'), ('b')") |> ignore
-  let vals : Array[String] = &QueryExecutor::fetch(
-    pc,
+  let vals : Array[String] = pc.fetch(
     "SELECT text_val FROM \{tbl} ORDER BY text_val",
   )
   assert_eq(vals.length(), 2)
@@ -441,7 +424,7 @@ async test "fetch_one_poolconn" {
   )
   let pc = pool.acquire()
   pc.execute("INSERT INTO \{tbl} (bool_val) VALUES (true)") |> ignore
-  let v : Bool = &QueryExecutor::fetch_one(pc, "SELECT bool_val FROM \{tbl}")
+  let v : Bool = pc.fetch_one("SELECT bool_val FROM \{tbl}")
   assert_eq(v, true)
   pc.close()
   pool.close()
@@ -465,8 +448,7 @@ async test "fetch_pooldbtx" {
     params=[1, 2],
   )
   |> ignore
-  let vals : Array[Int32] = &QueryExecutor::fetch(
-    tx,
+  let vals : Array[Int32] = tx.fetch(
     "SELECT int_val FROM \{tbl} ORDER BY int_val",
   )
   assert_eq(vals.length(), 2)
@@ -490,7 +472,7 @@ async test "fetch_one_pooldbtx" {
     params=[99],
   )
   |> ignore
-  let v : Int32 = &QueryExecutor::fetch_one(tx, "SELECT int_val FROM \{tbl}")
+  let v : Int32 = tx.fetch_one("SELECT int_val FROM \{tbl}")
   assert_eq(v, 99)
   tx.rollback()
   pool.close()

@@ -580,6 +580,26 @@ pub async fn PoolConn::execute(
   self.conn.execute(sql, params?)
 }
 
+///|
+/// Dot-syntax convenience for `&QueryExecutor::fetch`.
+pub async fn[T : FromRow] PoolConn::fetch(
+  self : PoolConn,
+  sql : String,
+  params? : Array[&ToValue],
+) -> Array[T] raise PgError {
+  &QueryExecutor::fetch(self, sql, params?)
+}
+
+///|
+/// Dot-syntax convenience for `&QueryExecutor::fetch_one`.
+pub async fn[T : FromRow] PoolConn::fetch_one(
+  self : PoolConn,
+  sql : String,
+  params? : Array[&ToValue],
+) -> T raise PgError {
+  &QueryExecutor::fetch_one(self, sql, params?)
+}
+
 // ---------------------------------------------------------------------------
 // PoolDbTx — Tx that releases back to the pool on commit/rollback
 // ---------------------------------------------------------------------------
@@ -623,6 +643,26 @@ pub impl QueryExecutor for PoolDbTx with fn execute(
   params? : Array[&ToValue],
 ) -> ExecResult raise PgError {
   self.inner.execute(sql, params?)
+}
+
+///|
+/// Dot-syntax convenience for `&QueryExecutor::fetch`.
+pub async fn[T : FromRow] PoolDbTx::fetch(
+  self : PoolDbTx,
+  sql : String,
+  params? : Array[&ToValue],
+) -> Array[T] raise PgError {
+  &QueryExecutor::fetch(self, sql, params?)
+}
+
+///|
+/// Dot-syntax convenience for `&QueryExecutor::fetch_one`.
+pub async fn[T : FromRow] PoolDbTx::fetch_one(
+  self : PoolDbTx,
+  sql : String,
+  params? : Array[&ToValue],
+) -> T raise PgError {
+  &QueryExecutor::fetch_one(self, sql, params?)
 }
 
 ///|
@@ -723,4 +763,24 @@ pub impl QueryExecutor for Pool with fn execute(
   let result = pc.execute(sql, params?)
   pc.release()
   result
+}
+
+///|
+/// Dot-syntax convenience for `&QueryExecutor::fetch`.
+pub async fn[T : FromRow] Pool::fetch(
+  self : Pool,
+  sql : String,
+  params? : Array[&ToValue],
+) -> Array[T] raise PgError {
+  &QueryExecutor::fetch(self, sql, params?)
+}
+
+///|
+/// Dot-syntax convenience for `&QueryExecutor::fetch_one`.
+pub async fn[T : FromRow] Pool::fetch_one(
+  self : Pool,
+  sql : String,
+  params? : Array[&ToValue],
+) -> T raise PgError {
+  &QueryExecutor::fetch_one(self, sql, params?)
 }

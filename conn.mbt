@@ -433,6 +433,24 @@ pub impl QueryExecutor for Connection with fn execute(
 }
 
 ///|
+/// Dot-syntax convenience for `&QueryExecutor::fetch`.
+pub async fn[T : FromRow] Connection::fetch(
+  self : Connection,
+  sql : String,
+  params? : Array[&ToValue],
+) -> Array[T] raise PgError {
+  &QueryExecutor::fetch(self, sql, params?)
+}
+
+///|
+/// Dot-syntax convenience for `&QueryExecutor::fetch_one`.
+pub async fn[T : FromRow] Connection::fetch_one(
+  self : Connection,
+  sql : String,
+  params? : Array[&ToValue],
+) -> T raise PgError {
+  &QueryExecutor::fetch_one(self, sql, params?)
+}
 
 ///|
 /// Close the database connection.

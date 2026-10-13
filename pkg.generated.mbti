@@ -66,6 +66,8 @@ pub fn Connection::close(Self) -> Unit
 pub async fn Connection::copy_in(Self, String, Iter[String]) -> ExecResult raise PgError
 pub async fn Connection::deallocate(Self, String) -> Unit raise PgError
 pub async fn Connection::execute(Self, String, params? : Array[&ToValue]) -> ExecResult raise PgError
+pub async fn[T : FromRow] Connection::fetch(Self, String, params? : Array[&ToValue]) -> Array[T] raise PgError
+pub async fn[T : FromRow] Connection::fetch_one(Self, String, params? : Array[&ToValue]) -> T raise PgError
 pub fn Connection::is_closed(Self) -> Bool
 pub async fn[X] Connection::listen(Self, String, @async.TaskGroup[X]) -> Listener raise PgError
 pub async fn Connection::notify(Self, String, payload? : String) -> Unit raise PgError
@@ -90,6 +92,8 @@ pub(all) struct DbTx {
 }
 pub async fn DbTx::commit(Self) -> Unit raise PgError
 pub async fn DbTx::execute(Self, String, params? : Array[&ToValue]) -> ExecResult raise PgError
+pub async fn[T : FromRow] DbTx::fetch(Self, String, params? : Array[&ToValue]) -> Array[T] raise PgError
+pub async fn[T : FromRow] DbTx::fetch_one(Self, String, params? : Array[&ToValue]) -> T raise PgError
 pub async fn DbTx::query(Self, String, params? : Array[&ToValue]) -> &Rows raise PgError
 pub async fn DbTx::query_one(Self, String, params? : Array[&ToValue]) -> Row raise PgError
 pub async fn DbTx::rollback(Self) -> Unit raise PgError
@@ -139,6 +143,8 @@ pub async fn Pool::acquire(Self) -> PoolConn raise PgError
 pub async fn Pool::begin_tx(Self, opts? : TxOptions) -> &Tx raise PgError
 pub fn Pool::close(Self) -> Unit
 pub async fn Pool::execute(Self, String, params? : Array[&ToValue]) -> ExecResult raise PgError
+pub async fn[T : FromRow] Pool::fetch(Self, String, params? : Array[&ToValue]) -> Array[T] raise PgError
+pub async fn[T : FromRow] Pool::fetch_one(Self, String, params? : Array[&ToValue]) -> T raise PgError
 pub fn Pool::idle(Self) -> Int
 pub async fn Pool::maintain(Self) -> Unit
 pub async fn Pool::new(PoolConfig) -> Self raise PgError
@@ -171,6 +177,8 @@ pub(all) struct PoolConn {
 pub async fn PoolConn::begin_tx(Self, opts? : TxOptions) -> &Tx raise PgError
 pub fn PoolConn::close(Self) -> Unit
 pub async fn PoolConn::execute(Self, String, params? : Array[&ToValue]) -> ExecResult raise PgError
+pub async fn[T : FromRow] PoolConn::fetch(Self, String, params? : Array[&ToValue]) -> Array[T] raise PgError
+pub async fn[T : FromRow] PoolConn::fetch_one(Self, String, params? : Array[&ToValue]) -> T raise PgError
 pub async fn PoolConn::query(Self, String, params? : Array[&ToValue]) -> &Rows raise PgError
 pub async fn PoolConn::query_one(Self, String, params? : Array[&ToValue]) -> Row raise PgError
 pub fn PoolConn::release(Self) -> Unit
@@ -184,6 +192,8 @@ pub(all) struct PoolDbTx {
 }
 pub async fn PoolDbTx::commit(Self) -> Unit raise PgError
 pub async fn PoolDbTx::execute(Self, String, params? : Array[&ToValue]) -> ExecResult raise PgError
+pub async fn[T : FromRow] PoolDbTx::fetch(Self, String, params? : Array[&ToValue]) -> Array[T] raise PgError
+pub async fn[T : FromRow] PoolDbTx::fetch_one(Self, String, params? : Array[&ToValue]) -> T raise PgError
 pub async fn PoolDbTx::query(Self, String, params? : Array[&ToValue]) -> &Rows raise PgError
 pub async fn PoolDbTx::query_one(Self, String, params? : Array[&ToValue]) -> Row raise PgError
 pub async fn PoolDbTx::rollback(Self) -> Unit raise PgError
@@ -318,6 +328,8 @@ pub(open) trait Tx : QueryExecutor {
   async fn commit(Self) -> Unit raise PgError
   async fn rollback(Self) -> Unit raise PgError
 }
+pub async fn[T : FromRow] &Tx::fetch(Self, String, params? : Array[&ToValue]) -> Array[T] raise PgError
+pub async fn[T : FromRow] &Tx::fetch_one(Self, String, params? : Array[&ToValue]) -> T raise PgError
 
 pub(open) trait TxBeginner {
   async fn begin_tx(Self, opts? : TxOptions) -> &Tx raise PgError

@@ -33,12 +33,12 @@ conn.execute(
 ) |> ignore
 
 // fetch — typed array of rows (auto-closes)
-let names : Array[String] = &QueryExecutor::fetch(conn, "SELECT name FROM users ORDER BY id")
-let count : Int = &QueryExecutor::fetch_one(conn, "SELECT COUNT(*) FROM users")
+let names : Array[String] = conn.fetch("SELECT name FROM users ORDER BY id")
+let count : Int = conn.fetch_one("SELECT COUNT(*) FROM users")
 
 // fetch with tuples
-let users : Array[(Int, String)] = &QueryExecutor::fetch(conn, "SELECT id, name FROM users")
-let (id, name) = &QueryExecutor::fetch_one(conn, "SELECT id, name FROM users WHERE id = $1", params=[1])
+let users : Array[(Int, String)] = conn.fetch("SELECT id, name FROM users")
+let (id, name) = conn.fetch_one("SELECT id, name FROM users WHERE id = $1", params=[1])
 
 // query — manual iteration (defer rows.close())
 let rows = conn.query("SELECT id, name FROM users")
@@ -56,18 +56,21 @@ while rows.has_next() {
 
 `fetch` and `fetch_one` collect rows into typed results and **auto-close** — no manual `rows.close()` or `defer` needed. They're the recommended way to read data.
 
+They're available directly on `Connection`, `Pool`, `PoolConn`, and `&Tx` (the type
+returned by `begin_tx`). The explicit `&QueryExecutor::fetch(x, ...)` form keeps working too.
+
 ```moonbit nocheck
 let conn = @moonpg.connect(conninfo)
 
 // Scalar
-let count : Int = &QueryExecutor::fetch_one(conn, "SELECT COUNT(*) FROM users")
+let count : Int = conn.fetch_one("SELECT COUNT(*) FROM users")
 
 // Nullable
-let email : String? = &QueryExecutor::fetch_one(conn, "SELECT email FROM users WHERE id = $1", params=[1])
+let email : String? = conn.fetch_one("SELECT email FROM users WHERE id = $1", params=[1])
 
 // Tuples — no struct needed
-let pairs : Array[(Int, String)] = &QueryExecutor::fetch(conn, "SELECT id, name FROM users")
-let (id, name, email) : (Int, String, String) = &QueryExecutor::fetch_one(conn,
+let pairs : Array[(Int, String)] = conn.fetch("SELECT id, name FROM users")
+let (id, name, email) : (Int, String, String) = conn.fetch_one(
   "SELECT id, name, email FROM users WHERE id = $1", params=[1],
 )
 
@@ -75,11 +78,7 @@ let (id, name, email) : (Int, String, String) = &QueryExecutor::fetch_one(conn,
 impl FromRow for User with fn from_row(r : Row) -> User raise PgError {
   User::{ id: r.get(0), name: r.get(1), email: r.get(2) }
 }
-let users : Array[User] = &QueryExecutor::fetch(conn, "SELECT id, name, email FROM users")
-// Or cast to &QueryExecutor for dot-syntax:
-let q : &QueryExecutor = conn
-let count : Int = q.fetch_one("SELECT COUNT(*) FROM users")
-let names : Array[String] = q.fetch("SELECT name FROM users")
+let users : Array[User] = conn.fetch("SELECT id, name, email FROM users")
 ```
 
 ### query / query_one
@@ -121,7 +120,7 @@ let pool = Pool::new(PoolConfig::new(
 ))
 
 // Auto-acquire + auto-release — fetch/rows.close() returns conn to pool
-let names : Array[String] = &QueryExecutor::fetch(pool, "SELECT name FROM users")
+let names : Array[String] = pool.fetch("SELECT name FROM users")
 pool.execute("INSERT INTO users (name) VALUES ($1)", params=["bob"]) |> ignore
 
 // Manual query with defer
@@ -159,14 +158,14 @@ let conn = @moonpg.connect(conninfo)
 // begin_func — auto-commit on success, auto-rollback on error
 let result = begin_func(conn, async fn(tx) {
   tx.execute("INSERT INTO users (name) VALUES ($1)", params=["alice"]) |> ignore
-  &QueryExecutor::fetch_one(tx, "SELECT id FROM users WHERE name = $1", params=["alice"])
+  tx.fetch_one("SELECT id FROM users WHERE name = $1", params=["alice"])
 })
 
 // Manual transaction — try { commit } catch { rollback }
 let tx = conn.begin_tx()
 try {
   tx.execute("UPDATE users SET name = $1 WHERE id = $2", params=["bob", 1]) |> ignore
-  let name : String = &QueryExecutor::fetch_one(tx, "SELECT name FROM users WHERE id = $1", params=[1])
+  let name : String = tx.fetch_one("SELECT name FROM users WHERE id = $1", params=[1])
   tx.commit()
 } catch {
   e => { tx.rollback(); raise e }
@@ -222,18 +221,18 @@ impl FromValue for MyType with fn from_value(v : Value) -> MyType raise ValueErr
 
 ```moonbit nocheck
 // Single-column rows: built-in impls for all FromValue types
-let count : Int = &QueryExecutor::fetch_one(conn, "SELECT COUNT(*) FROM users")
-let name : String? = &QueryExecutor::fetch_one(conn, "SELECT name FROM users WHERE id = $1", params=[1])
+let count : Int = conn.fetch_one("SELECT COUNT(*) FROM users")
+let name : String? = conn.fetch_one("SELECT name FROM users WHERE id = $1", params=[1])
 
 // Custom struct
 impl FromRow for User with fn from_row(r : Row) -> User raise PgError {
   User::{ id: r.get(0), name: r.get(1), email: r.get(2) }
 }
-let users : Array[User] = &QueryExecutor::fetch(conn, "SELECT id, name, email FROM users")
+let users : Array[User] = conn.fetch("SELECT id, name, email FROM users")
 
 // Tuple impls (2–10)
-let pairs : Array[(Int, String)] = &QueryExecutor::fetch(conn, "SELECT id, name FROM users")
-let (id, name, email) : (Int, String, String) = &QueryExecutor::fetch_one(conn,
+let pairs : Array[(Int, String)] = conn.fetch("SELECT id, name FROM users")
+let (id, name, email) : (Int, String, String) = conn.fetch_one(
   "SELECT id, name, email FROM users WHERE id = $1", params=[1],
 )
 ```

@@ -75,6 +75,49 @@ pub impl QueryExecutor for DbTx with fn execute(
 }
 
 ///|
+/// Dot-syntax convenience for `&QueryExecutor::fetch`.
+pub async fn[T : FromRow] DbTx::fetch(
+  self : DbTx,
+  sql : String,
+  params? : Array[&ToValue],
+) -> Array[T] raise PgError {
+  &QueryExecutor::fetch(self, sql, params?)
+}
+
+///|
+/// Dot-syntax convenience for `&QueryExecutor::fetch_one`.
+pub async fn[T : FromRow] DbTx::fetch_one(
+  self : DbTx,
+  sql : String,
+  params? : Array[&ToValue],
+) -> T raise PgError {
+  &QueryExecutor::fetch_one(self, sql, params?)
+}
+
+///|
+/// Dot-syntax convenience for `&QueryExecutor::fetch` on a transaction.
+///
+/// `TxBeginner::begin_tx` returns `&Tx`, so this is the form used for
+/// transactions obtained from a connection or pool.
+pub async fn[T : FromRow] &Tx::fetch(
+  self : &Tx,
+  sql : String,
+  params? : Array[&ToValue],
+) -> Array[T] raise PgError {
+  &QueryExecutor::fetch(self, sql, params?)
+}
+
+///|
+/// Dot-syntax convenience for `&QueryExecutor::fetch_one` on a transaction.
+pub async fn[T : FromRow] &Tx::fetch_one(
+  self : &Tx,
+  sql : String,
+  params? : Array[&ToValue],
+) -> T raise PgError {
+  &QueryExecutor::fetch_one(self, sql, params?)
+}
+
+///|
 pub impl Tx for DbTx with fn commit(self : DbTx) -> Unit raise PgError {
   Connection::execute(self.conn, "COMMIT") |> ignore
 }
