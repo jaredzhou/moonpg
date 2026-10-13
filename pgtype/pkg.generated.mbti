@@ -522,6 +522,7 @@ pub let xml_oid : Int
 pub(all) suberror CodecError {
   CodecError(String)
 } derive(@debug.Debug)
+pub fn CodecError::to_repr(Self) -> @debug.Repr
 
 // Types and methods
 pub struct ArrayCodec {

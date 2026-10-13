@@ -238,7 +238,7 @@ fn scan_value(s : StringView) -> (String, StringView) raise WireError {
 ///
 /// Backslash escapes the next character (`\'` → `'`, `\\` → `\`).
 fn scan_quoted(s : StringView) -> (String, StringView) raise WireError {
-  let buf = StringBuilder::new()
+  let buf = StringBuilder()
   for rest = s[1:] {
     match rest {
       ['\'', .. rest] => return (buf.to_string(), rest)
@@ -260,7 +260,7 @@ fn scan_quoted(s : StringView) -> (String, StringView) raise WireError {
 ///
 /// Backslash escapes the next character.
 fn scan_bare(s : StringView) -> (String, StringView) {
-  let buf = StringBuilder::new()
+  let buf = StringBuilder()
   for rest = s {
     match rest {
       [' ' | '\t' | '\n' | '\r', .. rest] => return (buf.to_string(), rest)

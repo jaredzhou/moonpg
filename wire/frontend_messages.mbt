@@ -141,7 +141,7 @@ pub impl Message for SASLInitialResponse with fn decode(payload) -> SASLInitialR
     }
     data[0:resp_len].to_owned()
   } else {
-    Bytes::default()
+    Default::default()
   }
   { mechanism, initial_response, }
 }
@@ -739,3 +739,57 @@ pub impl Message for CopyFail with fn decode(_payload) -> CopyFail raise WireErr
 pub impl Message for CopyFail with fn describe(_self) -> String {
   "CopyFail"
 }
+
+///|
+pub extend Bind with Message::{encode, decode, describe}
+
+///|
+pub extend Close with Message::{encode, decode, describe}
+
+///|
+pub extend CopyData with Message::{encode, decode, describe}
+
+///|
+pub extend CopyDone with Message::{encode, decode, describe}
+
+///|
+pub extend CopyFail with Message::{encode, decode, describe}
+
+///|
+pub extend Describe with Message::{encode, decode, describe}
+
+///|
+pub extend ErrorField with Debug::{to_repr}
+
+///|
+pub extend Execute with Message::{encode, decode, describe}
+
+///|
+pub extend Flush with Message::{encode, decode, describe}
+
+///|
+pub extend Parse with Message::{encode, decode, describe}
+
+///|
+pub extend PasswordMessage with Message::{encode, decode, describe}
+
+///|
+pub extend Query with Message::{encode, decode, describe}
+
+///|
+pub extend SASLInitialResponse with Message::{encode, decode, describe}
+
+///|
+pub extend SASLResponse with Message::{encode, decode, describe}
+
+///|
+pub extend SSLRequest with Message::{encode, decode, describe}
+
+///|
+pub extend StartupMessage with Message::{encode, decode, describe}
+
+///|
+pub extend Sync with Message::{encode, decode, describe}
+
+///|
+pub extend Terminate with Message::{encode, decode, describe}

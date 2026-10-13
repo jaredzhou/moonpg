@@ -514,7 +514,7 @@ fn format_tstz_text(usec : Int64) -> String {
 /// Parse timestamp without timezone text to microseconds since Unix epoch.
 fn parse_ts_text(s : String) -> Int64 raise CodecError {
   let iso = s.replace(old=" ", new="T")
-  let pdt = @time.PlainDateTime::from_str(iso) catch {
+  let pdt : @time.PlainDateTime = @string.FromStr::from_str(iso) catch {
     _ => raise CodecError::CodecError("invalid timestamp text")
   }
   pdt.to_unix_second() * 1_000_000L + pdt.nanosecond().to_int64() / 1000L
@@ -525,7 +525,7 @@ fn parse_ts_text(s : String) -> Int64 raise CodecError {
 fn parse_tstz_text(s : String) -> Int64 raise CodecError {
   let (body, tz_offset_usec) = split_tz_offset(s)
   let iso = body.replace(old=" ", new="T")
-  let pdt = @time.PlainDateTime::from_str(iso) catch {
+  let pdt : @time.PlainDateTime = @string.FromStr::from_str(iso) catch {
     _ => raise CodecError::CodecError("invalid timestamptz text")
   }
   (pdt.to_unix_second() - tz_offset_usec / 1_000_000L) * 1_000_000L +

@@ -544,3 +544,18 @@ pub fn get_env(name : String) -> String {
     None => ""
   }
 }
+
+///|
+pub extend ConnRows with Rows::{has_next, close, get_row, columns}
+
+///|
+pub extend ConnStatus with Debug::{to_repr}
+
+///|
+pub extend ConnStatus with Eq::{not_equal, equal}
+
+///|
+pub extend Connection with Closer::{close}
+
+///|
+pub extend Connection with QueryExecutor::{execute, query, query_one}

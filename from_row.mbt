@@ -250,3 +250,6 @@ pub impl[
     r.get(9),
   )
 }
+
+///|
+pub extend Timestamp with FromRow::{from_row}

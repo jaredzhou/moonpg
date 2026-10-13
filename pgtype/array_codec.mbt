@@ -44,9 +44,7 @@ impl Codec for ArrayCodec with fn encode(
                   elem_oid,
                   @value.Format::Text,
                   elem,
-                ) catch {
-                  e => raise e
-                }
+                )
                 match encoded {
                   None => parts.push("NULL")
                   Some(bytes) => {
@@ -106,9 +104,7 @@ impl Codec for ArrayCodec with fn decode(
                   elem_oid,
                   @value.Format::Text,
                   Some(elem_bytes),
-                ) catch {
-                  e => raise e
-                }
+                )
                 result.push(val)
               }
             }

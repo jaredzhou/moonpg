@@ -119,40 +119,64 @@ pub(all) enum AuthMethod {
   SASLContinue
   SASLFinal
 } derive(Eq, @debug.Debug)
+pub fn AuthMethod::equal(Self, Self) -> Bool
 pub fn AuthMethod::from_int(Int) -> Self raise WireError
+pub fn AuthMethod::not_equal(Self, Self) -> Bool
+pub fn AuthMethod::to_repr(Self) -> @debug.Repr
 
 pub(all) struct AuthenticationCleartextPassword {
 }
+pub fn AuthenticationCleartextPassword::decode(BytesView) -> Self raise WireError
+pub fn AuthenticationCleartextPassword::describe(Self) -> String
+pub fn AuthenticationCleartextPassword::encode(Self) -> Bytes raise WireError
 pub impl Message for AuthenticationCleartextPassword
 
 pub(all) struct AuthenticationMD5Password {
   salt : Bytes
 }
+pub fn AuthenticationMD5Password::decode(BytesView) -> Self raise WireError
+pub fn AuthenticationMD5Password::describe(Self) -> String
+pub fn AuthenticationMD5Password::encode(Self) -> Bytes raise WireError
 pub impl Message for AuthenticationMD5Password
 
 pub(all) struct AuthenticationOk {
 }
+pub fn AuthenticationOk::decode(BytesView) -> Self raise WireError
+pub fn AuthenticationOk::describe(Self) -> String
+pub fn AuthenticationOk::encode(Self) -> Bytes raise WireError
 pub impl Message for AuthenticationOk
 
 pub(all) struct AuthenticationSASL {
   mechanisms : Array[String]
 }
+pub fn AuthenticationSASL::decode(BytesView) -> Self raise WireError
+pub fn AuthenticationSASL::describe(Self) -> String
+pub fn AuthenticationSASL::encode(Self) -> Bytes raise WireError
 pub impl Message for AuthenticationSASL
 
 pub(all) struct AuthenticationSASLContinue {
   data : Bytes
 }
+pub fn AuthenticationSASLContinue::decode(BytesView) -> Self raise WireError
+pub fn AuthenticationSASLContinue::describe(Self) -> String
+pub fn AuthenticationSASLContinue::encode(Self) -> Bytes raise WireError
 pub impl Message for AuthenticationSASLContinue
 
 pub(all) struct AuthenticationSASLFinal {
   data : Bytes
 }
+pub fn AuthenticationSASLFinal::decode(BytesView) -> Self raise WireError
+pub fn AuthenticationSASLFinal::describe(Self) -> String
+pub fn AuthenticationSASLFinal::encode(Self) -> Bytes raise WireError
 pub impl Message for AuthenticationSASLFinal
 
 pub(all) struct BackendKeyData {
   pid : Int
   secret_key : Int
 }
+pub fn BackendKeyData::decode(BytesView) -> Self raise WireError
+pub fn BackendKeyData::describe(Self) -> String
+pub fn BackendKeyData::encode(Self) -> Bytes raise WireError
 pub impl Message for BackendKeyData
 
 pub(all) enum BackendMessage {
@@ -195,10 +219,16 @@ pub(all) struct Bind {
   params : Array[Bytes?]
   result_formats : Array[Int]
 }
+pub fn Bind::decode(BytesView) -> Self raise WireError
+pub fn Bind::describe(Self) -> String
+pub fn Bind::encode(Self) -> Bytes raise WireError
 pub impl Message for Bind
 
 pub(all) struct BindComplete {
 }
+pub fn BindComplete::decode(BytesView) -> Self raise WireError
+pub fn BindComplete::describe(Self) -> String
+pub fn BindComplete::encode(Self) -> Bytes raise WireError
 pub impl Message for BindComplete
 
 pub(all) struct BytesMut {
@@ -218,15 +248,24 @@ pub(all) struct Close {
   variant : Byte
   name : String
 }
+pub fn Close::decode(BytesView) -> Self raise WireError
+pub fn Close::describe(Self) -> String
+pub fn Close::encode(Self) -> Bytes raise WireError
 pub impl Message for Close
 
 pub(all) struct CloseComplete {
 }
+pub fn CloseComplete::decode(BytesView) -> Self raise WireError
+pub fn CloseComplete::describe(Self) -> String
+pub fn CloseComplete::encode(Self) -> Bytes raise WireError
 pub impl Message for CloseComplete
 
 pub(all) struct CommandComplete {
   tag : CommandTag
 }
+pub fn CommandComplete::decode(BytesView) -> Self raise WireError
+pub fn CommandComplete::describe(Self) -> String
+pub fn CommandComplete::encode(Self) -> Bytes raise WireError
 pub impl Message for CommandComplete
 
 pub struct CommandTag {
@@ -234,8 +273,10 @@ pub struct CommandTag {
 }
 pub fn CommandTag::command(Self) -> String
 pub fn CommandTag::new(String) -> Self
+pub fn CommandTag::output(Self, &Logger) -> Unit
 pub fn CommandTag::raw(Self) -> String
 pub fn CommandTag::rows_affected(Self) -> Int?
+pub fn CommandTag::to_string(Self) -> String
 pub impl Show for CommandTag
 
 pub(all) struct Config {
@@ -269,63 +310,97 @@ pub enum ConnStatus {
   Idle
   Busy
 } derive(Eq, @debug.Debug)
+pub fn ConnStatus::equal(Self, Self) -> Bool
+pub fn ConnStatus::not_equal(Self, Self) -> Bool
+pub fn ConnStatus::to_repr(Self) -> @debug.Repr
 
 pub(all) struct CopyBothResponse {
   overall_format : Int
   column_formats : Array[Int]
 }
+pub fn CopyBothResponse::decode(BytesView) -> Self raise WireError
+pub fn CopyBothResponse::describe(Self) -> String
+pub fn CopyBothResponse::encode(Self) -> Bytes raise WireError
 pub impl Message for CopyBothResponse
 
 pub(all) struct CopyData {
   data : Bytes
 }
+pub fn CopyData::decode(BytesView) -> Self raise WireError
+pub fn CopyData::describe(Self) -> String
+pub fn CopyData::encode(Self) -> Bytes raise WireError
 pub impl Message for CopyData
 
 pub(all) struct CopyDone {
 }
+pub fn CopyDone::decode(BytesView) -> Self raise WireError
+pub fn CopyDone::describe(Self) -> String
+pub fn CopyDone::encode(Self) -> Bytes raise WireError
 pub impl Message for CopyDone
 
 pub(all) struct CopyFail {
   message : String
 }
+pub fn CopyFail::decode(BytesView) -> Self raise WireError
+pub fn CopyFail::describe(Self) -> String
+pub fn CopyFail::encode(Self) -> Bytes raise WireError
 pub impl Message for CopyFail
 
 pub(all) struct CopyInResponse {
   overall_format : Int
   column_formats : Array[Int]
 }
+pub fn CopyInResponse::decode(BytesView) -> Self raise WireError
+pub fn CopyInResponse::describe(Self) -> String
+pub fn CopyInResponse::encode(Self) -> Bytes raise WireError
 pub impl Message for CopyInResponse
 
 pub(all) struct CopyOutResponse {
   overall_format : Int
   column_formats : Array[Int]
 }
+pub fn CopyOutResponse::decode(BytesView) -> Self raise WireError
+pub fn CopyOutResponse::describe(Self) -> String
+pub fn CopyOutResponse::encode(Self) -> Bytes raise WireError
 pub impl Message for CopyOutResponse
 
 pub(all) struct DataRow {
   values : Array[Bytes?]
 }
+pub fn DataRow::decode(BytesView) -> Self raise WireError
+pub fn DataRow::describe(Self) -> String
+pub fn DataRow::encode(Self) -> Bytes raise WireError
 pub impl Message for DataRow
 
 pub(all) struct Describe {
   variant : Byte
   name : String
 }
+pub fn Describe::decode(BytesView) -> Self raise WireError
+pub fn Describe::describe(Self) -> String
+pub fn Describe::encode(Self) -> Bytes raise WireError
 pub impl Message for Describe
 
 pub(all) struct EmptyQueryResponse {
 }
+pub fn EmptyQueryResponse::decode(BytesView) -> Self raise WireError
+pub fn EmptyQueryResponse::describe(Self) -> String
+pub fn EmptyQueryResponse::encode(Self) -> Bytes raise WireError
 pub impl Message for EmptyQueryResponse
 
 pub(all) struct ErrorField {
   field_type : Byte
   value : String
 } derive(@debug.Debug)
+pub fn ErrorField::to_repr(Self) -> @debug.Repr
 
 pub(all) struct ErrorResponse {
   fields : Array[ErrorField]
 }
 pub fn ErrorResponse::code(Self) -> String?
+pub fn ErrorResponse::decode(BytesView) -> Self raise WireError
+pub fn ErrorResponse::describe(Self) -> String
+pub fn ErrorResponse::encode(Self) -> Bytes raise WireError
 pub fn ErrorResponse::message(Self) -> String?
 pub fn ErrorResponse::severity(Self) -> String?
 pub impl Message for ErrorResponse
@@ -334,6 +409,9 @@ pub(all) struct Execute {
   portal : String
   max_rows : Int
 }
+pub fn Execute::decode(BytesView) -> Self raise WireError
+pub fn Execute::describe(Self) -> String
+pub fn Execute::encode(Self) -> Bytes raise WireError
 pub impl Message for Execute
 
 pub(all) struct FieldDescription {
@@ -349,21 +427,33 @@ pub fn FieldDescription::type_name(Self) -> String
 
 pub(all) struct Flush {
 }
+pub fn Flush::decode(BytesView) -> Self raise WireError
+pub fn Flush::describe(Self) -> String
+pub fn Flush::encode(Self) -> Bytes raise WireError
 pub impl Message for Flush
 
 pub(all) struct NegotiateProtocolVersion {
   newest_minor_version : Int
   options : Array[String]
 }
+pub fn NegotiateProtocolVersion::decode(BytesView) -> Self raise WireError
+pub fn NegotiateProtocolVersion::describe(Self) -> String
+pub fn NegotiateProtocolVersion::encode(Self) -> Bytes raise WireError
 pub impl Message for NegotiateProtocolVersion
 
 pub(all) struct NoData {
 }
+pub fn NoData::decode(BytesView) -> Self raise WireError
+pub fn NoData::describe(Self) -> String
+pub fn NoData::encode(Self) -> Bytes raise WireError
 pub impl Message for NoData
 
 pub(all) struct NoticeResponse {
   fields : Array[ErrorField]
 }
+pub fn NoticeResponse::decode(BytesView) -> Self raise WireError
+pub fn NoticeResponse::describe(Self) -> String
+pub fn NoticeResponse::encode(Self) -> Bytes raise WireError
 pub fn NoticeResponse::message(Self) -> String?
 pub impl Message for NoticeResponse
 
@@ -372,17 +462,26 @@ pub(all) struct NotificationResponse {
   channel : String
   payload : String
 }
+pub fn NotificationResponse::decode(BytesView) -> Self raise WireError
+pub fn NotificationResponse::describe(Self) -> String
+pub fn NotificationResponse::encode(Self) -> Bytes raise WireError
 pub impl Message for NotificationResponse
 
 pub(all) struct ParameterDescription {
   param_types : Array[Int]
 }
+pub fn ParameterDescription::decode(BytesView) -> Self raise WireError
+pub fn ParameterDescription::describe(Self) -> String
+pub fn ParameterDescription::encode(Self) -> Bytes raise WireError
 pub impl Message for ParameterDescription
 
 pub(all) struct ParameterStatus {
   name : String
   value : String
 }
+pub fn ParameterStatus::decode(BytesView) -> Self raise WireError
+pub fn ParameterStatus::describe(Self) -> String
+pub fn ParameterStatus::encode(Self) -> Bytes raise WireError
 pub impl Message for ParameterStatus
 
 pub(all) struct Parse {
@@ -390,31 +489,49 @@ pub(all) struct Parse {
   query : String
   param_types : Array[Int]
 }
+pub fn Parse::decode(BytesView) -> Self raise WireError
+pub fn Parse::describe(Self) -> String
+pub fn Parse::encode(Self) -> Bytes raise WireError
 pub impl Message for Parse
 
 pub(all) struct ParseComplete {
 }
+pub fn ParseComplete::decode(BytesView) -> Self raise WireError
+pub fn ParseComplete::describe(Self) -> String
+pub fn ParseComplete::encode(Self) -> Bytes raise WireError
 pub impl Message for ParseComplete
 
 pub(all) struct PasswordMessage {
   password : String
 }
+pub fn PasswordMessage::decode(BytesView) -> Self raise WireError
+pub fn PasswordMessage::describe(Self) -> String
+pub fn PasswordMessage::encode(Self) -> Bytes raise WireError
 pub impl Message for PasswordMessage
 
 pub(all) struct PortalSuspended {
 }
+pub fn PortalSuspended::decode(BytesView) -> Self raise WireError
+pub fn PortalSuspended::describe(Self) -> String
+pub fn PortalSuspended::encode(Self) -> Bytes raise WireError
 pub impl Message for PortalSuspended
 
 pub enum ProtocolVersion {
   V3_0
   V3_2
 } derive(Eq, @debug.Debug)
+pub fn ProtocolVersion::equal(Self, Self) -> Bool
 pub fn ProtocolVersion::minor(Self) -> Int
+pub fn ProtocolVersion::not_equal(Self, Self) -> Bool
 pub fn ProtocolVersion::to_int32(Self) -> Int
+pub fn ProtocolVersion::to_repr(Self) -> @debug.Repr
 
 pub(all) struct Query {
   sql : String
 }
+pub fn Query::decode(BytesView) -> Self raise WireError
+pub fn Query::describe(Self) -> String
+pub fn Query::encode(Self) -> Bytes raise WireError
 pub impl Message for Query
 
 pub struct RawConn {
@@ -465,6 +582,9 @@ pub fn RawConn::tx_status(Self) -> TransactionStatus
 pub(all) struct ReadyForQuery {
   status : TransactionStatus
 }
+pub fn ReadyForQuery::decode(BytesView) -> Self raise WireError
+pub fn ReadyForQuery::describe(Self) -> String
+pub fn ReadyForQuery::encode(Self) -> Bytes raise WireError
 pub impl Message for ReadyForQuery
 
 pub struct Result {
@@ -489,27 +609,42 @@ pub async fn ResultReader::read(Self) -> Result raise WireError
 pub(all) struct RowDescription {
   columns : Array[FieldDescription]
 }
+pub fn RowDescription::decode(BytesView) -> Self raise WireError
+pub fn RowDescription::describe(Self) -> String
+pub fn RowDescription::encode(Self) -> Bytes raise WireError
 pub impl Message for RowDescription
 
 pub(all) struct SASLInitialResponse {
   mechanism : String
   initial_response : Bytes
 }
+pub fn SASLInitialResponse::decode(BytesView) -> Self raise WireError
+pub fn SASLInitialResponse::describe(Self) -> String
+pub fn SASLInitialResponse::encode(Self) -> Bytes raise WireError
 pub impl Message for SASLInitialResponse
 
 pub(all) struct SASLResponse {
   data : Bytes
 }
+pub fn SASLResponse::decode(BytesView) -> Self raise WireError
+pub fn SASLResponse::describe(Self) -> String
+pub fn SASLResponse::encode(Self) -> Bytes raise WireError
 pub impl Message for SASLResponse
 
 pub(all) struct SSLRequest {
 }
+pub fn SSLRequest::decode(BytesView) -> Self raise WireError
+pub fn SSLRequest::describe(Self) -> String
+pub fn SSLRequest::encode(Self) -> Bytes raise WireError
 pub impl Message for SSLRequest
 
 pub(all) struct StartupMessage {
   version : ProtocolVersion
   params : Array[ConnParam]
 }
+pub fn StartupMessage::decode(BytesView) -> Self raise WireError
+pub fn StartupMessage::describe(Self) -> String
+pub fn StartupMessage::encode(Self) -> Bytes raise WireError
 pub impl Message for StartupMessage
 
 pub(all) struct StatementDescription {
@@ -523,16 +658,34 @@ pub(all) enum Stream {
   Plain(@socket.Tcp)
   Tls(@tls.Tls)
 }
+pub async fn Stream::_direct_read(Self, FixedArray[Byte], offset~ : Int, max_len~ : Int) -> Int
+pub fn Stream::_get_internal_buffer(Self) -> @io.ReaderBuffer
+pub fn Stream::close(Self) -> Unit
+pub async fn Stream::drop(Self, Int) -> Int
+pub async fn Stream::read(Self, FixedArray[Byte], offset? : Int, max_len? : Int) -> Int
+pub async fn Stream::read_all(Self) -> &@io.Data
+pub async fn Stream::read_exactly(Self, Int) -> Bytes
+pub async fn Stream::read_some(Self, max_len? : Int) -> Bytes?
+pub async fn Stream::read_until(Self, StringView) -> String?
+pub async fn Stream::write(Self, &@io.Data) -> Unit
+pub async fn Stream::write_once(Self, Bytes, offset~ : Int, len~ : Int) -> Int
+pub async fn Stream::write_reader(Self, &@io.Reader) -> Unit
 pub impl Transport for Stream
 pub impl @io.Reader for Stream
 pub impl @io.Writer for Stream
 
 pub(all) struct Sync {
 }
+pub fn Sync::decode(BytesView) -> Self raise WireError
+pub fn Sync::describe(Self) -> String
+pub fn Sync::encode(Self) -> Bytes raise WireError
 pub impl Message for Sync
 
 pub(all) struct Terminate {
 }
+pub fn Terminate::decode(BytesView) -> Self raise WireError
+pub fn Terminate::describe(Self) -> String
+pub fn Terminate::encode(Self) -> Bytes raise WireError
 pub impl Message for Terminate
 
 pub(all) enum TransactionStatus {
@@ -540,8 +693,13 @@ pub(all) enum TransactionStatus {
   InBlock
   Failed
 } derive(Eq, @debug.Debug)
+pub fn TransactionStatus::equal(Self, Self) -> Bool
 pub fn TransactionStatus::from_byte(Byte) -> Self raise WireError
+pub fn TransactionStatus::not_equal(Self, Self) -> Bool
+pub fn TransactionStatus::output(Self, &Logger) -> Unit
 pub fn TransactionStatus::to_byte(Self) -> Byte
+pub fn TransactionStatus::to_repr(Self) -> @debug.Repr
+pub fn TransactionStatus::to_string(Self) -> String
 pub impl Show for TransactionStatus
 
 // Type aliases

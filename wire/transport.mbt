@@ -27,8 +27,8 @@ pub(all) enum Stream {
 ///|
 pub impl @io.Reader for Stream with fn _get_internal_buffer(self : Stream) {
   match self {
-    Plain(tcp) => tcp._get_internal_buffer()
-    Tls(tls) => tls._get_internal_buffer()
+    Plain(tcp) => @io.Reader::_get_internal_buffer(tcp)
+    Tls(tls) => @io.Reader::_get_internal_buffer(tls)
   }
 }
 
@@ -40,8 +40,8 @@ pub impl @io.Reader for Stream with fn _direct_read(
   max_len~ : Int32,
 ) -> Int32 {
   match self {
-    Plain(tcp) => tcp._direct_read(buf, offset~, max_len~)
-    Tls(tls) => tls._direct_read(buf, offset~, max_len~)
+    Plain(tcp) => @io.Reader::_direct_read(tcp, buf, offset~, max_len~)
+    Tls(tls) => @io.Reader::_direct_read(tls, buf, offset~, max_len~)
   }
 }
 
@@ -75,3 +75,21 @@ pub impl Transport for Stream with fn close(self : Stream) -> Unit {
     Tls(tls) => tls.close()
   }
 }
+
+///|
+pub extend Stream with @io.Reader::{
+  read,
+  read_some,
+  _direct_read,
+  drop,
+  read_all,
+  read_until,
+  read_exactly,
+  _get_internal_buffer,
+}
+
+///|
+pub extend Stream with @io.Writer::{write_once, write, write_reader}
+
+///|
+pub extend Stream with Transport::{close}

@@ -10,8 +10,8 @@ let test_conninfo : String = @env.get_env_var("PGCONN").unwrap_or(
 // Each test gets its own table to avoid inter-test data pollution.
 
 ///|
-async fn setup_table(name : String) -> Unit raise PgError {
-  let c = connect(test_conninfo)
+async fn setup_table(name : String) -> Unit raise @moonpg.PgError {
+  let c = @moonpg.connect(test_conninfo)
   c.execute("DROP TABLE IF EXISTS \{name}") |> ignore
   c.execute(
     "CREATE TABLE \{name} (id SERIAL PRIMARY KEY, num INTEGER NOT NULL, name TEXT NOT NULL, flag BOOLEAN NOT NULL)",
@@ -24,14 +24,14 @@ async fn setup_table(name : String) -> Unit raise PgError {
 
 ///|
 async test "connect_ok" {
-  let c = connect(test_conninfo)
+  let c = @moonpg.connect(test_conninfo)
   c.close()
 }
 
 ///|
 async test "connect_invalid_host" {
   try {
-    let _ = connect("postgres://no.such.host:5432/db")
+    let _ = @moonpg.connect("postgres://no.such.host:5432/db")
     fail("expected connection error")
   } catch {
     _ => ()
@@ -40,9 +40,9 @@ async test "connect_invalid_host" {
 
 ///|
 async test "status_ok_after_connect" {
-  let c = connect(test_conninfo)
+  let c = @moonpg.connect(test_conninfo)
   match c.status() {
-    ConnStatus::OK => ()
+    @moonpg.ConnStatus::OK => ()
     _ => fail("expected OK")
   }
   c.close()
@@ -50,17 +50,17 @@ async test "status_ok_after_connect" {
 
 ///|
 async test "status_bad_after_close" {
-  let c = connect(test_conninfo)
+  let c = @moonpg.connect(test_conninfo)
   c.close()
   match c.status() {
-    ConnStatus::Bad => ()
+    @moonpg.ConnStatus::Bad => ()
     _ => fail("expected Bad")
   }
 }
 
 ///|
 async test "server_version_positive" {
-  let c = connect(test_conninfo)
+  let c = @moonpg.connect(test_conninfo)
   assert_true(c.server_version() > 0)
   c.close()
 }
@@ -71,7 +71,7 @@ async test "server_version_positive" {
 
 ///|
 async test "execute_ddl" {
-  let c = connect(test_conninfo)
+  let c = @moonpg.connect(test_conninfo)
   c.execute("DROP TABLE IF EXISTS moonpg_exec_ddl") |> ignore
   let r = c.execute(
     "CREATE TABLE moonpg_exec_ddl (id SERIAL PRIMARY KEY, val TEXT)",
@@ -85,7 +85,7 @@ async test "execute_ddl" {
 async test "execute_insert_affected_rows" {
   let tbl = "t_insert"
   setup_table(tbl)
-  let c = connect(test_conninfo)
+  let c = @moonpg.connect(test_conninfo)
   let r = c.execute(
     "INSERT INTO \{tbl} (num, name, flag) VALUES ($1, $2, $3)",
     params=[1, "hello", true],
@@ -99,7 +99,7 @@ async test "execute_insert_affected_rows" {
 async test "execute_update_affected_rows" {
   let tbl = "t_update"
   setup_table(tbl)
-  let c = connect(test_conninfo)
+  let c = @moonpg.connect(test_conninfo)
   c.execute("INSERT INTO \{tbl} (num, name, flag) VALUES (1, 'x', true)")
   |> ignore
   let r = c.execute("UPDATE \{tbl} SET name = 'y'")
@@ -112,7 +112,7 @@ async test "execute_update_affected_rows" {
 async test "execute_delete_affected_rows" {
   let tbl = "t_delete"
   setup_table(tbl)
-  let c = connect(test_conninfo)
+  let c = @moonpg.connect(test_conninfo)
   c.execute("INSERT INTO \{tbl} (num, name, flag) VALUES (1, 'x', true)")
   |> ignore
   let r = c.execute("DELETE FROM \{tbl}")
@@ -125,7 +125,7 @@ async test "execute_delete_affected_rows" {
 async test "execute_multi_insert_affected_rows" {
   let tbl = "t_multi"
   setup_table(tbl)
-  let c = connect(test_conninfo)
+  let c = @moonpg.connect(test_conninfo)
   let r = c.execute(
     "INSERT INTO \{tbl} (num, name, flag) VALUES (1, 'a', true), (2, 'b', false), (3, 'c', true)",
   )
@@ -138,7 +138,7 @@ async test "execute_multi_insert_affected_rows" {
 async test "execute_with_params_int_string_bool" {
   let tbl = "t_params"
   setup_table(tbl)
-  let c = connect(test_conninfo)
+  let c = @moonpg.connect(test_conninfo)
   let r = c.execute(
     "INSERT INTO \{tbl} (num, name, flag) VALUES ($1, $2, $3)",
     params=[42, "params_test", false],
@@ -151,7 +151,7 @@ async test "execute_with_params_int_string_bool" {
 ///|
 async test "execute_with_params_int64" {
   let tbl = "t_int64"
-  let c = connect(test_conninfo)
+  let c = @moonpg.connect(test_conninfo)
   c.execute("DROP TABLE IF EXISTS \{tbl}") |> ignore
   c.execute(
     "CREATE TABLE \{tbl} (id SERIAL PRIMARY KEY, big_val BIGINT NOT NULL)",
@@ -168,10 +168,12 @@ async test "execute_with_params_int64" {
 ///|
 async test "execute_with_params_nullable_none" {
   let tbl = "t_null_none"
-  let c = connect(test_conninfo)
+  let c = @moonpg.connect(test_conninfo)
   c.execute("DROP TABLE IF EXISTS \{tbl}") |> ignore
   c.execute("CREATE TABLE \{tbl} (id SERIAL PRIMARY KEY, email TEXT)") |> ignore
-  let r = c.execute("INSERT INTO \{tbl} (email) VALUES ($1)", params=[null])
+  let r = c.execute("INSERT INTO \{tbl} (email) VALUES ($1)", params=[
+    @moonpg.null,
+  ])
   assert_eq(r.affected_rows(), 1)
   r.close()
   c.close()
@@ -180,7 +182,7 @@ async test "execute_with_params_nullable_none" {
 ///|
 async test "execute_with_params_nullable_some" {
   let tbl = "t_null_some"
-  let c = connect(test_conninfo)
+  let c = @moonpg.connect(test_conninfo)
   c.execute("DROP TABLE IF EXISTS \{tbl}") |> ignore
   c.execute("CREATE TABLE \{tbl} (id SERIAL PRIMARY KEY, email TEXT)") |> ignore
   let email_some : String? = Some("a@b.com")
@@ -194,7 +196,7 @@ async test "execute_with_params_nullable_some" {
 
 ///|
 async test "execute_error_raises" {
-  let c = connect(test_conninfo)
+  let c = @moonpg.connect(test_conninfo)
   try {
     c.execute("BOGUS SQL STATEMENT") |> ignore
     fail("expected query error")
@@ -210,7 +212,7 @@ async test "execute_error_raises" {
 async test "exec_result_close" {
   let tbl = "t_exec_close"
   setup_table(tbl)
-  let c = connect(test_conninfo)
+  let c = @moonpg.connect(test_conninfo)
   let r = c.execute(
     "INSERT INTO \{tbl} (num, name, flag) VALUES (1, 'x', true)",
   )
@@ -226,7 +228,7 @@ async test "exec_result_close" {
 async test "query_no_rows" {
   let tbl = "t_q_empty"
   setup_table(tbl)
-  let c = connect(test_conninfo)
+  let c = @moonpg.connect(test_conninfo)
   defer c.close()
   let rows = c.query("SELECT * FROM \{tbl}")
   defer rows.close()
@@ -237,7 +239,7 @@ async test "query_no_rows" {
 async test "query_single_row" {
   let tbl = "t_q_one"
   setup_table(tbl)
-  let c = connect(test_conninfo)
+  let c = @moonpg.connect(test_conninfo)
   defer c.close()
   c.execute("INSERT INTO \{tbl} (num, name, flag) VALUES (7, 'solo', true)")
   |> ignore
@@ -255,7 +257,7 @@ async test "query_single_row" {
 async test "query_multiple_rows" {
   let tbl = "t_q_multi"
   setup_table(tbl)
-  let c = connect(test_conninfo)
+  let c = @moonpg.connect(test_conninfo)
   defer c.close()
   c.execute(
     "INSERT INTO \{tbl} (num, name, flag) VALUES (1, 'a', true), (2, 'b', false), (3, 'c', true)",
@@ -278,7 +280,7 @@ async test "query_multiple_rows" {
 async test "query_columns" {
   let tbl = "t_q_cols"
   setup_table(tbl)
-  let c = connect(test_conninfo)
+  let c = @moonpg.connect(test_conninfo)
   defer c.close()
   let rows = c.query("SELECT num, name, flag FROM \{tbl}")
   defer rows.close()
@@ -293,7 +295,7 @@ async test "query_columns" {
 async test "query_param_types" {
   let tbl = "t_q_params"
   setup_table(tbl)
-  let c = connect(test_conninfo)
+  let c = @moonpg.connect(test_conninfo)
   defer c.close()
   c.execute("INSERT INTO \{tbl} (num, name, flag) VALUES ($1, $2, $3)", params=[
     42, "typed", true,
@@ -314,7 +316,7 @@ async test "query_param_types" {
 async test "query_double_close_safe" {
   let tbl = "t_q_dbl"
   setup_table(tbl)
-  let c = connect(test_conninfo)
+  let c = @moonpg.connect(test_conninfo)
   defer c.close()
   let rows = c.query("SELECT 1")
   defer rows.close()
@@ -328,7 +330,7 @@ async test "query_double_close_safe" {
 async test "row_get_by_index" {
   let tbl = "t_row_idx"
   setup_table(tbl)
-  let c = connect(test_conninfo)
+  let c = @moonpg.connect(test_conninfo)
   defer c.close()
   c.execute("INSERT INTO \{tbl} (num, name, flag) VALUES (99, 'idx', false)")
   |> ignore
@@ -345,7 +347,7 @@ async test "row_get_by_index" {
 async test "row_get_by_name" {
   let tbl = "t_row_name"
   setup_table(tbl)
-  let c = connect(test_conninfo)
+  let c = @moonpg.connect(test_conninfo)
   defer c.close()
   c.execute("INSERT INTO \{tbl} (num, name, flag) VALUES (55, 'byname', true)")
   |> ignore
@@ -362,7 +364,7 @@ async test "row_get_by_name" {
 async test "row_get_by_name_missing_raises" {
   let tbl = "t_row_miss"
   setup_table(tbl)
-  let c = connect(test_conninfo)
+  let c = @moonpg.connect(test_conninfo)
   defer c.close()
   c.execute("INSERT INTO \{tbl} (num, name, flag) VALUES (1, 'x', true)")
   |> ignore
@@ -382,7 +384,7 @@ async test "row_get_by_name_missing_raises" {
 async test "row_columns" {
   let tbl = "t_row_cols"
   setup_table(tbl)
-  let c = connect(test_conninfo)
+  let c = @moonpg.connect(test_conninfo)
   defer c.close()
   // Need a row to call row.columns()
   c.execute("INSERT INTO \{tbl} (num, name, flag) VALUES (1, 'a', true)")
@@ -403,7 +405,7 @@ async test "row_columns" {
 ///|
 async test "row_null_read_raises_for_non_optional" {
   let tbl = "t_null_raise"
-  let c = connect(test_conninfo)
+  let c = @moonpg.connect(test_conninfo)
   defer c.close()
   c.execute("DROP TABLE IF EXISTS \{tbl}") |> ignore
   c.execute("CREATE TABLE \{tbl} (id SERIAL PRIMARY KEY, email TEXT)") |> ignore
@@ -423,7 +425,7 @@ async test "row_null_read_raises_for_non_optional" {
 ///|
 async test "row_null_read_optional" {
   let tbl = "t_null_opt"
-  let c = connect(test_conninfo)
+  let c = @moonpg.connect(test_conninfo)
   defer c.close()
   c.execute("DROP TABLE IF EXISTS \{tbl}") |> ignore
   c.execute("CREATE TABLE \{tbl} (id SERIAL PRIMARY KEY, email TEXT)") |> ignore
@@ -442,7 +444,7 @@ async test "row_null_read_optional" {
 ///|
 async test "row_optional_some" {
   let tbl = "t_opt_some"
-  let c = connect(test_conninfo)
+  let c = @moonpg.connect(test_conninfo)
   defer c.close()
   c.execute("DROP TABLE IF EXISTS \{tbl}") |> ignore
   c.execute("CREATE TABLE \{tbl} (id SERIAL PRIMARY KEY, email TEXT)") |> ignore
@@ -466,7 +468,7 @@ async test "row_optional_some" {
 async test "query_one_success" {
   let tbl = "t_q1_ok"
   setup_table(tbl)
-  let c = connect(test_conninfo)
+  let c = @moonpg.connect(test_conninfo)
   c.execute("INSERT INTO \{tbl} (num, name, flag) VALUES (7, 'one', true)")
   |> ignore
   let row = c.query_one("SELECT num, name FROM \{tbl} WHERE name = $1", params=[
@@ -481,14 +483,14 @@ async test "query_one_success" {
 async test "query_one_raises_no_rows" {
   let tbl = "t_q1_empty"
   setup_table(tbl)
-  let c = connect(test_conninfo)
+  let c = @moonpg.connect(test_conninfo)
   try {
     let _ = c.query_one("SELECT num FROM \{tbl} WHERE name = $1", params=[
       "nobody",
     ])
     fail("expected NoRows")
   } catch {
-    e => assert_true(to_repr(e).to_string().contains("NoRows"))
+    e => assert_true(Repr(e).to_string().contains("NoRows"))
   }
   c.close()
 }
@@ -497,7 +499,7 @@ async test "query_one_raises_no_rows" {
 async test "query_one_returns_first_of_many" {
   let tbl = "t_q1_multi"
   setup_table(tbl)
-  let c = connect(test_conninfo)
+  let c = @moonpg.connect(test_conninfo)
   c.execute(
     "INSERT INTO \{tbl} (num, name, flag) VALUES (1, 'first', true), (2, 'second', false)",
   )
@@ -513,11 +515,11 @@ async test "query_one_returns_first_of_many" {
 async test "query_returns_rows_trait_object" {
   let tbl = "t_trait"
   setup_table(tbl)
-  let c = connect(test_conninfo)
+  let c = @moonpg.connect(test_conninfo)
   defer c.close()
   c.execute("INSERT INTO \{tbl} (num, name, flag) VALUES (1, 'trait', true)")
   |> ignore
-  let rows : &Rows = c.query("SELECT name FROM \{tbl}")
+  let rows : &@moonpg.Rows = c.query("SELECT name FROM \{tbl}")
   defer rows.close()
   assert_true(rows.has_next())
   let row = rows.get_row()
@@ -529,7 +531,7 @@ async test "query_returns_rows_trait_object" {
 async test "text_utf8_round_trip" {
   let tbl = "t_utf8"
   setup_table(tbl)
-  let c = connect(test_conninfo)
+  let c = @moonpg.connect(test_conninfo)
   defer c.close()
   let name_cn = "你好世界"
   c.execute("INSERT INTO \{tbl} (num, name, flag) VALUES ($1, $2, $3)", params=[
@@ -546,7 +548,7 @@ async test "text_utf8_round_trip" {
 
 ///|
 async test "query_syntax_error_raises" {
-  let c = connect(test_conninfo)
+  let c = @moonpg.connect(test_conninfo)
   try {
     let _ = c.query("SELEC 1")
     fail("expected syntax error")
@@ -564,9 +566,9 @@ async test "query_syntax_error_raises" {
 
 ///|
 async test "async_concurrent_queries_dont_block" {
-  let c1 = connect(test_conninfo)
-  let c2 = connect(test_conninfo)
-  let c3 = connect(test_conninfo)
+  let c1 = @moonpg.connect(test_conninfo)
+  let c2 = @moonpg.connect(test_conninfo)
+  let c3 = @moonpg.connect(test_conninfo)
   let wall = @async.now()
   let fast1_done : Ref[Int64] = Ref(0L)
   let fast2_done : Ref[Int64] = Ref(0L)
@@ -634,7 +636,7 @@ async test "async_concurrent_queries_dont_block" {
 
 ///|
 async test "server_version_is_positive" {
-  let conn = connect(test_conninfo)
+  let conn = @moonpg.connect(test_conninfo)
   defer conn.close()
   let v = conn.server_version()
   assert_true(v > 0, msg="server_version > 0")
@@ -646,7 +648,7 @@ async test "server_version_is_positive" {
 
 ///|
 async test "copy_in" {
-  let c = connect(test_conninfo)
+  let c = @moonpg.connect(test_conninfo)
   defer c.close()
   let tbl = "moonpg_copy_in"
   c.execute("DROP TABLE IF EXISTS \{tbl}") |> ignore
@@ -670,7 +672,7 @@ async test "copy_in" {
 ///|
 async test "copy_writer_streaming" {
   let tbl = "moonpg_copy_writer"
-  let c = connect(test_conninfo)
+  let c = @moonpg.connect(test_conninfo)
   c.execute("DROP TABLE IF EXISTS \{tbl}") |> ignore
   c.execute("CREATE TABLE \{tbl} (name TEXT, age INTEGER)") |> ignore
 
@@ -679,7 +681,7 @@ async test "copy_writer_streaming" {
   w.write_row(["Bob", 25])
   w.finish() |> ignore
 
-  let c2 = connect(test_conninfo)
+  let c2 = @moonpg.connect(test_conninfo)
   defer c2.close()
   let result = c2.query("SELECT name, age FROM \{tbl} ORDER BY age")
   assert_true(result.has_next())
@@ -700,11 +702,11 @@ async test "copy_writer_streaming" {
 ///|
 async test "listen_notify_queue" {
   @async.with_task_group() <| group => {
-    let c1 = connect(test_conninfo)
+    let c1 = @moonpg.connect(test_conninfo)
     let listener = c1.listen("moonpg_test_channel", group)
     println("Listening on channel: moonpg_test_channel")
     let c2_task = group.spawn(() => {
-      let c2 = connect(test_conninfo)
+      let c2 = @moonpg.connect(test_conninfo)
       c2.notify("moonpg_test_channel", payload="hello")
       c2.close()
     })
@@ -724,7 +726,7 @@ async test "listen_notify_queue" {
 
 ///|
 async test "deallocate_unnamed_statement" {
-  let c = connect(test_conninfo)
+  let c = @moonpg.connect(test_conninfo)
   defer c.close()
 
   c.execute("SELECT $1::integer", params=[42]) |> ignore
@@ -738,7 +740,7 @@ async test "deallocate_unnamed_statement" {
 ///|
 async test "binary_result_format_roundtrip" {
   let tbl = "t_binary_r"
-  let c = connect(test_conninfo)
+  let c = @moonpg.connect(test_conninfo)
   c.execute("DROP TABLE IF EXISTS \{tbl}") |> ignore
   c.execute(
     "CREATE TABLE \{tbl} (num INTEGER NOT NULL, name TEXT NOT NULL, flag BOOLEAN NOT NULL)",
@@ -765,7 +767,7 @@ async test "binary_result_format_roundtrip" {
 
   if reader.has_next() {
     let raw_row = reader.data_row()
-    let row = row_from_raw(raw_row, cols)
+    let row = @moonpg.row_from_raw(raw_row, cols)
 
     assert_eq(row.get(0), 42, msg="binary num")
     assert_eq(row.get(1), "binary-test", msg="binary name")
@@ -781,7 +783,7 @@ async test "binary_result_format_roundtrip" {
 ///|
 async test "binary_result_format_nullable" {
   let tbl = "t_binary_null"
-  let c = connect(test_conninfo)
+  let c = @moonpg.connect(test_conninfo)
   defer c.close()
   c.execute("DROP TABLE IF EXISTS \{tbl}") |> ignore
   c.execute(
@@ -805,7 +807,7 @@ async test "binary_result_format_nullable" {
   if reader.has_next() {
     let raw_row = reader.data_row()
     let cols = reader.columns()
-    let row = row_from_raw(raw_row, cols)
+    let row = @moonpg.row_from_raw(raw_row, cols)
 
     assert_eq(row.get(0), 1, msg="binary num")
     assert_eq(row.get(1), false, msg="binary flag")
@@ -820,7 +822,7 @@ async test "binary_result_format_nullable" {
 
 ///|
 async test "binary_result_format_bytea" {
-  let c = connect(test_conninfo)
+  let c = @moonpg.connect(test_conninfo)
   defer c.close()
 
   c.execute("DROP TABLE IF EXISTS moonpg_bytea_test") |> ignore
@@ -846,7 +848,7 @@ async test "binary_result_format_bytea" {
 
   if reader.has_next() {
     let raw_row = reader.data_row()
-    let row = row_from_raw(raw_row, cols)
+    let row = @moonpg.row_from_raw(raw_row, cols)
     let result : Bytes = row.get(0)
     assert_eq(result, input, msg="binary bytea roundtrip")
   } else {
@@ -869,17 +871,13 @@ async test "async_all_interleaves" {
   let _ = @async.all([
     async fn() {
       for _ in 0..<200 {
-        @async.pause() catch {
-          _ => ()
-        }
+        @async.pause()
       }
       a_ms.val = @async.now() - wall
     },
     async fn() {
       for _ in 0..<5 {
-        @async.pause() catch {
-          _ => ()
-        }
+        @async.pause()
       }
       b_ms.val = @async.now() - wall
     },
@@ -900,17 +898,13 @@ async test "async_all_interleaves_array" {
   let tasks : Array[async () -> Unit] = [
     async fn() {
       for _ in 0..<200 {
-        @async.pause() catch {
-          _ => ()
-        }
+        @async.pause()
       }
       a_ms.val = @async.now() - wall
     },
     async fn() {
       for _ in 0..<5 {
-        @async.pause() catch {
-          _ => ()
-        }
+        @async.pause()
       }
       b_ms.val = @async.now() - wall
     },
@@ -930,7 +924,7 @@ async test "async_all_interleaves_array" {
 ///|
 async test "array_int4_roundtrip" {
   let tbl = "t_arr_int4"
-  let c = connect(test_conninfo)
+  let c = @moonpg.connect(test_conninfo)
   defer c.close()
   c.execute("DROP TABLE IF EXISTS \{tbl}") |> ignore
   c.execute("CREATE TABLE \{tbl} (id SERIAL PRIMARY KEY, vals INTEGER[])")
@@ -953,7 +947,7 @@ async test "array_int4_roundtrip" {
 ///|
 async test "array_text_roundtrip" {
   let tbl = "t_arr_text"
-  let c = connect(test_conninfo)
+  let c = @moonpg.connect(test_conninfo)
   defer c.close()
   c.execute("DROP TABLE IF EXISTS \{tbl}") |> ignore
   c.execute("CREATE TABLE \{tbl} (id SERIAL PRIMARY KEY, vals TEXT[])")
@@ -976,7 +970,7 @@ async test "array_text_roundtrip" {
 ///|
 async test "array_int4_with_null_elements" {
   let tbl = "t_arr_nullable"
-  let c = connect(test_conninfo)
+  let c = @moonpg.connect(test_conninfo)
   defer c.close()
   c.execute("DROP TABLE IF EXISTS \{tbl}") |> ignore
   c.execute("CREATE TABLE \{tbl} (id SERIAL PRIMARY KEY, vals INTEGER[])")
@@ -997,7 +991,7 @@ async test "array_int4_with_null_elements" {
 ///|
 async test "array_bool_roundtrip" {
   let tbl = "t_arr_bool"
-  let c = connect(test_conninfo)
+  let c = @moonpg.connect(test_conninfo)
   defer c.close()
   c.execute("DROP TABLE IF EXISTS \{tbl}") |> ignore
   c.execute("CREATE TABLE \{tbl} (id SERIAL PRIMARY KEY, vals BOOLEAN[])")
@@ -1020,7 +1014,7 @@ async test "array_bool_roundtrip" {
 ///|
 async test "array_empty" {
   let tbl = "t_arr_empty"
-  let c = connect(test_conninfo)
+  let c = @moonpg.connect(test_conninfo)
   defer c.close()
   c.execute("DROP TABLE IF EXISTS \{tbl}") |> ignore
   c.execute("CREATE TABLE \{tbl} (id SERIAL PRIMARY KEY, vals INTEGER[])")

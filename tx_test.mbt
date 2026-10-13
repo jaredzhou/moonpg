@@ -9,8 +9,8 @@ let tx_test_conninfo : String = @env.get_env_var("PGCONN").unwrap_or(
 )
 
 ///|
-async fn tx_setup(name : String) -> Unit raise PgError {
-  let c = connect(tx_test_conninfo)
+async fn tx_setup(name : String) -> Unit raise @moonpg.PgError {
+  let c = @moonpg.connect(tx_test_conninfo)
   c.execute("DROP TABLE IF EXISTS \{name}") |> ignore
   c.execute(
     "CREATE TABLE \{name} (id SERIAL PRIMARY KEY, val INTEGER NOT NULL, note TEXT)",
@@ -27,10 +27,13 @@ async fn tx_setup(name : String) -> Unit raise PgError {
 async test "begin_tx_returns_db_tx" {
   let tbl = "tx_basic"
   tx_setup(tbl)
-  let c = connect(tx_test_conninfo)
+  let c = @moonpg.connect(tx_test_conninfo)
   defer c.close()
   let tx = c.begin_tx()
-  QueryExecutor::execute(tx, "INSERT INTO \{tbl} (val, note) VALUES (1, 'tx1')")
+  @moonpg.QueryExecutor::execute(
+    tx,
+    "INSERT INTO \{tbl} (val, note) VALUES (1, 'tx1')",
+  )
   |> ignore
   tx.commit()
 }
@@ -39,10 +42,10 @@ async test "begin_tx_returns_db_tx" {
 async test "begin_tx_commit_persists" {
   let tbl = "tx_commit"
   tx_setup(tbl)
-  let c = connect(tx_test_conninfo)
+  let c = @moonpg.connect(tx_test_conninfo)
   defer c.close()
   let tx = c.begin_tx()
-  QueryExecutor::execute(
+  @moonpg.QueryExecutor::execute(
     tx,
     "INSERT INTO \{tbl} (val, note) VALUES (42, 'committed')",
   )
@@ -61,10 +64,10 @@ async test "begin_tx_commit_persists" {
 async test "begin_tx_rollback_discards" {
   let tbl = "tx_rollback"
   tx_setup(tbl)
-  let c = connect(tx_test_conninfo)
+  let c = @moonpg.connect(tx_test_conninfo)
   defer c.close()
   let tx = c.begin_tx()
-  QueryExecutor::execute(
+  @moonpg.QueryExecutor::execute(
     tx,
     "INSERT INTO \{tbl} (val, note) VALUES (99, 'rolled_back')",
   )
@@ -83,7 +86,7 @@ async test "begin_tx_rollback_discards" {
 async test "begin_tx_rollback_empty" {
   let tbl = "tx_rb_empty"
   tx_setup(tbl)
-  let c = connect(tx_test_conninfo)
+  let c = @moonpg.connect(tx_test_conninfo)
   defer c.close()
   let tx = c.begin_tx()
   tx.rollback()
@@ -93,7 +96,7 @@ async test "begin_tx_rollback_empty" {
 async test "begin_tx_commit_empty" {
   let tbl = "tx_commit_empty"
   tx_setup(tbl)
-  let c = connect(tx_test_conninfo)
+  let c = @moonpg.connect(tx_test_conninfo)
   defer c.close()
   let tx = c.begin_tx()
   tx.commit()
@@ -107,12 +110,15 @@ async test "begin_tx_commit_empty" {
 async test "dbtx_query" {
   let tbl = "tx_query"
   tx_setup(tbl)
-  let c = connect(tx_test_conninfo)
+  let c = @moonpg.connect(tx_test_conninfo)
   defer c.close()
   let tx = c.begin_tx()
-  QueryExecutor::execute(tx, "INSERT INTO \{tbl} (val, note) VALUES (1, 'q')")
+  @moonpg.QueryExecutor::execute(
+    tx,
+    "INSERT INTO \{tbl} (val, note) VALUES (1, 'q')",
+  )
   |> ignore
-  let rows = QueryExecutor::query(tx, "SELECT val, note FROM \{tbl}")
+  let rows = @moonpg.QueryExecutor::query(tx, "SELECT val, note FROM \{tbl}")
   assert_true(rows.has_next())
   let row = rows.get_row()
   assert_eq(row.get(0), 1)
@@ -125,12 +131,15 @@ async test "dbtx_query" {
 async test "dbtx_query_one" {
   let tbl = "tx_q1"
   tx_setup(tbl)
-  let c = connect(tx_test_conninfo)
+  let c = @moonpg.connect(tx_test_conninfo)
   defer c.close()
   let tx = c.begin_tx()
-  QueryExecutor::execute(tx, "INSERT INTO \{tbl} (val, note) VALUES (7, 'q1')")
+  @moonpg.QueryExecutor::execute(
+    tx,
+    "INSERT INTO \{tbl} (val, note) VALUES (7, 'q1')",
+  )
   |> ignore
-  let row = QueryExecutor::query_one(
+  let row = @moonpg.QueryExecutor::query_one(
     tx,
     "SELECT note FROM \{tbl} WHERE val = $1",
     params=[7],
@@ -143,10 +152,10 @@ async test "dbtx_query_one" {
 async test "dbtx_execute" {
   let tbl = "tx_exec"
   tx_setup(tbl)
-  let c = connect(tx_test_conninfo)
+  let c = @moonpg.connect(tx_test_conninfo)
   defer c.close()
   let tx = c.begin_tx()
-  let r = QueryExecutor::execute(
+  let r = @moonpg.QueryExecutor::execute(
     tx,
     "INSERT INTO \{tbl} (val, note) VALUES ($1, $2)",
     params=[3, "exec"],
@@ -164,20 +173,20 @@ async test "dbtx_execute" {
 async test "dbtx_multiple_operations" {
   let tbl = "tx_multi"
   tx_setup(tbl)
-  let c = connect(tx_test_conninfo)
+  let c = @moonpg.connect(tx_test_conninfo)
   defer c.close()
   let tx = c.begin_tx()
-  QueryExecutor::execute(
+  @moonpg.QueryExecutor::execute(
     tx,
     "INSERT INTO \{tbl} (val, note) VALUES (10, 'multi1')",
   )
   |> ignore
-  QueryExecutor::execute(
+  @moonpg.QueryExecutor::execute(
     tx,
     "INSERT INTO \{tbl} (val, note) VALUES (20, 'multi2')",
   )
   |> ignore
-  let r = QueryExecutor::execute(
+  let r = @moonpg.QueryExecutor::execute(
     tx,
     "UPDATE \{tbl} SET val = 30 WHERE note = 'multi1'",
   )
@@ -204,13 +213,13 @@ async test "dbtx_multiple_operations" {
 async test "dbtx_isolation" {
   let tbl = "tx_isolated"
   tx_setup(tbl)
-  let c1 = connect(tx_test_conninfo)
+  let c1 = @moonpg.connect(tx_test_conninfo)
   defer c1.close()
-  let c2 = connect(tx_test_conninfo)
+  let c2 = @moonpg.connect(tx_test_conninfo)
   defer c2.close()
 
   let tx = c1.begin_tx()
-  QueryExecutor::execute(
+  @moonpg.QueryExecutor::execute(
     tx,
     "INSERT INTO \{tbl} (val, note) VALUES (100, 'isolated')",
   )
@@ -241,10 +250,10 @@ async test "dbtx_isolation" {
 async test "begin_func_success" {
   let tbl = "tx_bf_ok"
   tx_setup(tbl)
-  let c = connect(tx_test_conninfo)
+  let c = @moonpg.connect(tx_test_conninfo)
   defer c.close()
-  let result = begin_func(c, async fn(tx) {
-    QueryExecutor::execute(
+  let result = @moonpg.begin_func(c, async fn(tx) {
+    @moonpg.QueryExecutor::execute(
       tx,
       "INSERT INTO \{tbl} (val, note) VALUES (5, 'func_ok')",
     )
@@ -263,11 +272,11 @@ async test "begin_func_success" {
 async test "begin_func_error_rolls_back" {
   let tbl = "tx_bf_err"
   tx_setup(tbl)
-  let c = connect(tx_test_conninfo)
+  let c = @moonpg.connect(tx_test_conninfo)
   defer c.close()
   try {
-    let _ = begin_func(c, async fn(tx) {
-      QueryExecutor::execute(tx, "SELECT 1") |> ignore
+    let _ = @moonpg.begin_func(c, async fn(tx) {
+      @moonpg.QueryExecutor::execute(tx, "SELECT 1") |> ignore
       fail("intentional failure")
       0
     })
@@ -287,11 +296,11 @@ async test "begin_func_error_rolls_back" {
 async test "begin_func_error_with_insert_then_fail" {
   let tbl = "tx_bf_insert_fail"
   tx_setup(tbl)
-  let c = connect(tx_test_conninfo)
+  let c = @moonpg.connect(tx_test_conninfo)
   defer c.close()
   try {
-    let _ = begin_func(c, async fn(tx) {
-      QueryExecutor::execute(
+    let _ = @moonpg.begin_func(c, async fn(tx) {
+      @moonpg.QueryExecutor::execute(
         tx,
         "INSERT INTO \{tbl} (val, note) VALUES (999, 'should_rollback')",
       )
@@ -319,10 +328,10 @@ async test "begin_func_error_with_insert_then_fail" {
 async test "tx_beginner_trait" {
   let tbl = "tx_trait"
   tx_setup(tbl)
-  let c = connect(tx_test_conninfo)
+  let c = @moonpg.connect(tx_test_conninfo)
   defer c.close()
-  let tx : &Tx = TxBeginner::begin_tx(c)
-  QueryExecutor::execute(
+  let tx : &@moonpg.Tx = @moonpg.TxBeginner::begin_tx(c)
+  @moonpg.QueryExecutor::execute(
     tx,
     "INSERT INTO \{tbl} (val, note) VALUES (1, 'trait')",
   )
@@ -343,15 +352,18 @@ async test "tx_beginner_trait" {
 async test "dbtx_query_via_query_executor_trait" {
   let tbl = "tx_qe_trait"
   tx_setup(tbl)
-  let c = connect(tx_test_conninfo)
+  let c = @moonpg.connect(tx_test_conninfo)
   defer c.close()
   let tx = c.begin_tx()
-  QueryExecutor::execute(
+  @moonpg.QueryExecutor::execute(
     tx,
     "INSERT INTO \{tbl} (val, note) VALUES (88, 'qe_trait')",
   )
   |> ignore
-  let rows : &Rows = QueryExecutor::query(tx, "SELECT note FROM \{tbl}")
+  let rows : &@moonpg.Rows = @moonpg.QueryExecutor::query(
+    tx,
+    "SELECT note FROM \{tbl}",
+  )
   assert_true(rows.has_next())
   assert_eq(rows.get_row().get(0), "qe_trait")
   rows.close()
@@ -364,14 +376,14 @@ async test "dbtx_query_via_query_executor_trait" {
 
 ///|
 test "tx_options_default_is_begin" {
-  let sql = build_begin_sql(TxOptions::default())
+  let sql = @moonpg.build_begin_sql(@moonpg.TxOptions::default())
   assert_eq(sql, "BEGIN")
 }
 
 ///|
 test "tx_options_isolation_level" {
-  let sql = build_begin_sql(TxOptions::{
-    isolation_level: Some(IsolationLevel::Serializable),
+  let sql = @moonpg.build_begin_sql(@moonpg.TxOptions::{
+    isolation_level: Some(@moonpg.IsolationLevel::Serializable),
     read_only: None,
     deferrable: None,
   })
@@ -380,7 +392,7 @@ test "tx_options_isolation_level" {
 
 ///|
 test "tx_options_read_only" {
-  let sql = build_begin_sql(TxOptions::{
+  let sql = @moonpg.build_begin_sql(@moonpg.TxOptions::{
     isolation_level: None,
     read_only: Some(true),
     deferrable: None,
@@ -390,7 +402,7 @@ test "tx_options_read_only" {
 
 ///|
 test "tx_options_deferrable" {
-  let sql = build_begin_sql(TxOptions::{
+  let sql = @moonpg.build_begin_sql(@moonpg.TxOptions::{
     isolation_level: None,
     read_only: None,
     deferrable: Some(true),
@@ -400,8 +412,8 @@ test "tx_options_deferrable" {
 
 ///|
 test "tx_options_combined" {
-  let sql = build_begin_sql(TxOptions::{
-    isolation_level: Some(IsolationLevel::Serializable),
+  let sql = @moonpg.build_begin_sql(@moonpg.TxOptions::{
+    isolation_level: Some(@moonpg.IsolationLevel::Serializable),
     read_only: Some(true),
     deferrable: Some(true),
   })
@@ -416,14 +428,17 @@ test "tx_options_combined" {
 async test "begin_tx_serializable" {
   let tbl = "tx_serial"
   tx_setup(tbl)
-  let c = connect(tx_test_conninfo)
+  let c = @moonpg.connect(tx_test_conninfo)
   defer c.close()
-  let tx = c.begin_tx(opts=TxOptions::{
-    isolation_level: Some(IsolationLevel::Serializable),
+  let tx = c.begin_tx(opts=@moonpg.TxOptions::{
+    isolation_level: Some(@moonpg.IsolationLevel::Serializable),
     read_only: None,
     deferrable: None,
   })
-  QueryExecutor::execute(tx, "INSERT INTO \{tbl} (val, note) VALUES (1, 's')")
+  @moonpg.QueryExecutor::execute(
+    tx,
+    "INSERT INTO \{tbl} (val, note) VALUES (1, 's')",
+  )
   |> ignore
   tx.commit()
 
@@ -437,16 +452,16 @@ async test "begin_tx_serializable" {
 async test "begin_tx_read_only" {
   let tbl = "tx_ro"
   tx_setup(tbl)
-  let c = connect(tx_test_conninfo)
+  let c = @moonpg.connect(tx_test_conninfo)
   defer c.close()
   c.execute("INSERT INTO \{tbl} (val, note) VALUES (7, 'ro_test')") |> ignore
 
-  let tx = c.begin_tx(opts=TxOptions::{
+  let tx = c.begin_tx(opts=@moonpg.TxOptions::{
     isolation_level: None,
     read_only: Some(true),
     deferrable: None,
   })
-  let rows = QueryExecutor::query(tx, "SELECT note FROM \{tbl}")
+  let rows = @moonpg.QueryExecutor::query(tx, "SELECT note FROM \{tbl}")
   assert_true(rows.has_next())
   assert_eq(rows.get_row().get(0), "ro_test")
   rows.close()
@@ -457,14 +472,14 @@ async test "begin_tx_read_only" {
 async test "begin_tx_repeatable_read" {
   let tbl = "tx_rr"
   tx_setup(tbl)
-  let c = connect(tx_test_conninfo)
+  let c = @moonpg.connect(tx_test_conninfo)
   defer c.close()
-  let tx = c.begin_tx(opts=TxOptions::{
-    isolation_level: Some(IsolationLevel::RepeatableRead),
+  let tx = c.begin_tx(opts=@moonpg.TxOptions::{
+    isolation_level: Some(@moonpg.IsolationLevel::RepeatableRead),
     read_only: Some(true),
     deferrable: None,
   })
-  let rows = QueryExecutor::query(tx, "SELECT 1 AS n")
+  let rows = @moonpg.QueryExecutor::query(tx, "SELECT 1 AS n")
   assert_true(rows.has_next())
   assert_eq(rows.get_row().get(0), 1)
   rows.close()
@@ -475,14 +490,14 @@ async test "begin_tx_repeatable_read" {
 async test "begin_tx_opts_via_trait" {
   let tbl = "tx_opts_trait"
   tx_setup(tbl)
-  let c = connect(tx_test_conninfo)
+  let c = @moonpg.connect(tx_test_conninfo)
   defer c.close()
-  let tx : &Tx = TxBeginner::begin_tx(c, opts=TxOptions::{
-    isolation_level: Some(IsolationLevel::Serializable),
+  let tx : &@moonpg.Tx = @moonpg.TxBeginner::begin_tx(c, opts=@moonpg.TxOptions::{
+    isolation_level: Some(@moonpg.IsolationLevel::Serializable),
     read_only: None,
     deferrable: None,
   })
-  QueryExecutor::execute(
+  @moonpg.QueryExecutor::execute(
     tx,
     "INSERT INTO \{tbl} (val, note) VALUES (3, 'trait')",
   )

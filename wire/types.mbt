@@ -195,3 +195,24 @@ pub const MSG_COPY_FAIL : Byte = b'f'
 ///|
 /// NegotiateProtocolVersion ('v') — PG 17+ protocol version negotiation.
 pub const MSG_NEGOTIATE_PROTOCOL_VERSION : Byte = b'v'
+
+///|
+pub extend AuthMethod with Debug::{to_repr}
+
+///|
+pub extend AuthMethod with Eq::{not_equal, equal}
+
+///|
+pub extend ProtocolVersion with Debug::{to_repr}
+
+///|
+pub extend ProtocolVersion with Eq::{not_equal, equal}
+
+///|
+pub extend TransactionStatus with Debug::{to_repr}
+
+///|
+pub extend TransactionStatus with Eq::{not_equal, equal}
+
+///|
+pub extend TransactionStatus with Show::{to_string, output}

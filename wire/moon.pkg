@@ -3,16 +3,17 @@ import {
   "moonbitlang/async/socket",
   "moonbitlang/async/io",
   "moonbitlang/async/tls",
-  "moonbitlang/core/buffer",
-  "moonbitlang/core/env",
   "moonbitlang/core/string",
   "moonbitlang/core/encoding/utf8",
   "moonbitlang/core/hashmap",
-  "moonbitlang/core/strconv",
   "moonbitlang/x/crypto",
   "moonbitlang/x/codec/base64",
   "jaredzhou/libs/url",
   "jaredzhou/moonpg/pgtype",
 }
+
+import {
+  "moonbitlang/core/env",
+} for "test"
 
 supported_targets = "+native"

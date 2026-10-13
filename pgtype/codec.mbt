@@ -21,3 +21,6 @@ pub(open) trait Codec {
   /// Receives `None` for SQL NULL → returns `Value::Null`.
   fn decode(Self, oid : Int32, format : @value.Format, bytes : Bytes?) -> @value.Value raise CodecError
 }
+
+///|
+pub extend CodecError with Debug::{to_repr}

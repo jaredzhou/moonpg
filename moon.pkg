@@ -7,9 +7,7 @@ import {
   "moonbitlang/core/encoding/utf8",
   "moonbitlang/core/string",
   "moonbitlang/core/env",
-  "moonbitlang/core/buffer",
   "moonbitlang/core/json",
-  "moonbitlang/core/test",
   "moonbitlang/x/decimal",
   "moonbitlang/x/uuid",
 }

@@ -1227,3 +1227,88 @@ pub impl Message for NegotiateProtocolVersion with fn decode(
 pub impl Message for NegotiateProtocolVersion with fn describe(self) -> String {
   "NegotiateProtocolVersion(minor=\{self.newest_minor_version}, options=\{self.options.length()})"
 }
+
+///|
+pub extend AuthenticationCleartextPassword with Message::{
+  encode,
+  decode,
+  describe,
+}
+
+///|
+pub extend AuthenticationMD5Password with Message::{encode, decode, describe}
+
+///|
+pub extend AuthenticationOk with Message::{encode, decode, describe}
+
+///|
+pub extend AuthenticationSASL with Message::{encode, decode, describe}
+
+///|
+pub extend AuthenticationSASLContinue with Message::{encode, decode, describe}
+
+///|
+pub extend AuthenticationSASLFinal with Message::{encode, decode, describe}
+
+///|
+pub extend BackendKeyData with Message::{encode, decode, describe}
+
+///|
+pub extend BindComplete with Message::{encode, decode, describe}
+
+///|
+pub extend CloseComplete with Message::{encode, decode, describe}
+
+///|
+pub extend CommandComplete with Message::{encode, decode, describe}
+
+///|
+pub extend CommandTag with Show::{to_string, output}
+
+///|
+pub extend CopyBothResponse with Message::{encode, decode, describe}
+
+///|
+pub extend CopyInResponse with Message::{encode, decode, describe}
+
+///|
+pub extend CopyOutResponse with Message::{encode, decode, describe}
+
+///|
+pub extend DataRow with Message::{encode, decode, describe}
+
+///|
+pub extend EmptyQueryResponse with Message::{encode, decode, describe}
+
+///|
+pub extend ErrorResponse with Message::{encode, decode, describe}
+
+///|
+pub extend NegotiateProtocolVersion with Message::{encode, decode, describe}
+
+///|
+pub extend NoData with Message::{encode, decode, describe}
+
+///|
+pub extend NoticeResponse with Message::{encode, decode, describe}
+
+///|
+pub extend NotificationResponse with Message::{encode, decode, describe}
+
+///|
+pub extend ParameterDescription with Message::{encode, decode, describe}
+
+///|
+pub extend ParameterStatus with Message::{encode, decode, describe}
+
+///|
+pub extend ParseComplete with Message::{encode, decode, describe}
+
+///|
+pub extend PortalSuspended with Message::{encode, decode, describe}
+
+///|
+pub extend ReadyForQuery with Message::{encode, decode, describe}
+
+///|
+pub extend RowDescription with Message::{encode, decode, describe}

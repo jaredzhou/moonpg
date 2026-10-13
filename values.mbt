@@ -785,3 +785,15 @@ test "debug_&ToValue_array" {
   let params : Array[&ToValue] = [arr]
   debug_inspect(params[0], content="[1, 2, 3]")
 }
+
+///|
+pub extend Timestamp with Debug::{to_repr}
+
+///|
+pub extend Timestamp with Eq::{not_equal, equal}
+
+///|
+pub extend Timestamp with FromValue::{from_value}
+
+///|
+pub extend Timestamp with ToValue::{to_value}

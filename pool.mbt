@@ -647,18 +647,14 @@ pub impl TxBeginner for PoolConn with fn begin_tx(
 /// Connection is returned to the pool on `commit()` or `rollback()`.
 pub impl TxBeginner for Pool with fn begin_tx(self : Pool, opts? : TxOptions) -> &Tx raise PgError {
   let pc = self.acquire()
+  errdefer pc.close()
   let sql = build_begin_sql(
     match opts {
       Some(o) => o
       None => TxOptions::default()
     },
   )
-  try pc.conn.execute(sql) |> ignore catch {
-    e => {
-      pc.close()
-      raise e
-    }
-  }
+  pc.conn.execute(sql) |> ignore
   let inner = DbTx::{ conn: pc.conn, }
   PoolDbTx::{ inner, pc, }
 }
@@ -674,12 +670,8 @@ pub impl QueryExecutor for Pool with fn query(
   params? : Array[&ToValue],
 ) -> &Rows raise PgError {
   let pc = self.acquire()
-  let rows = pc.query(sql, params?) catch {
-    e => {
-      pc.close()
-      raise e
-    }
-  }
+  errdefer pc.close()
+  let rows = pc.query(sql, params?)
   PoolRows::{ inner: rows, pc, }
 }
 
@@ -690,12 +682,8 @@ pub impl QueryExecutor for Pool with fn query_one(
   params? : Array[&ToValue],
 ) -> Row raise PgError {
   let pc = self.acquire()
-  let row = pc.query_one(sql, params?) catch {
-    e => {
-      pc.close()
-      raise e
-    }
-  }
+  errdefer pc.close()
+  let row = pc.query_one(sql, params?)
   pc.release()
   row
 }
@@ -707,12 +695,32 @@ pub impl QueryExecutor for Pool with fn execute(
   params? : Array[&ToValue],
 ) -> ExecResult raise PgError {
   let pc = self.acquire()
-  let result = pc.execute(sql, params?) catch {
-    e => {
-      pc.close()
-      raise e
-    }
-  }
+  errdefer pc.close()
+  let result = pc.execute(sql, params?)
   pc.release()
   result
 }
+
+///|
+pub extend Pool with Closer::{close}
+
+///|
+pub extend Pool with QueryExecutor::{execute, query, query_one}
+
+///|
+pub extend Pool with TxBeginner::{begin_tx}
+
+///|
+pub extend PoolConn with Closer::{close}
+
+///|
+pub extend PoolConn with TxBeginner::{begin_tx}
+
+///|
+pub extend PoolDbTx with QueryExecutor::{execute, query, query_one}
+
+///|
+pub extend PoolDbTx with Tx::{commit, rollback}
+
+///|
+pub extend PoolRows with Rows::{has_next, close, get_row, columns}

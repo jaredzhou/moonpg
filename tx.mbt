@@ -77,3 +77,12 @@ pub impl Tx for DbTx with fn commit(self : DbTx) -> Unit raise PgError {
 pub impl Tx for DbTx with fn rollback(self : DbTx) -> Unit raise PgError {
   Connection::execute(self.conn, "ROLLBACK") |> ignore
 }
+
+///|
+pub extend Connection with TxBeginner::{begin_tx}
+
+///|
+pub extend DbTx with QueryExecutor::{execute, query, query_one}
+
+///|
+pub extend DbTx with Tx::{commit, rollback}

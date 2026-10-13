@@ -41,3 +41,15 @@ pub(all) enum Format {
   Text
   Binary
 } derive(Eq, Debug)
+
+///|
+pub extend Format with Debug::{to_repr}
+
+///|
+pub extend Format with Eq::{not_equal, equal}
+
+///|
+pub extend Value with Debug::{to_repr}
+
+///|
+pub extend Value with Eq::{not_equal, equal}

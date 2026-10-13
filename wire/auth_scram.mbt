@@ -6,7 +6,7 @@
 ///|
 /// Base64-encode with padding (for proof — PG's decoder requires it).
 fn b64_encode_padded(data : BytesView) -> String {
-  let buf = StringBuilder::new()
+  let buf = StringBuilder()
   let enc = @base64.Encoder::new()
   enc.encode_to(data, fn(ch) { buf.write_char(ch) }, padding=true)
   buf.to_string()
@@ -15,7 +15,7 @@ fn b64_encode_padded(data : BytesView) -> String {
 ///|
 /// Base64-encode without padding (for nonces — SCRAM convention).
 fn b64_encode_raw(data : BytesView) -> String {
-  let buf = StringBuilder::new()
+  let buf = StringBuilder()
   let enc = @base64.Encoder::new()
   enc.encode_to(data, fn(ch) { buf.write_char(ch) }, padding=false)
   buf.to_string()

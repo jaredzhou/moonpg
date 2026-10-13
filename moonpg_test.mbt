@@ -8,8 +8,8 @@ let mt_conninfo : String = @env.get_env_var("PGCONN").unwrap_or(
 )
 
 ///|
-async fn mt_setup(name : String) -> Unit raise PgError {
-  let c = connect(mt_conninfo)
+async fn mt_setup(name : String) -> Unit raise @moonpg.PgError {
+  let c = @moonpg.connect(mt_conninfo)
   defer c.close()
   let ddl = "CREATE TABLE \{name} (id SERIAL PRIMARY KEY, i4 INTEGER NOT NULL, i8 BIGINT NOT NULL, f8 DOUBLE PRECISION NOT NULL, flag BOOLEAN NOT NULL, name TEXT NOT NULL, email TEXT, js JSONB, created_at TIMESTAMPTZ)"
   c.execute("DROP TABLE IF EXISTS \{name}") |> ignore
@@ -24,7 +24,7 @@ async fn mt_setup(name : String) -> Unit raise PgError {
 async test "debug_fresh_table_then_insert" {
   let tbl = "mt_debug_fresh_table_then_insert"
   mt_setup(tbl)
-  let c = connect(mt_conninfo)
+  let c = @moonpg.connect(mt_conninfo)
   defer c.close()
   let r = c.execute(
     "INSERT INTO \{tbl} (i4, i8, f8, flag, name, email) VALUES ($1, $2, $3, $4, $5, $6)",
@@ -44,7 +44,7 @@ async test "debug_fresh_table_then_insert" {
 async test "execute_ddl_and_dml_with_params" {
   let tbl = "mt_execute_ddl_and_dml_with_params"
   mt_setup(tbl)
-  let conn = connect(mt_conninfo)
+  let conn = @moonpg.connect(mt_conninfo)
   defer conn.close()
 
   let p_i4 : Int32 = 42
@@ -110,7 +110,7 @@ async test "execute_ddl_and_dml_with_params" {
 async test "query_iterates_all_basic_types" {
   let tbl = "mt_query_iterates_all_basic_types"
   mt_setup(tbl)
-  let conn = connect(mt_conninfo)
+  let conn = @moonpg.connect(mt_conninfo)
   defer conn.close()
 
   conn.execute(
@@ -125,7 +125,17 @@ async test "query_iterates_all_basic_types" {
   defer rows.close()
 
   let collected : Array[
-    (Int32, Int32, Int64, Double, Bool, String, String?, Json?, Timestamp?),
+    (
+      Int32,
+      Int32,
+      Int64,
+      Double,
+      Bool,
+      String,
+      String?,
+      Json?,
+      @moonpg.Timestamp?,
+    ),
   ] = []
   while rows.has_next() {
     let row = rows.get_row()
@@ -137,7 +147,7 @@ async test "query_iterates_all_basic_types" {
     let name : String = row.get(5)
     let email : String? = row.get(6)
     let js_val : Json? = row.get(7)
-    let ts_val : Timestamp? = row.get(8)
+    let ts_val : @moonpg.Timestamp? = row.get(8)
     collected.push((id, i4, i8, f8, flag, name, email, js_val, ts_val))
   }
 
@@ -167,7 +177,7 @@ async test "query_iterates_all_basic_types" {
 async test "get_by_name" {
   let tbl = "mt_get_by_name"
   mt_setup(tbl)
-  let conn = connect(mt_conninfo)
+  let conn = @moonpg.connect(mt_conninfo)
   defer conn.close()
 
   conn.execute(
@@ -198,7 +208,7 @@ async test "get_by_name" {
 async test "null_raises_for_basic_types" {
   let tbl = "mt_null_raises_for_basic_types"
   mt_setup(tbl)
-  let conn = connect(mt_conninfo)
+  let conn = @moonpg.connect(mt_conninfo)
   defer conn.close()
 
   conn.execute(
@@ -212,7 +222,7 @@ async test "null_raises_for_basic_types" {
   if rows.has_next() {
     let row = rows.get_row()
     try (row.get(0) : String) |> ignore catch {
-      err => println("expected NULL to raise, got: \{to_repr(err)}")
+      err => println("expected NULL to raise, got: \{Repr(err)}")
     }
     let email : String? = row.get(0)
     match email {
@@ -228,7 +238,7 @@ async test "null_raises_for_basic_types" {
 async test "unknown_column_raises" {
   let tbl = "mt_unknown_column_raises"
   mt_setup(tbl)
-  let conn = connect(mt_conninfo)
+  let conn = @moonpg.connect(mt_conninfo)
   defer conn.close()
   conn.execute(
     "INSERT INTO \{tbl} (i4, i8, f8, flag, name, email) VALUES (1, 1, 1.0, true, 'd', NULL)",
@@ -254,7 +264,7 @@ async test "unknown_column_raises" {
 async test "iter_collects_multiple_rows" {
   let tbl = "mt_iter_collects_multiple_rows"
   mt_setup(tbl)
-  let conn = connect(mt_conninfo)
+  let conn = @moonpg.connect(mt_conninfo)
   defer conn.close()
 
   conn.execute(
@@ -289,7 +299,7 @@ async test "iter_collects_multiple_rows" {
 async test "query_one_returns_single_row" {
   let tbl = "mt_query_one_returns_single_row"
   mt_setup(tbl)
-  let conn = connect(mt_conninfo)
+  let conn = @moonpg.connect(mt_conninfo)
   defer conn.close()
 
   conn.execute(
@@ -310,7 +320,7 @@ async test "query_one_returns_single_row" {
 async test "query_one_raises_when_no_match" {
   let tbl = "mt_query_one_raises_when_no_match"
   mt_setup(tbl)
-  let conn = connect(mt_conninfo)
+  let conn = @moonpg.connect(mt_conninfo)
   defer conn.close()
   try {
     let _ = conn.query_one("SELECT i4 FROM \{tbl} WHERE name = $1", params=[
@@ -320,8 +330,8 @@ async test "query_one_raises_when_no_match" {
   } catch {
     e =>
       assert_true(
-        to_repr(e).to_string().contains("NoRows"),
-        msg="error repr, got: \{to_repr(e)}",
+        Repr(e).to_string().contains("NoRows"),
+        msg="error repr, got: \{Repr(e)}",
       )
   }
 }
@@ -330,7 +340,7 @@ async test "query_one_raises_when_no_match" {
 async test "query_one_returns_first_when_multiple_match" {
   let tbl = "mt_query_one_returns_first_when_multiple_match"
   mt_setup(tbl)
-  let conn = connect(mt_conninfo)
+  let conn = @moonpg.connect(mt_conninfo)
   defer conn.close()
 
   conn.execute(
@@ -355,7 +365,7 @@ async test "query_one_returns_first_when_multiple_match" {
 async test "text_round_trips_utf8" {
   let tbl = "mt_text_round_trips_utf8"
   mt_setup(tbl)
-  let conn = connect(mt_conninfo)
+  let conn = @moonpg.connect(mt_conninfo)
   defer conn.close()
 
   let p_name : String = "你好世界"
@@ -389,7 +399,7 @@ async test "text_round_trips_utf8" {
 
 ///|
 async test "column_names_round_trip_utf8" {
-  let conn = connect(mt_conninfo)
+  let conn = @moonpg.connect(mt_conninfo)
   defer conn.close()
   conn.execute("DROP TABLE IF EXISTS moonpg_utf8_cols") |> ignore
   conn.execute(
@@ -414,7 +424,7 @@ async test "column_names_round_trip_utf8" {
 
 ///|
 async test "error_message_round_trips_utf8" {
-  let conn = connect(mt_conninfo)
+  let conn = @moonpg.connect(mt_conninfo)
   defer conn.close()
   try {
     let _ = conn.execute(
@@ -429,8 +439,8 @@ async test "error_message_round_trips_utf8" {
   } catch {
     e =>
       assert_true(
-        to_repr(e).to_string().contains("中文错误信息"),
-        msg="error repr contains 中文错误信息, got: \{to_repr(e)}",
+        Repr(e).to_string().contains("中文错误信息"),
+        msg="error repr contains 中文错误信息, got: \{Repr(e)}",
       )
   }
 }

@@ -342,7 +342,13 @@ pub async fn[T, B : TxBeginner] begin_func(
       tx.rollback() catch {
         _ => ()
       }
-      raise PgError::ConnectionError(to_repr(e).to_string())
+      raise PgError::ConnectionError(Repr(e).to_string())
     }
   }
 }
+
+///|
+pub extend PgError with Debug::{to_repr}
+
+///|
+pub extend ValueError with Debug::{to_repr}

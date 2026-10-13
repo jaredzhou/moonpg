@@ -9,8 +9,8 @@ let pool_test_conninfo : String = @env.get_env_var("PGCONN").unwrap_or(
 )
 
 ///|
-async fn pool_setup(name : String) -> Unit raise PgError {
-  let c = connect(pool_test_conninfo)
+async fn pool_setup(name : String) -> Unit raise @moonpg.PgError {
+  let c = @moonpg.connect(pool_test_conninfo)
   c.execute("DROP TABLE IF EXISTS \{name}") |> ignore
   c.execute(
     "CREATE TABLE \{name} (id SERIAL PRIMARY KEY, val INTEGER NOT NULL, note TEXT NOT NULL)",
@@ -20,8 +20,8 @@ async fn pool_setup(name : String) -> Unit raise PgError {
 }
 
 ///|
-fn default_config() -> PoolConfig {
-  PoolConfig::new(pool_test_conninfo, max_conns=4, min_idle=0)
+fn default_config() -> @moonpg.PoolConfig {
+  @moonpg.PoolConfig::new(pool_test_conninfo, max_conns=4, min_idle=0)
 }
 
 // ---------------------------------------------------------------------------
@@ -30,22 +30,22 @@ fn default_config() -> PoolConfig {
 
 ///|
 async test "pool_new" {
-  let pool = Pool::new(default_config())
+  let pool = @moonpg.Pool::new(default_config())
   assert_eq(pool.total(), 0)
   pool.close()
 }
 
 ///|
 async test "pool_new_with_min_idle" {
-  let cfg = PoolConfig::new(pool_test_conninfo, max_conns=4, min_idle=2)
-  let pool = Pool::new(cfg)
+  let cfg = @moonpg.PoolConfig::new(pool_test_conninfo, max_conns=4, min_idle=2)
+  let pool = @moonpg.Pool::new(cfg)
   assert_eq(pool.total(), 2)
   pool.close()
 }
 
 ///|
 async test "pool_close" {
-  let pool = Pool::new(default_config())
+  let pool = @moonpg.Pool::new(default_config())
   pool.close()
 }
 
@@ -55,7 +55,7 @@ async test "pool_close" {
 
 ///|
 async test "acquire_release" {
-  let pool = Pool::new(default_config())
+  let pool = @moonpg.Pool::new(default_config())
   let pc = pool.acquire()
   assert_eq(pool.total(), 1)
   pc.release()
@@ -65,7 +65,7 @@ async test "acquire_release" {
 
 ///|
 async test "acquire_release_idempotent" {
-  let pool = Pool::new(default_config())
+  let pool = @moonpg.Pool::new(default_config())
   let pc = pool.acquire()
   pc.release()
   pc.release()
@@ -74,7 +74,7 @@ async test "acquire_release_idempotent" {
 
 ///|
 async test "acquire_multiple" {
-  let pool = Pool::new(default_config())
+  let pool = @moonpg.Pool::new(default_config())
   let a = pool.acquire()
   let b = pool.acquire()
   assert_eq(pool.total(), 2)
@@ -85,8 +85,8 @@ async test "acquire_multiple" {
 
 ///|
 async test "acquire_reuse_released" {
-  let cfg = PoolConfig::new(pool_test_conninfo, max_conns=4, min_idle=0)
-  let pool = Pool::new(cfg)
+  let cfg = @moonpg.PoolConfig::new(pool_test_conninfo, max_conns=4, min_idle=0)
+  let pool = @moonpg.Pool::new(cfg)
   let pc1 = pool.acquire()
   assert_eq(pool.total(), 1)
   pc1.release()
@@ -98,8 +98,8 @@ async test "acquire_reuse_released" {
 
 ///|
 async test "acquire_up_to_max_conns" {
-  let cfg = PoolConfig::new(pool_test_conninfo, max_conns=3, min_idle=0)
-  let pool = Pool::new(cfg)
+  let cfg = @moonpg.PoolConfig::new(pool_test_conninfo, max_conns=3, min_idle=0)
+  let pool = @moonpg.Pool::new(cfg)
   let pc1 = pool.acquire()
   let pc2 = pool.acquire()
   let pc3 = pool.acquire()
@@ -116,7 +116,7 @@ async test "acquire_up_to_max_conns" {
 
 ///|
 async test "pool_conn_close_destroys" {
-  let pool = Pool::new(default_config())
+  let pool = @moonpg.Pool::new(default_config())
   let pc = pool.acquire()
   assert_eq(pool.total(), 1)
   pc.close()
@@ -126,7 +126,7 @@ async test "pool_conn_close_destroys" {
 
 ///|
 async test "pool_conn_close_after_release_safe" {
-  let pool = Pool::new(default_config())
+  let pool = @moonpg.Pool::new(default_config())
   let pc = pool.acquire()
   pc.release()
   pc.close()
@@ -142,7 +142,7 @@ async test "pool_conn_close_after_release_safe" {
 async test "pc_query_returns_rows" {
   let tbl = "p_pc_query"
   pool_setup(tbl)
-  let pool = Pool::new(default_config())
+  let pool = @moonpg.Pool::new(default_config())
   defer pool.close()
   let pc = pool.acquire()
   defer pc.release()
@@ -160,7 +160,7 @@ async test "pc_query_returns_rows" {
 async test "pc_query_rows_close_drains" {
   let tbl = "p_pc_drain"
   pool_setup(tbl)
-  let pool = Pool::new(default_config())
+  let pool = @moonpg.Pool::new(default_config())
   let pc = pool.acquire()
   pc.execute("INSERT INTO \{tbl} (val, note) VALUES (1, 'drain')") |> ignore
   let rows = pc.query("SELECT note FROM \{tbl}")
@@ -179,7 +179,7 @@ async test "pc_query_rows_close_drains" {
 async test "pc_query_one" {
   let tbl = "p_pc_q1"
   pool_setup(tbl)
-  let pool = Pool::new(default_config())
+  let pool = @moonpg.Pool::new(default_config())
   let pc = pool.acquire()
   pc.execute("INSERT INTO \{tbl} (val, note) VALUES (7, 'pc_q1')") |> ignore
   let row = pc.query_one("SELECT val FROM \{tbl} WHERE note = $1", params=[
@@ -194,7 +194,7 @@ async test "pc_query_one" {
 async test "pc_execute" {
   let tbl = "p_pc_exec"
   pool_setup(tbl)
-  let pool = Pool::new(default_config())
+  let pool = @moonpg.Pool::new(default_config())
   let pc = pool.acquire()
   let r = pc.execute("INSERT INTO \{tbl} (val, note) VALUES ($1, $2)", params=[
     10, "pc_exec",
@@ -213,7 +213,7 @@ async test "pc_execute" {
 async test "pool_query_returns_pool_rows" {
   let tbl = "p_pq_rows"
   pool_setup(tbl)
-  let pool = Pool::new(default_config())
+  let pool = @moonpg.Pool::new(default_config())
   defer pool.close()
   let pc = pool.acquire()
   pc.execute("INSERT INTO \{tbl} (val, note) VALUES (1, 'pq')") |> ignore
@@ -229,7 +229,7 @@ async test "pool_query_returns_pool_rows" {
 async test "pool_query_one" {
   let tbl = "p_pq1"
   pool_setup(tbl)
-  let pool = Pool::new(default_config())
+  let pool = @moonpg.Pool::new(default_config())
   let pc = pool.acquire()
   pc.execute("INSERT INTO \{tbl} (val, note) VALUES (42, 'pq1')") |> ignore
   pc.release()
@@ -245,14 +245,14 @@ async test "pool_query_one" {
 async test "pool_query_one_raises_no_rows" {
   let tbl = "p_pq1_empty"
   pool_setup(tbl)
-  let pool = Pool::new(default_config())
+  let pool = @moonpg.Pool::new(default_config())
   try {
     let _ = pool.query_one("SELECT val FROM \{tbl} WHERE note = $1", params=[
       "nobody",
     ])
     fail("expected NoRows")
   } catch {
-    e => assert_true(to_repr(e).to_string().contains("NoRows"))
+    e => assert_true(Repr(e).to_string().contains("NoRows"))
   }
   pool.close()
 }
@@ -261,7 +261,7 @@ async test "pool_query_one_raises_no_rows" {
 async test "pool_execute" {
   let tbl = "p_exec"
   pool_setup(tbl)
-  let pool = Pool::new(default_config())
+  let pool = @moonpg.Pool::new(default_config())
   let r = pool.execute("INSERT INTO \{tbl} (val, note) VALUES ($1, $2)", params=[
     99, "pool_exec",
   ])
@@ -272,7 +272,7 @@ async test "pool_execute" {
 
 ///|
 async test "pool_execute_error_closes_conn" {
-  let pool = Pool::new(default_config())
+  let pool = @moonpg.Pool::new(default_config())
   try {
     pool.execute("BOGUS SQL") |> ignore
     fail("expected error")
@@ -290,12 +290,14 @@ async test "pool_execute_error_closes_conn" {
 async test "pool_begin_tx_commit" {
   let tbl = "p_ptx_commit"
   pool_setup(tbl)
-  let pool = Pool::new(default_config())
+  let pool = @moonpg.Pool::new(default_config())
   defer pool.close()
   let tx = pool.begin_tx()
-  QueryExecutor::execute(tx, "INSERT INTO \{tbl} (val, note) VALUES ($1, $2)", params=[
-    1, "ptx_commit",
-  ])
+  @moonpg.QueryExecutor::execute(
+    tx,
+    "INSERT INTO \{tbl} (val, note) VALUES ($1, $2)",
+    params=[1, "ptx_commit"],
+  )
   |> ignore
   tx.commit()
 
@@ -309,12 +311,14 @@ async test "pool_begin_tx_commit" {
 async test "pool_begin_tx_rollback" {
   let tbl = "p_ptx_rb"
   pool_setup(tbl)
-  let pool = Pool::new(default_config())
+  let pool = @moonpg.Pool::new(default_config())
   defer pool.close()
   let tx = pool.begin_tx()
-  QueryExecutor::execute(tx, "INSERT INTO \{tbl} (val, note) VALUES ($1, $2)", params=[
-    99, "ptx_rb",
-  ])
+  @moonpg.QueryExecutor::execute(
+    tx,
+    "INSERT INTO \{tbl} (val, note) VALUES ($1, $2)",
+    params=[99, "ptx_rb"],
+  )
   |> ignore
   tx.rollback()
 
@@ -329,7 +333,7 @@ async test "pool_begin_tx_rollback" {
 async test "pool_begin_tx_rollback_empty" {
   let tbl = "p_ptx_rb_empty"
   pool_setup(tbl)
-  let pool = Pool::new(default_config())
+  let pool = @moonpg.Pool::new(default_config())
   let tx = pool.begin_tx()
   tx.rollback()
   pool.close()
@@ -343,13 +347,15 @@ async test "pool_begin_tx_rollback_empty" {
 async test "pooldbtx_query" {
   let tbl = "p_pdbtx_q"
   pool_setup(tbl)
-  let pool = Pool::new(default_config())
+  let pool = @moonpg.Pool::new(default_config())
   let tx = pool.begin_tx()
-  QueryExecutor::execute(tx, "INSERT INTO \{tbl} (val, note) VALUES ($1, $2)", params=[
-    5, "pdbtx_q",
-  ])
+  @moonpg.QueryExecutor::execute(
+    tx,
+    "INSERT INTO \{tbl} (val, note) VALUES ($1, $2)",
+    params=[5, "pdbtx_q"],
+  )
   |> ignore
-  let rows = QueryExecutor::query(tx, "SELECT note FROM \{tbl}")
+  let rows = @moonpg.QueryExecutor::query(tx, "SELECT note FROM \{tbl}")
   assert_true(rows.has_next())
   assert_eq(rows.get_row().get(0), "pdbtx_q")
   rows.close()
@@ -361,13 +367,15 @@ async test "pooldbtx_query" {
 async test "pooldbtx_query_one" {
   let tbl = "p_pdbtx_q1"
   pool_setup(tbl)
-  let pool = Pool::new(default_config())
+  let pool = @moonpg.Pool::new(default_config())
   let tx = pool.begin_tx()
-  QueryExecutor::execute(tx, "INSERT INTO \{tbl} (val, note) VALUES ($1, $2)", params=[
-    8, "pdbtx_q1",
-  ])
+  @moonpg.QueryExecutor::execute(
+    tx,
+    "INSERT INTO \{tbl} (val, note) VALUES ($1, $2)",
+    params=[8, "pdbtx_q1"],
+  )
   |> ignore
-  let row = QueryExecutor::query_one(
+  let row = @moonpg.QueryExecutor::query_one(
     tx,
     "SELECT val FROM \{tbl} WHERE note = $1",
     params=["pdbtx_q1"],
@@ -381,9 +389,9 @@ async test "pooldbtx_query_one" {
 async test "pooldbtx_execute" {
   let tbl = "p_pdbtx_exec"
   pool_setup(tbl)
-  let pool = Pool::new(default_config())
+  let pool = @moonpg.Pool::new(default_config())
   let tx = pool.begin_tx()
-  let r = QueryExecutor::execute(
+  let r = @moonpg.QueryExecutor::execute(
     tx,
     "INSERT INTO \{tbl} (val, note) VALUES ($1, $2)",
     params=[3, "pdbtx_exec"],
@@ -398,7 +406,7 @@ async test "pooldbtx_execute" {
 async test "pooldbtx_commit_releases_conn" {
   let tbl = "p_pdbtx_rel"
   pool_setup(tbl)
-  let pool = Pool::new(default_config())
+  let pool = @moonpg.Pool::new(default_config())
   let initial = pool.total()
 
   let tx = pool.begin_tx()
@@ -412,7 +420,7 @@ async test "pooldbtx_commit_releases_conn" {
 async test "pooldbtx_rollback_releases_conn" {
   let tbl = "p_pdbtx_rb_rel"
   pool_setup(tbl)
-  let pool = Pool::new(default_config())
+  let pool = @moonpg.Pool::new(default_config())
   let initial = pool.total()
 
   let tx = pool.begin_tx()
@@ -430,12 +438,14 @@ async test "pooldbtx_rollback_releases_conn" {
 async test "pc_begin_tx_returns_dbtx" {
   let tbl = "p_pc_dbtx"
   pool_setup(tbl)
-  let pool = Pool::new(default_config())
+  let pool = @moonpg.Pool::new(default_config())
   let pc = pool.acquire()
   let tx = pc.begin_tx()
-  QueryExecutor::execute(tx, "INSERT INTO \{tbl} (val, note) VALUES ($1, $2)", params=[
-    1, "pc_dbtx",
-  ])
+  @moonpg.QueryExecutor::execute(
+    tx,
+    "INSERT INTO \{tbl} (val, note) VALUES ($1, $2)",
+    params=[1, "pc_dbtx"],
+  )
   |> ignore
   tx.commit()
   pc.release()
@@ -446,13 +456,15 @@ async test "pc_begin_tx_returns_dbtx" {
 async test "pc_begin_tx_rollback_then_release" {
   let tbl = "p_pc_rb_rel"
   pool_setup(tbl)
-  let pool = Pool::new(default_config())
+  let pool = @moonpg.Pool::new(default_config())
   defer pool.close()
   let pc = pool.acquire()
   let tx = pc.begin_tx()
-  QueryExecutor::execute(tx, "INSERT INTO \{tbl} (val, note) VALUES ($1, $2)", params=[
-    999, "pc_rollback",
-  ])
+  @moonpg.QueryExecutor::execute(
+    tx,
+    "INSERT INTO \{tbl} (val, note) VALUES ($1, $2)",
+    params=[999, "pc_rollback"],
+  )
   |> ignore
   tx.rollback()
   pc.release()
@@ -472,10 +484,10 @@ async test "pc_begin_tx_rollback_then_release" {
 async test "begin_func_with_pool_success" {
   let tbl = "p_bf_ok"
   pool_setup(tbl)
-  let pool = Pool::new(default_config())
+  let pool = @moonpg.Pool::new(default_config())
   defer pool.close()
-  let result = begin_func(pool, async fn(tx) {
-    QueryExecutor::execute(
+  let result = @moonpg.begin_func(pool, async fn(tx) {
+    @moonpg.QueryExecutor::execute(
       tx,
       "INSERT INTO \{tbl} (val, note) VALUES ($1, $2)",
       params=[1, "bf_pool"],
@@ -495,11 +507,11 @@ async test "begin_func_with_pool_success" {
 async test "begin_func_with_pool_error_rolls_back" {
   let tbl = "p_bf_err"
   pool_setup(tbl)
-  let pool = Pool::new(default_config())
+  let pool = @moonpg.Pool::new(default_config())
   defer pool.close()
   try {
-    let _ = begin_func(pool, async fn(tx) {
-      QueryExecutor::execute(
+    let _ = @moonpg.begin_func(pool, async fn(tx) {
+      @moonpg.QueryExecutor::execute(
         tx,
         "INSERT INTO \{tbl} (val, note) VALUES ($1, $2)",
         params=[1, "should_rollback"],
@@ -528,7 +540,7 @@ async test "begin_func_with_pool_error_rolls_back" {
 async test "pool_rows_close_releases" {
   let tbl = "p_rows_rel"
   pool_setup(tbl)
-  let pool = Pool::new(default_config())
+  let pool = @moonpg.Pool::new(default_config())
   let pc = pool.acquire()
   pc.execute("INSERT INTO \{tbl} (val, note) VALUES ($1, $2)", params=[
     1, "rows_rel",
@@ -544,7 +556,7 @@ async test "pool_rows_close_releases" {
 async test "pool_query_rows_close_releases" {
   let tbl = "p_q_rows_rel"
   pool_setup(tbl)
-  let pool = Pool::new(default_config())
+  let pool = @moonpg.Pool::new(default_config())
   let pc = pool.acquire()
   pc.execute("INSERT INTO \{tbl} (val, note) VALUES ($1, $2)", params=[
     2, "pool_rows_rel",
@@ -567,8 +579,8 @@ async test "pool_query_rows_close_releases" {
 async test "pool_reuse_across_operations" {
   let tbl = "p_reuse"
   pool_setup(tbl)
-  let cfg = PoolConfig::new(pool_test_conninfo, max_conns=2, min_idle=0)
-  let pool = Pool::new(cfg)
+  let cfg = @moonpg.PoolConfig::new(pool_test_conninfo, max_conns=2, min_idle=0)
+  let pool = @moonpg.Pool::new(cfg)
   defer pool.close()
 
   for i = 0; i < 5; i = i + 1 {
@@ -591,8 +603,8 @@ async test "pool_reuse_across_operations" {
 
 ///|
 async test "pool_maintain_refills_min_idle" {
-  let cfg = PoolConfig::new(pool_test_conninfo, max_conns=5, min_idle=3)
-  let pool = Pool::new(cfg)
+  let cfg = @moonpg.PoolConfig::new(pool_test_conninfo, max_conns=5, min_idle=3)
+  let pool = @moonpg.Pool::new(cfg)
   defer pool.close()
 
   assert_eq(pool.idle(), 3)
@@ -620,8 +632,8 @@ async test "pool_maintain_refills_min_idle" {
 
 ///|
 async test "pool_stats_counters" {
-  let cfg = PoolConfig::new(pool_test_conninfo, max_conns=4, min_idle=0)
-  let pool = Pool::new(cfg)
+  let cfg = @moonpg.PoolConfig::new(pool_test_conninfo, max_conns=4, min_idle=0)
+  let pool = @moonpg.Pool::new(cfg)
   defer pool.close()
 
   let s0 = pool.stats()
@@ -645,8 +657,8 @@ async test "pool_stats_counters" {
 
 ///|
 async test "pool_stats_acquire_wait" {
-  let cfg = PoolConfig::new(pool_test_conninfo, max_conns=2, min_idle=2)
-  let pool = Pool::new(cfg)
+  let cfg = @moonpg.PoolConfig::new(pool_test_conninfo, max_conns=2, min_idle=2)
+  let pool = @moonpg.Pool::new(cfg)
   defer pool.close()
 
   let p1 = pool.acquire()

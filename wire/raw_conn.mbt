@@ -309,7 +309,7 @@ async fn RawConn::receive_inner(
       e => raise WireError::IO("read payload: \{e}")
     }
   } else {
-    Bytes::default()
+    Default::default()
   }
 
   let msg = match type_byte {
@@ -1354,3 +1354,9 @@ fn expand_formats(
     }
   }
 }
+
+///|
+pub extend ConnStatus with Debug::{to_repr}
+
+///|
+pub extend ConnStatus with Eq::{not_equal, equal}
