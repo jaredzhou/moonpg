@@ -105,7 +105,7 @@ pub async fn ResultReader::read(self : ResultReader) -> Result raise WireError {
   while self.has_next() {
     rows.push(self.data_row())
   }
-  { columns: self.columns, rows, tag: self.tag.unwrap_or(CommandTag::new("")) }
+  { columns: self.columns, rows, tag: self.tag.unwrap_or(CommandTag::new("")), }
 }
 
 ///|

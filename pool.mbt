@@ -16,8 +16,8 @@
 ///
 /// // Option A: implicit acquire — Pool auto-manages lifecycle
 /// let rows = pool.query("SELECT 1")
+/// defer rows.close()   // PoolRows.close() returns conn to pool
 /// while rows.has_next() { let row = rows.get_row() }
-/// rows.close()       // PoolRows.close() returns conn to pool
 /// let row = pool.query_one("SELECT 42")
 /// pool.execute("INSERT ...") |> ignore
 /// let tx = pool.begin_tx()
@@ -27,7 +27,7 @@
 /// let pc = pool.acquire()
 /// defer pc.release()
 /// let rows = pc.query("SELECT 1")
-/// rows.close()       // PoolRows.close() returns conn to pool
+/// defer rows.close()   // PoolRows.close() returns conn to pool
 /// let row = pc.query_one("SELECT 42")
 /// pc.release()       // caller releases
 /// ```
@@ -38,23 +38,23 @@
 
 pub(all) struct PoolConfig {
   conninfo : String
-  max_conns : Int
-  min_idle : Int
-  max_idle_sec : Int
-  max_lifetime_sec : Int
+  max_conns : Int32
+  min_idle : Int32
+  max_idle_sec : Int32
+  max_lifetime_sec : Int32
   health_check : Bool
-  maintenance_interval_sec : Int
+  maintenance_interval_sec : Int32
 }
 
 ///|
 pub fn PoolConfig::new(
   conninfo : String,
-  max_conns? : Int = 10,
-  min_idle? : Int = 0,
-  max_idle_sec? : Int = 0,
-  max_lifetime_sec? : Int = 0,
-  health_check? : Bool = false,
-  maintenance_interval_sec? : Int = 0,
+  max_conns~ : Int32 = 10,
+  min_idle~ : Int32 = 0,
+  max_idle_sec~ : Int32 = 0,
+  max_lifetime_sec~ : Int32 = 0,
+  health_check~ : Bool = false,
+  maintenance_interval_sec~ : Int32 = 0,
 ) -> PoolConfig {
   {
     conninfo,
@@ -75,11 +75,11 @@ pub fn PoolConfig::new(
 /// Snapshot of pool statistics.
 pub(all) struct PoolStats {
   /// Total connections (idle + active).
-  total_connections : Int
+  total_connections : Int32
   /// Connections sitting idle in the pool.
-  idle_connections : Int
+  idle_connections : Int32
   /// Connections currently checked out.
-  active_connections : Int
+  active_connections : Int32
   /// Total number of `acquire()` calls.
   acquire_count : Int64
   /// Number of acquires that had to wait because the pool was exhausted.
@@ -107,14 +107,14 @@ pub(all) struct IdleConn {
 pub(all) struct Pool {
   queue : @aqueue.Queue[IdleConn]
   conninfo : String
-  max_conns : Int
-  min_idle : Int
-  max_idle_sec : Int
-  max_lifetime_sec : Int
+  max_conns : Int32
+  min_idle : Int32
+  max_idle_sec : Int32
+  max_lifetime_sec : Int32
   health_check : Bool
-  maintenance_interval_sec : Int
-  count : Ref[Int]
-  idle_count : Ref[Int]
+  maintenance_interval_sec : Int32
+  count : Ref[Int32]
+  idle_count : Ref[Int32]
   running : Ref[Bool]
   acquire_count : Ref[Int64]
   acquire_wait_count : Ref[Int64]
@@ -214,13 +214,13 @@ pub async fn Pool::new(config : PoolConfig) -> Pool raise PgError {
 }
 
 ///|
-pub fn Pool::total(self : Pool) -> Int {
+pub fn Pool::total(self : Pool) -> Int32 {
   self.count.val
 }
 
 ///|
 /// Number of idle connections currently in the pool.
-pub fn Pool::idle(self : Pool) -> Int {
+pub fn Pool::idle(self : Pool) -> Int32 {
   self.idle_count.val
 }
 
@@ -389,7 +389,7 @@ pub async fn Pool::acquire(self : Pool) -> PoolConn raise PgError {
         self.count.val = self.count.val + 1
         let now = @async.now()
         let conn = connect(self.conninfo)
-        PoolConn::{ conn, pool: self, created_at: now, released: Ref(false) }
+        PoolConn::{ conn, pool: self, created_at: now, released: Ref(false), }
       } else {
         let wait_start = @async.now()
         self.acquire_wait_count.val = self.acquire_wait_count.val + 1L
@@ -635,7 +635,7 @@ pub impl TxBeginner for PoolConn with fn begin_tx(
     ),
   )
   |> ignore
-  DbTx::{ conn: self.conn }
+  DbTx::{ conn: self.conn, }
 }
 
 // ---------------------------------------------------------------------------
@@ -659,8 +659,8 @@ pub impl TxBeginner for Pool with fn begin_tx(self : Pool, opts? : TxOptions) ->
       raise e
     }
   }
-  let inner = DbTx::{ conn: pc.conn }
-  PoolDbTx::{ inner, pc }
+  let inner = DbTx::{ conn: pc.conn, }
+  PoolDbTx::{ inner, pc, }
 }
 
 // ---------------------------------------------------------------------------
@@ -680,7 +680,7 @@ pub impl QueryExecutor for Pool with fn query(
       raise e
     }
   }
-  PoolRows::{ inner: rows, pc }
+  PoolRows::{ inner: rows, pc, }
 }
 
 ///|

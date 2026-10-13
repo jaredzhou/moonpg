@@ -38,7 +38,7 @@ pub impl TxBeginner for Connection with fn begin_tx(
     ),
   )
   |> ignore
-  DbTx::{ conn: self }
+  DbTx::{ conn: self, }
 }
 
 ///|

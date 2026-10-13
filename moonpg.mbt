@@ -74,11 +74,12 @@ pub(open) trait FromValue {
 /// `PoolRows` (pooled connection) implement this trait.
 ///
 /// ```moonbit nocheck
+/// let rows = conn.query("SELECT id FROM users")
+/// defer rows.close()
 /// while rows.has_next() {
 ///   let row = rows.get_row()
 ///   let v : Int = row.get(0)
 /// }
-/// rows.close()
 /// ```
 pub(open) trait Rows {
   async fn has_next(Self) -> Bool raise PgError
@@ -100,7 +101,7 @@ pub struct Row {
 
 ///|
 /// Read the value at column `col` (zero-based index) as `T`.
-pub fn[T : FromValue] Row::get(self : Row, col : Int) -> T raise PgError {
+pub fn[T : FromValue] Row::get(self : Row, col : Int32) -> T raise PgError {
   let desc = self.col_descs[col]
   let format = if desc.format == 0 {
     @value.Format::Text
@@ -158,7 +159,7 @@ pub struct ExecResult {
 
 ///|
 /// Return the number of rows affected by an INSERT/UPDATE/DELETE.
-pub fn ExecResult::affected_rows(self : ExecResult) -> Int {
+pub fn ExecResult::affected_rows(self : ExecResult) -> Int32 {
   match self.tag.rows_affected() {
     Some(n) => n
     None => 0
@@ -205,19 +206,12 @@ pub async fn[T : FromRow] &QueryExecutor::fetch(
   params? : Array[&ToValue],
 ) -> Array[T] raise PgError {
   let rows = self.query(sql, params?)
+  defer rows.close()
   let result : Array[T] = []
-  try {
-    while rows.has_next() {
-      result.push(T::from_row(rows.get_row()))
-    }
-    rows.close()
-    result
-  } catch {
-    e => {
-      rows.close()
-      raise e
-    }
+  while rows.has_next() {
+    result.push(T::from_row(rows.get_row()))
   }
+  result
 }
 
 ///|
@@ -236,20 +230,11 @@ pub async fn[T : FromRow] &QueryExecutor::fetch_one(
   params? : Array[&ToValue],
 ) -> T raise PgError {
   let rows = self.query(sql, params?)
-  try {
-    if rows.has_next() {
-      let row = rows.get_row()
-      rows.close()
-      return T::from_row(row)
-    }
-    rows.close()
-    raise NoRows
-  } catch {
-    e => {
-      rows.close()
-      raise e
-    }
+  defer rows.close()
+  if rows.has_next() {
+    return T::from_row(rows.get_row())
   }
+  raise NoRows
 }
 
 // ===========================================================================
@@ -264,7 +249,7 @@ pub async fn[T : FromRow] &QueryExecutor::fetch_one(
 ///
 /// ```moonbit nocheck
 /// impl FromRow for User with fn from_row(r : Row) -> User raise PgError {
-///   User::{ id: r.get(0), name: r.get(1), email: r.get(2) }
+///   User::{ id: r.get(0), name: r.get(1), email: r.get(2), }
 /// }
 ///
 /// let users : Array[User] = pool.fetch("SELECT id, name, email FROM users")
@@ -312,7 +297,7 @@ pub(all) struct TxOptions {
 
 ///|
 pub fn TxOptions::default() -> TxOptions {
-  { isolation_level: None, read_only: None, deferrable: None }
+  { isolation_level: None, read_only: None, deferrable: None, }
 }
 
 ///|

@@ -55,8 +55,8 @@ fn as_bytesview(fa : FixedArray[Byte]) -> BytesView {
 fn pbkdf2_hmac_sha256(
   password : FixedArray[Byte],
   salt : Bytes,
-  c : Int,
-  dk_len : Int,
+  c : Int32,
+  dk_len : Int32,
 ) -> FixedArray[Byte] {
   let h_len = 32
   let blocks = (dk_len + h_len - 1) / h_len
@@ -99,7 +99,7 @@ fn pbkdf2_hmac_sha256(
 // ---------------------------------------------------------------------------
 
 ///|
-let nonce_counter : Ref[Int] = Ref(0)
+let nonce_counter : Ref[Int32] = Ref(0)
 
 ///|
 fn generate_nonce() -> String {
@@ -118,8 +118,8 @@ fn generate_nonce() -> String {
 ///|
 fn parse_scram_attrs(
   data : Bytes,
-) -> @hashmap.HashMap[Int, String] raise WireError {
-  let map : @hashmap.HashMap[Int, String] = @hashmap.HashMap([])
+) -> @hashmap.HashMap[Int32, String] raise WireError {
+  let map : @hashmap.HashMap[Int32, String] = @hashmap.HashMap([])
   let mut i = 0
   let len = data.length()
   while i < len {
@@ -149,7 +149,7 @@ fn parse_scram_attrs(
 ///|
 /// Look up a SCRAM attribute by its single-character key byte.
 fn scram_attr_get(
-  map : @hashmap.HashMap[Int, String],
+  map : @hashmap.HashMap[Int32, String],
   key_byte : Byte,
 ) -> String? {
   map.get(key_byte.to_int())
@@ -271,7 +271,7 @@ fn scram_client_final(
 
   let client_final = "\{client_final_without_proof},p=\{proof_b64}"
 
-  let msg = SASLResponse::{ data: @utf8.encode(client_final) }
+  let msg = SASLResponse::{ data: @utf8.encode(client_final), }
   let new_state = ScramState::{
     client_nonce: state.client_nonce,
     client_first_message_bare: state.client_first_message_bare,

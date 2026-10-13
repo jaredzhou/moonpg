@@ -11,7 +11,7 @@
 
 ///|
 /// Encode an `Int` as a 4-byte big-endian signed integer (PG `integer` / int4).
-fn encode_int4(v : Int) -> Bytes {
+fn encode_int4(v : Int32) -> Bytes {
   let b = @buffer.Buffer(size_hint=4)
   b.write_byte(((v >> 24) & 0xff).to_byte())
   b.write_byte(((v >> 16) & 0xff).to_byte())
@@ -22,7 +22,7 @@ fn encode_int4(v : Int) -> Bytes {
 
 ///|
 /// Decode a 4-byte big-endian signed integer (PG `integer` / int4) from bytes.
-fn decode_int4(b : Bytes) -> Int {
+fn decode_int4(b : Bytes) -> Int32 {
   (b[0].to_int() << 24) |
   (b[1].to_int() << 16) |
   (b[2].to_int() << 8) |
@@ -113,7 +113,7 @@ fn decode_string(b : Bytes) -> String {
 
 ///|
 /// Encode an `Int` as a 2-byte big-endian signed integer (PG `smallint` / int2).
-fn encode_int2(v : Int) -> Bytes {
+fn encode_int2(v : Int32) -> Bytes {
   let b = @buffer.Buffer(size_hint=2)
   b.write_byte(((v >> 8) & 0xff).to_byte())
   b.write_byte((v & 0xff).to_byte())
@@ -122,7 +122,7 @@ fn encode_int2(v : Int) -> Bytes {
 
 ///|
 /// Decode a 2-byte big-endian signed integer (PG `smallint` / int2) from bytes.
-fn decode_int2(b : Bytes) -> Int {
+fn decode_int2(b : Bytes) -> Int32 {
   let hi = b[0].to_int()
   let lo = b[1].to_int()
   if hi < 128 {
@@ -142,7 +142,7 @@ fn decode_int2(b : Bytes) -> Int {
 fn encode_float4(v : Double) -> Bytes {
   // Convert Double to Float (f32), then reinterpret bits as Int
   let f : Float = Float::from_double(v)
-  let bits : Int = f.reinterpret_as_int()
+  let bits : Int32 = f.reinterpret_as_int()
   encode_int4(bits)
 }
 

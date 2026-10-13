@@ -36,9 +36,9 @@ pub impl @io.Reader for Stream with fn _get_internal_buffer(self : Stream) {
 pub impl @io.Reader for Stream with fn _direct_read(
   self : Stream,
   buf : FixedArray[Byte],
-  offset~ : Int,
-  max_len~ : Int,
-) -> Int {
+  offset~ : Int32,
+  max_len~ : Int32,
+) -> Int32 {
   match self {
     Plain(tcp) => tcp._direct_read(buf, offset~, max_len~)
     Tls(tls) => tls._direct_read(buf, offset~, max_len~)
@@ -54,9 +54,9 @@ pub impl @io.Reader for Stream with fn _direct_read(
 pub impl @io.Writer for Stream with fn write_once(
   self : Stream,
   buf : Bytes,
-  offset~ : Int,
-  len~ : Int,
-) -> Int {
+  offset~ : Int32,
+  len~ : Int32,
+) -> Int32 {
   match self {
     Plain(tcp) => tcp.write_once(buf, offset~, len~)
     Tls(tls) => tls.write_once(buf, offset~, len~)

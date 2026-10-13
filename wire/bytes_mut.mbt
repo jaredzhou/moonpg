@@ -16,17 +16,17 @@ pub(all) struct BytesMut {
 
 ///|
 pub fn BytesMut::new() -> BytesMut {
-  { data: [] }
+  { data: [], }
 }
 
 ///|
-pub fn BytesMut::len(self : BytesMut) -> Int {
+pub fn BytesMut::len(self : BytesMut) -> Int32 {
   self.data.length()
 }
 
 ///|
 /// Overwrite a single byte at `pos`. Pads with zeros if `pos >= len`.
-pub fn BytesMut::set_byte(self : BytesMut, pos : Int, b : Byte) -> Unit {
+pub fn BytesMut::set_byte(self : BytesMut, pos : Int32, b : Byte) -> Unit {
   while self.data.length() <= pos {
     self.data.push(b'\x00')
   }
@@ -35,7 +35,7 @@ pub fn BytesMut::set_byte(self : BytesMut, pos : Int, b : Byte) -> Unit {
 
 ///|
 /// Write a 32-bit big-endian integer at `pos` (overwrites 4 bytes).
-pub fn BytesMut::set_int_be(self : BytesMut, pos : Int, v : Int) -> Unit {
+pub fn BytesMut::set_int_be(self : BytesMut, pos : Int32, v : Int32) -> Unit {
   self.set_byte(pos, ((v >> 24) & 0xFF).to_byte())
   self.set_byte(pos + 1, ((v >> 16) & 0xFF).to_byte())
   self.set_byte(pos + 2, ((v >> 8) & 0xFF).to_byte())
@@ -50,7 +50,7 @@ pub fn BytesMut::append_byte(self : BytesMut, b : Byte) -> Unit {
 
 ///|
 /// Append a 32-bit big-endian integer (4 bytes).
-pub fn BytesMut::append_int_be(self : BytesMut, v : Int) -> Unit {
+pub fn BytesMut::append_int_be(self : BytesMut, v : Int32) -> Unit {
   self.data.push(((v >> 24) & 0xFF).to_byte())
   self.data.push(((v >> 16) & 0xFF).to_byte())
   self.data.push(((v >> 8) & 0xFF).to_byte())

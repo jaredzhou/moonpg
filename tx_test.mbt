@@ -50,11 +50,11 @@ async test "begin_tx_commit_persists" {
   tx.commit()
 
   let rows = c.query("SELECT val, note FROM \{tbl}")
+  defer rows.close()
   assert_true(rows.has_next())
   let row = rows.get_row()
   assert_eq(row.get(0), 42)
   assert_eq(row.get(1), "committed")
-  rows.close()
 }
 
 ///|
@@ -72,11 +72,11 @@ async test "begin_tx_rollback_discards" {
   tx.rollback()
 
   let rows = c.query("SELECT COUNT(*) FROM \{tbl}")
+  defer rows.close()
   assert_true(rows.has_next())
   let row = rows.get_row()
   let count : Int64 = row.get(0)
   assert_eq(count, 0L)
-  rows.close()
 }
 
 ///|
@@ -186,11 +186,11 @@ async test "dbtx_multiple_operations" {
   tx.commit()
 
   let rows = c.query("SELECT val FROM \{tbl} ORDER BY val")
-  let vals : Array[Int] = []
+  defer rows.close()
+  let vals : Array[Int32] = []
   while rows.has_next() {
     vals.push(rows.get_row().get(0))
   }
-  rows.close()
   assert_eq(vals.length(), 2)
   assert_eq(vals[0], 20)
   assert_eq(vals[1], 30)
@@ -254,9 +254,9 @@ async test "begin_func_success" {
   assert_eq(result, 42)
 
   let rows = c.query("SELECT note FROM \{tbl}")
+  defer rows.close()
   assert_true(rows.has_next())
   assert_eq(rows.get_row().get(0), "func_ok")
-  rows.close()
 }
 
 ///|
@@ -277,10 +277,10 @@ async test "begin_func_error_rolls_back" {
   }
 
   let rows = c.query("SELECT COUNT(*) FROM \{tbl}")
+  defer rows.close()
   assert_true(rows.has_next())
   let count : Int64 = rows.get_row().get(0)
   assert_eq(count, 0L)
-  rows.close()
 }
 
 ///|
@@ -305,10 +305,10 @@ async test "begin_func_error_with_insert_then_fail" {
   }
 
   let rows = c.query("SELECT COUNT(*) FROM \{tbl}")
+  defer rows.close()
   assert_true(rows.has_next())
   let count : Int64 = rows.get_row().get(0)
   assert_eq(count, 0L)
-  rows.close()
 }
 
 // ---------------------------------------------------------------------------
@@ -330,9 +330,9 @@ async test "tx_beginner_trait" {
   tx.commit()
 
   let rows = c.query("SELECT note FROM \{tbl}")
+  defer rows.close()
   assert_true(rows.has_next())
   assert_eq(rows.get_row().get(0), "trait")
-  rows.close()
 }
 
 // ---------------------------------------------------------------------------
@@ -428,9 +428,9 @@ async test "begin_tx_serializable" {
   tx.commit()
 
   let rows = c.query("SELECT note FROM \{tbl}")
+  defer rows.close()
   assert_true(rows.has_next())
   assert_eq(rows.get_row().get(0), "s")
-  rows.close()
 }
 
 ///|
@@ -489,7 +489,7 @@ async test "begin_tx_opts_via_trait" {
   |> ignore
   tx.commit()
   let rows = c.query("SELECT note FROM \{tbl}")
+  defer rows.close()
   assert_true(rows.has_next())
   assert_eq(rows.get_row().get(0), "trait")
-  rows.close()
 }

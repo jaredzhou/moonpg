@@ -3,7 +3,7 @@
 
 name = "jaredzhou/moonpg"
 
-version = "0.8.11"
+version = "0.8.12"
 
 readme = "README.mbt.md"
 
@@ -18,7 +18,7 @@ preferred_target = "native"
 description = "A pure MoonBit PostgreSQL client, wire protocol from scratch."
 
 import {
-  "moonbitlang/async@0.19.0",
-  "moonbitlang/x@0.4.46",
+  "moonbitlang/async@0.22.4",
+  "moonbitlang/x@0.5.5",
   "jaredzhou/libs@0.1.1",
 }

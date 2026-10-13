@@ -10,13 +10,13 @@
 /// A registered PostgreSQL data type with its codec.
 pub(all) struct Type {
   name : String
-  oid : Int
+  oid : Int32
   codec : &Codec
 }
 
 ///|
-fn Type::new(name : String, oid : Int, codec : &Codec) -> Type {
-  Type::{ name, oid, codec }
+fn Type::new(name : String, oid : Int32, codec : &Codec) -> Type {
+  Type::{ name, oid, codec, }
 }
 
 // ===========================================================================
@@ -26,9 +26,9 @@ fn Type::new(name : String, oid : Int, codec : &Codec) -> Type {
 ///|
 /// Registry of PostgreSQL type OID ↔ name ↔ codec mappings.
 pub(all) struct TypeMap {
-  oid_to_type : @hashmap.HashMap[Int, Type]
+  oid_to_type : @hashmap.HashMap[Int32, Type]
   name_to_type : @hashmap.HashMap[String, Type]
-  data_type_to_oid : @hashmap.HashMap[String, Int]
+  data_type_to_oid : @hashmap.HashMap[String, Int32]
 }
 
 ///|
@@ -45,12 +45,12 @@ fn TypeMap::new() -> TypeMap {
 fn TypeMap::register(
   self : TypeMap,
   name : String,
-  oid : Int,
+  oid : Int32,
   codec : &Codec,
 ) -> TypeMap {
   let t = Type::new(name, oid, codec)
-  self.oid_to_type.set(oid, Type::{ ..t })
-  self.name_to_type.set(name, Type::{ ..t })
+  self.oid_to_type.set(oid, Type::{ ..t, })
+  self.name_to_type.set(name, Type::{ ..t, })
   self
 }
 
@@ -59,7 +59,7 @@ fn TypeMap::register(
 fn TypeMap::register_data_type(
   self : TypeMap,
   name : String,
-  oid : Int,
+  oid : Int32,
 ) -> TypeMap {
   self.data_type_to_oid.set(name, oid)
   self
@@ -68,7 +68,7 @@ fn TypeMap::register_data_type(
 ///|
 /// Look up the codec for an OID. Returns a `Text&Codec` as fallback for
 /// unknown OIDs (matching pgx behaviour).
-pub fn TypeMap::codec_for(self : TypeMap, oid : Int) -> &Codec {
+pub fn TypeMap::codec_for(self : TypeMap, oid : Int32) -> &Codec {
   match self.oid_to_type.get(oid) {
     Some(t) => t.codec
     None => text_codec
@@ -77,7 +77,7 @@ pub fn TypeMap::codec_for(self : TypeMap, oid : Int) -> &Codec {
 
 ///|
 /// Look up a type by OID. Returns `None` for unknown OIDs.
-pub fn TypeMap::type_for_oid(self : TypeMap, oid : Int) -> Type? {
+pub fn TypeMap::type_for_oid(self : TypeMap, oid : Int32) -> Type? {
   self.oid_to_type.get(oid)
 }
 
@@ -99,14 +99,14 @@ pub fn TypeMap::type_for_data_type(self : TypeMap, name : String) -> Type? {
 
 ///|
 /// Iterate over all registered types. Yields `(oid, Type)` pairs.
-pub fn TypeMap::iter(self : TypeMap) -> Iter[(Int, Type)] {
+pub fn TypeMap::iter(self : TypeMap) -> Iter[(Int32, Type)] {
   self.oid_to_type.iter()
 }
 
 ///|
 /// Iterate over all `information_schema.data_type` aliases.
 /// Yields `(name, oid)` pairs.
-pub fn TypeMap::iter_data_types(self : TypeMap) -> Iter[(String, Int)] {
+pub fn TypeMap::iter_data_types(self : TypeMap) -> Iter[(String, Int32)] {
   self.data_type_to_oid.iter()
 }
 
@@ -116,346 +116,346 @@ pub fn TypeMap::iter_data_types(self : TypeMap) -> Iter[(String, Int)] {
 
 ///|
 /// Base types
-pub let bool_oid : Int = 16
+pub let bool_oid : Int32 = 16
 
 ///|
-pub let bytea_oid : Int = 17
+pub let bytea_oid : Int32 = 17
 
 ///|
-pub let char_oid : Int = 18
+pub let char_oid : Int32 = 18
 
 ///|
-pub let name_oid : Int = 19
+pub let name_oid : Int32 = 19
 
 ///|
-pub let int8_oid : Int = 20
+pub let int8_oid : Int32 = 20
 
 ///|
-pub let int2_oid : Int = 21
+pub let int2_oid : Int32 = 21
 
 ///|
-pub let int4_oid : Int = 23
+pub let int4_oid : Int32 = 23
 
 ///|
-pub let text_oid : Int = 25
+pub let text_oid : Int32 = 25
 
 ///|
-pub let oid_oid : Int = 26
+pub let oid_oid : Int32 = 26
 
 ///|
-pub let tid_oid : Int = 27
+pub let tid_oid : Int32 = 27
 
 ///|
-pub let xid_oid : Int = 28
+pub let xid_oid : Int32 = 28
 
 ///|
-pub let cid_oid : Int = 29
+pub let cid_oid : Int32 = 29
 
 ///|
-pub let json_oid : Int = 114
+pub let json_oid : Int32 = 114
 
 ///|
-pub let xml_oid : Int = 142
+pub let xml_oid : Int32 = 142
 
 ///|
-pub let point_oid : Int = 600
+pub let point_oid : Int32 = 600
 
 ///|
-pub let lseg_oid : Int = 601
+pub let lseg_oid : Int32 = 601
 
 ///|
-pub let path_oid : Int = 602
+pub let path_oid : Int32 = 602
 
 ///|
-pub let box_oid : Int = 603
+pub let box_oid : Int32 = 603
 
 ///|
-pub let polygon_oid : Int = 604
+pub let polygon_oid : Int32 = 604
 
 ///|
-pub let line_oid : Int = 628
+pub let line_oid : Int32 = 628
 
 ///|
-pub let cidr_oid : Int = 650
+pub let cidr_oid : Int32 = 650
 
 ///|
-pub let float4_oid : Int = 700
+pub let float4_oid : Int32 = 700
 
 ///|
-pub let float8_oid : Int = 701
+pub let float8_oid : Int32 = 701
 
 ///|
-pub let unknown_oid : Int = 705
+pub let unknown_oid : Int32 = 705
 
 ///|
-pub let circle_oid : Int = 718
+pub let circle_oid : Int32 = 718
 
 ///|
-pub let macaddr8_oid : Int = 774
+pub let macaddr8_oid : Int32 = 774
 
 ///|
-pub let macaddr_oid : Int = 829
+pub let macaddr_oid : Int32 = 829
 
 ///|
-pub let inet_oid : Int = 869
+pub let inet_oid : Int32 = 869
 
 ///|
-pub let aclitem_oid : Int = 1033
+pub let aclitem_oid : Int32 = 1033
 
 ///|
-pub let bpchar_oid : Int = 1042
+pub let bpchar_oid : Int32 = 1042
 
 ///|
-pub let varchar_oid : Int = 1043
+pub let varchar_oid : Int32 = 1043
 
 ///|
-pub let date_oid : Int = 1082
+pub let date_oid : Int32 = 1082
 
 ///|
-pub let time_oid : Int = 1083
+pub let time_oid : Int32 = 1083
 
 ///|
-pub let timestamp_oid : Int = 1114
+pub let timestamp_oid : Int32 = 1114
 
 ///|
-pub let timestamptz_oid : Int = 1184
+pub let timestamptz_oid : Int32 = 1184
 
 ///|
-pub let interval_oid : Int = 1186
+pub let interval_oid : Int32 = 1186
 
 ///|
-pub let timetz_oid : Int = 1266
+pub let timetz_oid : Int32 = 1266
 
 ///|
-pub let bit_oid : Int = 1560
+pub let bit_oid : Int32 = 1560
 
 ///|
-pub let varbit_oid : Int = 1562
+pub let varbit_oid : Int32 = 1562
 
 ///|
-pub let numeric_oid : Int = 1700
+pub let numeric_oid : Int32 = 1700
 
 ///|
-pub let record_oid : Int = 2249
+pub let record_oid : Int32 = 2249
 
 ///|
-pub let uuid_oid : Int = 2950
+pub let uuid_oid : Int32 = 2950
 
 ///|
-pub let tsvector_oid : Int = 3614
+pub let tsvector_oid : Int32 = 3614
 
 ///|
-pub let jsonb_oid : Int = 3802
+pub let jsonb_oid : Int32 = 3802
 
 ///|
-pub let jsonpath_oid : Int = 4072
+pub let jsonpath_oid : Int32 = 4072
 
 ///|
-pub let xid8_oid : Int = 5069
+pub let xid8_oid : Int32 = 5069
 
 ///|
 /// Range types
-pub let int4range_oid : Int = 3904
+pub let int4range_oid : Int32 = 3904
 
 ///|
-pub let numrange_oid : Int = 3906
+pub let numrange_oid : Int32 = 3906
 
 ///|
-pub let tsrange_oid : Int = 3908
+pub let tsrange_oid : Int32 = 3908
 
 ///|
-pub let tstzrange_oid : Int = 3910
+pub let tstzrange_oid : Int32 = 3910
 
 ///|
-pub let daterange_oid : Int = 3912
+pub let daterange_oid : Int32 = 3912
 
 ///|
-pub let int8range_oid : Int = 3926
+pub let int8range_oid : Int32 = 3926
 
 ///|
 /// Multirange types
-pub let int4multirange_oid : Int = 4451
+pub let int4multirange_oid : Int32 = 4451
 
 ///|
-pub let nummultirange_oid : Int = 4532
+pub let nummultirange_oid : Int32 = 4532
 
 ///|
-pub let tsmultirange_oid : Int = 4533
+pub let tsmultirange_oid : Int32 = 4533
 
 ///|
-pub let tstzmultirange_oid : Int = 4534
+pub let tstzmultirange_oid : Int32 = 4534
 
 ///|
-pub let datemultirange_oid : Int = 4535
+pub let datemultirange_oid : Int32 = 4535
 
 ///|
-pub let int8multirange_oid : Int = 4536
+pub let int8multirange_oid : Int32 = 4536
 
 ///|
 /// Array types
-pub let bool_array_oid : Int = 1000
+pub let bool_array_oid : Int32 = 1000
 
 ///|
-pub let bytea_array_oid : Int = 1001
+pub let bytea_array_oid : Int32 = 1001
 
 ///|
-pub let char_array_oid : Int = 1002
+pub let char_array_oid : Int32 = 1002
 
 ///|
-pub let name_array_oid : Int = 1003
+pub let name_array_oid : Int32 = 1003
 
 ///|
-pub let int2_array_oid : Int = 1005
+pub let int2_array_oid : Int32 = 1005
 
 ///|
-pub let int4_array_oid : Int = 1007
+pub let int4_array_oid : Int32 = 1007
 
 ///|
-pub let text_array_oid : Int = 1009
+pub let text_array_oid : Int32 = 1009
 
 ///|
-pub let tid_array_oid : Int = 1010
+pub let tid_array_oid : Int32 = 1010
 
 ///|
-pub let xid_array_oid : Int = 1011
+pub let xid_array_oid : Int32 = 1011
 
 ///|
-pub let cid_array_oid : Int = 1012
+pub let cid_array_oid : Int32 = 1012
 
 ///|
-pub let bpchar_array_oid : Int = 1014
+pub let bpchar_array_oid : Int32 = 1014
 
 ///|
-pub let varchar_array_oid : Int = 1015
+pub let varchar_array_oid : Int32 = 1015
 
 ///|
-pub let int8_array_oid : Int = 1016
+pub let int8_array_oid : Int32 = 1016
 
 ///|
-pub let point_array_oid : Int = 1017
+pub let point_array_oid : Int32 = 1017
 
 ///|
-pub let lseg_array_oid : Int = 1018
+pub let lseg_array_oid : Int32 = 1018
 
 ///|
-pub let path_array_oid : Int = 1019
+pub let path_array_oid : Int32 = 1019
 
 ///|
-pub let box_array_oid : Int = 1020
+pub let box_array_oid : Int32 = 1020
 
 ///|
-pub let float4_array_oid : Int = 1021
+pub let float4_array_oid : Int32 = 1021
 
 ///|
-pub let float8_array_oid : Int = 1022
+pub let float8_array_oid : Int32 = 1022
 
 ///|
-pub let polygon_array_oid : Int = 1027
+pub let polygon_array_oid : Int32 = 1027
 
 ///|
-pub let oid_array_oid : Int = 1028
+pub let oid_array_oid : Int32 = 1028
 
 ///|
-pub let aclitem_array_oid : Int = 1034
+pub let aclitem_array_oid : Int32 = 1034
 
 ///|
-pub let macaddr_array_oid : Int = 1040
+pub let macaddr_array_oid : Int32 = 1040
 
 ///|
-pub let inet_array_oid : Int = 1041
+pub let inet_array_oid : Int32 = 1041
 
 ///|
-pub let date_array_oid : Int = 1182
+pub let date_array_oid : Int32 = 1182
 
 ///|
-pub let time_array_oid : Int = 1183
+pub let time_array_oid : Int32 = 1183
 
 ///|
-pub let timestamp_array_oid : Int = 1115
+pub let timestamp_array_oid : Int32 = 1115
 
 ///|
-pub let timestamptz_array_oid : Int = 1185
+pub let timestamptz_array_oid : Int32 = 1185
 
 ///|
-pub let interval_array_oid : Int = 1187
+pub let interval_array_oid : Int32 = 1187
 
 ///|
-pub let numeric_array_oid : Int = 1231
+pub let numeric_array_oid : Int32 = 1231
 
 ///|
-pub let timetz_array_oid : Int = 1270
+pub let timetz_array_oid : Int32 = 1270
 
 ///|
-pub let bit_array_oid : Int = 1561
+pub let bit_array_oid : Int32 = 1561
 
 ///|
-pub let varbit_array_oid : Int = 1563
+pub let varbit_array_oid : Int32 = 1563
 
 ///|
-pub let record_array_oid : Int = 2287
+pub let record_array_oid : Int32 = 2287
 
 ///|
-pub let uuid_array_oid : Int = 2951
+pub let uuid_array_oid : Int32 = 2951
 
 ///|
-pub let tsvector_array_oid : Int = 3643
+pub let tsvector_array_oid : Int32 = 3643
 
 ///|
-pub let json_array_oid : Int = 199
+pub let json_array_oid : Int32 = 199
 
 ///|
-pub let jsonb_array_oid : Int = 3807
+pub let jsonb_array_oid : Int32 = 3807
 
 ///|
-pub let xml_array_oid : Int = 143
+pub let xml_array_oid : Int32 = 143
 
 ///|
-pub let jsonpath_array_oid : Int = 4073
+pub let jsonpath_array_oid : Int32 = 4073
 
 ///|
-pub let xid8_array_oid : Int = 271
+pub let xid8_array_oid : Int32 = 271
 
 ///|
-pub let line_array_oid : Int = 629
+pub let line_array_oid : Int32 = 629
 
 ///|
-pub let circle_array_oid : Int = 719
+pub let circle_array_oid : Int32 = 719
 
 ///|
-pub let daterange_array_oid : Int = 3913
+pub let daterange_array_oid : Int32 = 3913
 
 ///|
-pub let int4range_array_oid : Int = 3905
+pub let int4range_array_oid : Int32 = 3905
 
 ///|
-pub let numrange_array_oid : Int = 3907
+pub let numrange_array_oid : Int32 = 3907
 
 ///|
-pub let tsrange_array_oid : Int = 3909
+pub let tsrange_array_oid : Int32 = 3909
 
 ///|
-pub let tstzrange_array_oid : Int = 3911
+pub let tstzrange_array_oid : Int32 = 3911
 
 ///|
-pub let int8range_array_oid : Int = 3927
+pub let int8range_array_oid : Int32 = 3927
 
 ///|
-pub let int4multirange_array_oid : Int = 6150
+pub let int4multirange_array_oid : Int32 = 6150
 
 ///|
-pub let nummultirange_array_oid : Int = 6151
+pub let nummultirange_array_oid : Int32 = 6151
 
 ///|
-pub let tsmultirange_array_oid : Int = 6152
+pub let tsmultirange_array_oid : Int32 = 6152
 
 ///|
-pub let tstzmultirange_array_oid : Int = 6153
+pub let tstzmultirange_array_oid : Int32 = 6153
 
 ///|
-pub let datemultirange_array_oid : Int = 6155
+pub let datemultirange_array_oid : Int32 = 6155
 
 ///|
-pub let int8multirange_array_oid : Int = 6157
+pub let int8multirange_array_oid : Int32 = 6157
 
 // ===========================================================================
 // Type name constants — for use when referencing PG types by name
@@ -1219,7 +1219,7 @@ pub let default_map : TypeMap = build_default_map()
 ///|
 /// Look up the human-readable type name for a PostgreSQL OID in the default map.
 /// Returns `"unknown"` when the OID is not registered.
-pub fn oid_to_name(oid : Int) -> String {
+pub fn oid_to_name(oid : Int32) -> String {
   match default_map.type_for_oid(oid) {
     Some(t) => t.name
     None => "unknown"
@@ -1228,7 +1228,7 @@ pub fn oid_to_name(oid : Int) -> String {
 
 ///|
 /// Look up the OID for a canonical PG type name. Returns `0` for unknown names.
-pub fn name_to_oid(name : String) -> Int {
+pub fn name_to_oid(name : String) -> Int32 {
   match default_map.type_for_name(name) {
     Some(t) => t.oid
     None => 0

@@ -11,7 +11,7 @@
 pub struct BoolCodec {}
 
 ///|
-pub let bool_codec : BoolCodec = BoolCodec::{  }
+pub let bool_codec : BoolCodec = BoolCodec::{ }
 
 ///|
 impl Codec for BoolCodec with fn prefer_format(_self : BoolCodec) -> @value.Format {
@@ -21,7 +21,7 @@ impl Codec for BoolCodec with fn prefer_format(_self : BoolCodec) -> @value.Form
 ///|
 impl Codec for BoolCodec with fn encode(
   _self : BoolCodec,
-  _oid : Int,
+  _oid : Int32,
   format : @value.Format,
   value : @value.Value,
 ) -> Bytes? raise CodecError {
@@ -55,7 +55,7 @@ impl Codec for BoolCodec with fn encode(
 ///|
 impl Codec for BoolCodec with fn decode(
   _self : BoolCodec,
-  _oid : Int,
+  _oid : Int32,
   format : @value.Format,
   bytes : Bytes?,
 ) -> @value.Value raise CodecError {
@@ -94,7 +94,7 @@ impl Codec for BoolCodec with fn decode(
 pub struct Int2Codec {}
 
 ///|
-pub let int2_codec : Int2Codec = Int2Codec::{  }
+pub let int2_codec : Int2Codec = Int2Codec::{ }
 
 ///|
 impl Codec for Int2Codec with fn prefer_format(_self : Int2Codec) -> @value.Format {
@@ -104,7 +104,7 @@ impl Codec for Int2Codec with fn prefer_format(_self : Int2Codec) -> @value.Form
 ///|
 impl Codec for Int2Codec with fn encode(
   _self : Int2Codec,
-  _oid : Int,
+  _oid : Int32,
   format : @value.Format,
   value : @value.Value,
 ) -> Bytes? raise CodecError {
@@ -122,7 +122,7 @@ impl Codec for Int2Codec with fn encode(
 ///|
 impl Codec for Int2Codec with fn decode(
   _self : Int2Codec,
-  _oid : Int,
+  _oid : Int32,
   format : @value.Format,
   bytes : Bytes?,
 ) -> @value.Value raise CodecError {
@@ -160,7 +160,7 @@ impl Codec for Int2Codec with fn decode(
 pub struct Int4Codec {}
 
 ///|
-pub let int4_codec : Int4Codec = Int4Codec::{  }
+pub let int4_codec : Int4Codec = Int4Codec::{ }
 
 ///|
 impl Codec for Int4Codec with fn prefer_format(_self : Int4Codec) -> @value.Format {
@@ -170,7 +170,7 @@ impl Codec for Int4Codec with fn prefer_format(_self : Int4Codec) -> @value.Form
 ///|
 impl Codec for Int4Codec with fn encode(
   _self : Int4Codec,
-  _oid : Int,
+  _oid : Int32,
   format : @value.Format,
   value : @value.Value,
 ) -> Bytes? raise CodecError {
@@ -188,7 +188,7 @@ impl Codec for Int4Codec with fn encode(
 ///|
 impl Codec for Int4Codec with fn decode(
   _self : Int4Codec,
-  _oid : Int,
+  _oid : Int32,
   format : @value.Format,
   bytes : Bytes?,
 ) -> @value.Value raise CodecError {
@@ -226,7 +226,7 @@ impl Codec for Int4Codec with fn decode(
 pub struct Int8Codec {}
 
 ///|
-pub let int8_codec : Int8Codec = Int8Codec::{  }
+pub let int8_codec : Int8Codec = Int8Codec::{ }
 
 ///|
 impl Codec for Int8Codec with fn prefer_format(_self : Int8Codec) -> @value.Format {
@@ -236,7 +236,7 @@ impl Codec for Int8Codec with fn prefer_format(_self : Int8Codec) -> @value.Form
 ///|
 impl Codec for Int8Codec with fn encode(
   _self : Int8Codec,
-  _oid : Int,
+  _oid : Int32,
   format : @value.Format,
   value : @value.Value,
 ) -> Bytes? raise CodecError {
@@ -260,7 +260,7 @@ impl Codec for Int8Codec with fn encode(
 ///|
 impl Codec for Int8Codec with fn decode(
   _self : Int8Codec,
-  _oid : Int,
+  _oid : Int32,
   format : @value.Format,
   bytes : Bytes?,
 ) -> @value.Value raise CodecError {
@@ -298,7 +298,7 @@ impl Codec for Int8Codec with fn decode(
 pub struct Float4Codec {}
 
 ///|
-pub let float4_codec : Float4Codec = Float4Codec::{  }
+pub let float4_codec : Float4Codec = Float4Codec::{ }
 
 ///|
 impl Codec for Float4Codec with fn prefer_format(_self : Float4Codec) -> @value.Format {
@@ -308,7 +308,7 @@ impl Codec for Float4Codec with fn prefer_format(_self : Float4Codec) -> @value.
 ///|
 impl Codec for Float4Codec with fn encode(
   _self : Float4Codec,
-  _oid : Int,
+  _oid : Int32,
   format : @value.Format,
   value : @value.Value,
 ) -> Bytes? raise CodecError {
@@ -337,7 +337,7 @@ impl Codec for Float4Codec with fn encode(
 ///|
 impl Codec for Float4Codec with fn decode(
   _self : Float4Codec,
-  _oid : Int,
+  _oid : Int32,
   format : @value.Format,
   bytes : Bytes?,
 ) -> @value.Value raise CodecError {
@@ -375,7 +375,7 @@ impl Codec for Float4Codec with fn decode(
 pub struct Float8Codec {}
 
 ///|
-pub let float8_codec : Float8Codec = Float8Codec::{  }
+pub let float8_codec : Float8Codec = Float8Codec::{ }
 
 ///|
 impl Codec for Float8Codec with fn prefer_format(_self : Float8Codec) -> @value.Format {
@@ -385,7 +385,7 @@ impl Codec for Float8Codec with fn prefer_format(_self : Float8Codec) -> @value.
 ///|
 impl Codec for Float8Codec with fn encode(
   _self : Float8Codec,
-  _oid : Int,
+  _oid : Int32,
   format : @value.Format,
   value : @value.Value,
 ) -> Bytes? raise CodecError {
@@ -414,7 +414,7 @@ impl Codec for Float8Codec with fn encode(
 ///|
 impl Codec for Float8Codec with fn decode(
   _self : Float8Codec,
-  _oid : Int,
+  _oid : Int32,
   format : @value.Format,
   bytes : Bytes?,
 ) -> @value.Value raise CodecError {

@@ -6,7 +6,7 @@ pub enum ProtocolVersion {
 } derive(Debug, Eq)
 
 ///|
-pub fn ProtocolVersion::to_int32(self : ProtocolVersion) -> Int {
+pub fn ProtocolVersion::to_int32(self : ProtocolVersion) -> Int32 {
   match self {
     V3_0 => 196608
     V3_2 => 196610
@@ -14,7 +14,7 @@ pub fn ProtocolVersion::to_int32(self : ProtocolVersion) -> Int {
 }
 
 ///|
-pub fn ProtocolVersion::minor(self : ProtocolVersion) -> Int {
+pub fn ProtocolVersion::minor(self : ProtocolVersion) -> Int32 {
   match self {
     V3_0 => 0
     V3_2 => 2
@@ -23,7 +23,7 @@ pub fn ProtocolVersion::minor(self : ProtocolVersion) -> Int {
 
 ///|
 /// SSL request magic number.
-pub const SSL_REQUEST_CODE : Int = 80877103
+pub const SSL_REQUEST_CODE : Int32 = 80877103
 
 ///|
 /// Transaction status indicator from ReadyForQuery.
@@ -78,7 +78,7 @@ pub(all) enum AuthMethod {
 } derive(Debug, Eq)
 
 ///|
-pub fn AuthMethod::from_int(v : Int) -> AuthMethod raise WireError {
+pub fn AuthMethod::from_int(v : Int32) -> AuthMethod raise WireError {
   match v {
     0 => Ok
     3 => CleartextPassword

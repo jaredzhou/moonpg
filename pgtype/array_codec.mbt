@@ -24,7 +24,7 @@ impl Codec for ArrayCodec with fn prefer_format(_self : ArrayCodec) -> @value.Fo
 ///|
 impl Codec for ArrayCodec with fn encode(
   self : ArrayCodec,
-  _oid : Int,
+  _oid : Int32,
   format : @value.Format,
   value : @value.Value,
 ) -> Bytes? raise CodecError {
@@ -82,7 +82,7 @@ impl Codec for ArrayCodec with fn encode(
 ///|
 impl Codec for ArrayCodec with fn decode(
   self : ArrayCodec,
-  _oid : Int,
+  _oid : Int32,
   format : @value.Format,
   bytes : Bytes?,
 ) -> @value.Value raise CodecError {
@@ -223,7 +223,7 @@ fn ends_with_odd_backslashes(s : String) -> Bool {
 
 ///|
 /// Count consecutive backslashes scanning left from position `i`.
-fn count_trailing(s : String, i : Int) -> Int {
+fn count_trailing(s : String, i : Int32) -> Int32 {
   if i < 0 || s[i] != '\\' {
     0
   } else {

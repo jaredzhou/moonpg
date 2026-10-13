@@ -33,11 +33,11 @@ async test "debug_fresh_table_then_insert" {
   assert_eq(r.affected_rows(), 1)
   r.close()
   let rows = c.query("SELECT name FROM \{tbl}")
+  defer rows.close()
   assert_true(rows.has_next())
   let row = rows.get_row()
   let name : String = row.get(0)
   assert_eq(name, "alice")
-  rows.close()
 }
 
 ///|
@@ -47,7 +47,7 @@ async test "execute_ddl_and_dml_with_params" {
   let conn = connect(mt_conninfo)
   defer conn.close()
 
-  let p_i4 : Int = 42
+  let p_i4 : Int32 = 42
   let p_i8 : Int64 = 9_000_000_000L
   let p_f8 : Double = 3.14
   let p_flag : Bool = true
@@ -122,14 +122,15 @@ async test "query_iterates_all_basic_types" {
   let rows = conn.query(
     "SELECT id, i4, i8, f8, flag, name, email, js, created_at FROM \{tbl}",
   )
+  defer rows.close()
 
   let collected : Array[
-    (Int, Int, Int64, Double, Bool, String, String?, Json?, Timestamp?),
+    (Int32, Int32, Int64, Double, Bool, String, String?, Json?, Timestamp?),
   ] = []
   while rows.has_next() {
     let row = rows.get_row()
-    let id : Int = row.get(0)
-    let i4 : Int = row.get(1)
+    let id : Int32 = row.get(0)
+    let i4 : Int32 = row.get(1)
     let i8 : Int64 = row.get(2)
     let f8 : Double = row.get(3)
     let flag : Bool = row.get(4)
@@ -139,7 +140,6 @@ async test "query_iterates_all_basic_types" {
     let ts_val : Timestamp? = row.get(8)
     collected.push((id, i4, i8, f8, flag, name, email, js_val, ts_val))
   }
-  rows.close()
 
   assert_eq(collected.length(), 1, msg="row count")
   let entry = collected[0]
@@ -176,6 +176,7 @@ async test "get_by_name" {
   |> ignore
 
   let rows = conn.query("SELECT i4, i8, f8, flag, name, email FROM \{tbl}")
+  defer rows.close()
 
   if rows.has_next() {
     let row = rows.get_row()
@@ -191,7 +192,6 @@ async test "get_by_name" {
   } else {
     fail("expected exactly one row")
   }
-  rows.close()
 }
 
 ///|
@@ -207,6 +207,7 @@ async test "null_raises_for_basic_types" {
   |> ignore
 
   let rows = conn.query("SELECT email FROM \{tbl}")
+  defer rows.close()
 
   if rows.has_next() {
     let row = rows.get_row()
@@ -221,7 +222,6 @@ async test "null_raises_for_basic_types" {
   } else {
     fail("expected a row")
   }
-  rows.close()
 }
 
 ///|
@@ -235,11 +235,12 @@ async test "unknown_column_raises" {
   )
   |> ignore
   let rows = conn.query("SELECT i4 FROM \{tbl}")
+  defer rows.close()
 
   if rows.has_next() {
     let row = rows.get_row()
     try {
-      let v : Int = row.get_by_name("nope")
+      let v : Int32 = row.get_by_name("nope")
       fail("expected missing column to raise, got: \{v}")
     } catch {
       _ => ()
@@ -247,7 +248,6 @@ async test "unknown_column_raises" {
   } else {
     fail("expected a row")
   }
-  rows.close()
 }
 
 ///|
@@ -268,13 +268,13 @@ async test "iter_collects_multiple_rows" {
   |> ignore
 
   let rows = conn.query("SELECT name FROM \{tbl} ORDER BY i4")
+  defer rows.close()
   let names : Array[String] = []
   while rows.has_next() {
     let row = rows.get_row()
     let s : String = row.get_by_name("name")
     names.push(s)
   }
-  rows.close()
   assert_eq(names.length(), 3)
   assert_eq(names[0], "one")
   assert_eq(names[1], "two")
@@ -300,7 +300,7 @@ async test "query_one_returns_single_row" {
   let row = conn.query_one("SELECT i4, name FROM \{tbl} WHERE name = $1", params=[
     "solo",
   ])
-  let i4 : Int = row.get(0)
+  let i4 : Int32 = row.get(0)
   let name : String = row.get(1)
   assert_eq(i4, 7, msg="query_one i4")
   assert_eq(name, "solo", msg="query_one name")
@@ -371,6 +371,7 @@ async test "text_round_trips_utf8" {
   r.close()
 
   let rows = conn.query("SELECT name, email FROM \{tbl}")
+  defer rows.close()
 
   if rows.has_next() {
     let row = rows.get_row()
@@ -384,7 +385,6 @@ async test "text_round_trips_utf8" {
   } else {
     fail("expected the inserted utf8 row back")
   }
-  rows.close()
 }
 
 ///|

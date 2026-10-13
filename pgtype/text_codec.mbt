@@ -8,7 +8,7 @@ pub struct TextCodec {}
 
 ///|
 /// Singleton instance referenced by `CodecImpl::Text(...)`.
-pub let text_codec : TextCodec = TextCodec::{  }
+pub let text_codec : TextCodec = TextCodec::{ }
 
 ///|
 impl Codec for TextCodec with fn prefer_format(_self : TextCodec) -> @value.Format {
@@ -18,7 +18,7 @@ impl Codec for TextCodec with fn prefer_format(_self : TextCodec) -> @value.Form
 ///|
 impl Codec for TextCodec with fn encode(
   _self : TextCodec,
-  _oid : Int,
+  _oid : Int32,
   _format : @value.Format,
   value : @value.Value,
 ) -> Bytes? raise CodecError {
@@ -36,7 +36,7 @@ impl Codec for TextCodec with fn encode(
 ///|
 impl Codec for TextCodec with fn decode(
   _self : TextCodec,
-  _oid : Int,
+  _oid : Int32,
   _format : @value.Format,
   bytes : Bytes?,
 ) -> @value.Value raise CodecError {

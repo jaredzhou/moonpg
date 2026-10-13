@@ -16,7 +16,7 @@
 pub(all) struct Config {
   host : String
   hostaddr : String?
-  port : Int
+  port : Int32
   user : String
   database : String?
   password : String?
@@ -25,34 +25,34 @@ pub(all) struct Config {
   sslcert : String?
   sslkey : String?
   application_name : String?
-  connect_timeout : Int
-  statement_timeout : Int
+  connect_timeout : Int32
+  statement_timeout : Int32
   target_session_attrs : String
   trace : Bool
 }
 
 ///|
 /// The default PostgreSQL TCP port.
-pub const DEFAULT_PORT : Int = 5432
+pub const DEFAULT_PORT : Int32 = 5432
 
 ///|
 /// Create a `Config` with explicit parameter values.
 pub fn Config::new(
   user : String,
-  host? : String = "localhost",
-  hostaddr? : String? = None,
-  port? : Int = DEFAULT_PORT,
-  database? : String? = None,
-  password? : String? = None,
-  sslmode? : String = "disable",
-  sslrootcert? : String? = None,
-  sslcert? : String? = None,
-  sslkey? : String? = None,
-  application_name? : String? = None,
-  connect_timeout? : Int = 0,
-  statement_timeout? : Int = 0,
-  target_session_attrs? : String = "any",
-  trace? : Bool = false,
+  host~ : String = "localhost",
+  hostaddr~ : String? = None,
+  port~ : Int32 = DEFAULT_PORT,
+  database~ : String? = None,
+  password~ : String? = None,
+  sslmode~ : String = "disable",
+  sslrootcert~ : String? = None,
+  sslcert~ : String? = None,
+  sslkey~ : String? = None,
+  application_name~ : String? = None,
+  connect_timeout~ : Int32 = 0,
+  statement_timeout~ : Int32 = 0,
+  target_session_attrs~ : String = "any",
+  trace~ : Bool = false,
 ) -> Config {
   {
     host,
@@ -145,7 +145,7 @@ fn parse_uri(uri_str : String) -> Config raise WireError {
 
 ///|
 /// Split `host:port` into `(host, port)`. Handles IPv6 `[::1]:5432`.
-fn split_hostport(hostport : String) -> (String, Int) {
+fn split_hostport(hostport : String) -> (String, Int32) {
   // IPv6: [address]:port
   if hostport.has_prefix("[") {
     match hostport.find("]") {
@@ -200,10 +200,10 @@ fn parse_kv(s : String) -> Config raise WireError {
   }
   // Sensible defaults for required fields.
   if config.user == "" {
-    config = { ..config, user: "postgres" }
+    config = { ..config, user: "postgres", }
   }
   if config.host == "" {
-    config = { ..config, host: "localhost" }
+    config = { ..config, host: "localhost", }
   }
   config
 }
@@ -288,27 +288,27 @@ fn scan_bare(s : StringView) -> (String, StringView) {
 /// are silently ignored.
 fn with_param(config : Config, key : String, value : String) -> Config {
   match key.to_lower() {
-    "host" => { ..config, host: value }
-    "hostaddr" => { ..config, hostaddr: Some(value) }
-    "port" => { ..config, port: parse_port(value) }
-    "user" | "username" => { ..config, user: value }
-    "dbname" | "database" => { ..config, database: Some(value) }
-    "password" => { ..config, password: Some(value) }
-    "sslmode" => { ..config, sslmode: value }
-    "sslrootcert" => { ..config, sslrootcert: Some(value) }
-    "sslcert" => { ..config, sslcert: Some(value) }
-    "sslkey" => { ..config, sslkey: Some(value) }
-    "application_name" => { ..config, application_name: Some(value) }
-    "connect_timeout" => { ..config, connect_timeout: parse_int(value) }
-    "statement_timeout" => { ..config, statement_timeout: parse_int(value) }
-    "target_session_attrs" => { ..config, target_session_attrs: value }
+    "host" => { ..config, host: value, }
+    "hostaddr" => { ..config, hostaddr: Some(value), }
+    "port" => { ..config, port: parse_port(value), }
+    "user" | "username" => { ..config, user: value, }
+    "dbname" | "database" => { ..config, database: Some(value), }
+    "password" => { ..config, password: Some(value), }
+    "sslmode" => { ..config, sslmode: value, }
+    "sslrootcert" => { ..config, sslrootcert: Some(value), }
+    "sslcert" => { ..config, sslcert: Some(value), }
+    "sslkey" => { ..config, sslkey: Some(value), }
+    "application_name" => { ..config, application_name: Some(value), }
+    "connect_timeout" => { ..config, connect_timeout: parse_int(value), }
+    "statement_timeout" => { ..config, statement_timeout: parse_int(value), }
+    "target_session_attrs" => { ..config, target_session_attrs: value, }
     _ => config
   }
 }
 
 ///|
 /// Parse an integer, returning 0 on failure (sensible default for timeouts).
-fn parse_int(s : String) -> Int {
+fn parse_int(s : String) -> Int32 {
   @string.parse_int(s) catch {
     _ => 0
   }
@@ -316,7 +316,7 @@ fn parse_int(s : String) -> Int {
 
 ///|
 /// Parse a port string, falling back to `DEFAULT_PORT`.
-fn parse_port(s : String) -> Int {
+fn parse_port(s : String) -> Int32 {
   @string.parse_int(s) catch {
     _ => DEFAULT_PORT
   }

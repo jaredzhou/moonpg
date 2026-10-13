@@ -27,7 +27,7 @@ pub impl ToValue for @value.Value with fn to_value(self) {
 // ---------------------------------------------------------------------------
 
 ///|
-pub impl ToValue for Int with fn to_value(self) {
+pub impl ToValue for Int32 with fn to_value(self) {
   @value.Value::Int(self)
 }
 
@@ -158,7 +158,7 @@ pub impl[T : ToValue] ToValue for Array[T] with fn to_value(self) {
 // ---------------------------------------------------------------------------
 
 ///|
-pub impl FromValue for Int with fn from_value(v : @value.Value) {
+pub impl FromValue for Int32 with fn from_value(v : @value.Value) {
   match v {
     @value.Value::Int(i) => i
     _ => raise ValueError::ValueError("expected Value::Int")
@@ -337,7 +337,7 @@ test "to_value_int" {
 
 ///|
 test "from_value_int_roundtrip" {
-  let v : Int = FromValue::from_value(@value.Value::Int(42))
+  let v : Int32 = FromValue::from_value(@value.Value::Int(42))
   assert_eq(v, 42)
 }
 
@@ -355,7 +355,7 @@ test "from_value_int_mismatch" {
 
 ///|
 test "option_to_value_some" {
-  let v : Int? = Some(42)
+  let v : Int32? = Some(42)
   let val = ToValue::to_value(v)
   match val {
     @value.Value::Int(n) => assert_eq(n, 42)
@@ -365,7 +365,7 @@ test "option_to_value_some" {
 
 ///|
 test "option_to_value_none" {
-  let v : Int? = None
+  let v : Int32? = None
   let val = ToValue::to_value(v)
   match val {
     @value.Value::Null => ()
@@ -375,7 +375,7 @@ test "option_to_value_none" {
 
 ///|
 test "option_from_value_null" {
-  let v : Int? = FromValue::from_value(@value.Value::Null)
+  let v : Int32? = FromValue::from_value(@value.Value::Null)
   match v {
     None => ()
     Some(_) => fail("expected None")
@@ -508,7 +508,7 @@ test "option_string_from_null" {
 
 ///|
 test "option_int_from_some" {
-  let v : Int? = FromValue::from_value(@value.Value::Int(42))
+  let v : Int32? = FromValue::from_value(@value.Value::Int(42))
   match v {
     Some(n) => assert_eq(n, 42)
     None => fail("expected Some(42)")
@@ -600,7 +600,7 @@ test "bool_from_value_mismatch" {
 
 ///|
 test "array_to_value_int" {
-  let arr : Array[Int] = [1, 2, 3]
+  let arr : Array[Int32] = [1, 2, 3]
   let val = ToValue::to_value(arr)
   match val {
     @value.Value::Array(vals) => {
@@ -620,7 +620,7 @@ test "array_from_value_int" {
     @value.Value::Int(2),
     @value.Value::Int(3),
   ])
-  let arr : Array[Int] = FromValue::from_value(val)
+  let arr : Array[Int32] = FromValue::from_value(val)
   assert_eq(arr.length(), 3)
   assert_eq(arr[0], 1)
   assert_eq(arr[1], 2)
@@ -629,7 +629,7 @@ test "array_from_value_int" {
 
 ///|
 test "array_to_value_int_nullable" {
-  let arr : Array[Int?] = [Some(1), None, Some(3)]
+  let arr : Array[Int32?] = [Some(1), None, Some(3)]
   let val = ToValue::to_value(arr)
   match val {
     @value.Value::Array(vals) => {
@@ -649,7 +649,7 @@ test "array_from_value_int_nullable" {
     @value.Value::Null,
     @value.Value::Int(3),
   ])
-  let arr : Array[Int?] = FromValue::from_value(val)
+  let arr : Array[Int32?] = FromValue::from_value(val)
   assert_eq(arr.length(), 3)
   assert_eq(arr[0], Some(1))
   assert_eq(arr[1], None)
@@ -694,7 +694,7 @@ test "array_from_value_requires_non_null" {
   let _ = FromValue::from_value(val) catch {
     _ => {
       ok = true
-      ([] : Array[Int])
+      ([] : Array[Int32])
     }
   }
   assert_true(ok)
@@ -703,7 +703,7 @@ test "array_from_value_requires_non_null" {
 ///|
 test "array_from_value_empty" {
   let val = @value.Value::Array([])
-  let arr : Array[Int] = FromValue::from_value(val)
+  let arr : Array[Int32] = FromValue::from_value(val)
   assert_eq(arr.length(), 0)
 }
 
@@ -754,14 +754,14 @@ test "debug_&ToValue_string" {
 
 ///|
 test "debug_&ToValue_option_some" {
-  let x : Int? = Some(42)
+  let x : Int32? = Some(42)
   let params : Array[&ToValue] = [x]
   debug_inspect(params[0], content="Some(42)")
 }
 
 ///|
 test "debug_&ToValue_option_none" {
-  let x : Int? = None
+  let x : Int32? = None
   let params : Array[&ToValue] = [x]
   debug_inspect(params[0], content="None")
 }
@@ -781,7 +781,7 @@ test "debug_&ToValue_timestamp" {
 
 ///|
 test "debug_&ToValue_array" {
-  let arr : Array[Int] = [1, 2, 3]
+  let arr : Array[Int32] = [1, 2, 3]
   let params : Array[&ToValue] = [arr]
   debug_inspect(params[0], content="[1, 2, 3]")
 }

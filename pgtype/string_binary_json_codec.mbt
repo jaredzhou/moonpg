@@ -13,7 +13,7 @@ let pg_epoch_offset_usec : Int64 = 946684800000000L
 pub struct ByteaCodec {}
 
 ///|
-pub let bytea_codec : ByteaCodec = ByteaCodec::{  }
+pub let bytea_codec : ByteaCodec = ByteaCodec::{ }
 
 ///|
 impl Codec for ByteaCodec with fn prefer_format(_self : ByteaCodec) -> @value.Format {
@@ -23,7 +23,7 @@ impl Codec for ByteaCodec with fn prefer_format(_self : ByteaCodec) -> @value.Fo
 ///|
 impl Codec for ByteaCodec with fn encode(
   _self : ByteaCodec,
-  _oid : Int,
+  _oid : Int32,
   format : @value.Format,
   value : @value.Value,
 ) -> Bytes? raise CodecError {
@@ -42,7 +42,7 @@ impl Codec for ByteaCodec with fn encode(
 ///|
 impl Codec for ByteaCodec with fn decode(
   _self : ByteaCodec,
-  _oid : Int,
+  _oid : Int32,
   format : @value.Format,
   bytes : Bytes?,
 ) -> @value.Value raise CodecError {
@@ -99,7 +99,7 @@ fn decode_bytea_hex(s : String) -> Bytes raise CodecError {
 }
 
 ///|
-fn hex_char_val(s : String, i : Int) -> Int {
+fn hex_char_val(s : String, i : Int32) -> Int32 {
   let c = s[i].to_int()
   if c >= 48 && c <= 57 {
     c - 48
@@ -120,7 +120,7 @@ fn hex_char_val(s : String, i : Int) -> Int {
 pub struct JSONCodec {}
 
 ///|
-pub let json_codec : JSONCodec = JSONCodec::{  }
+pub let json_codec : JSONCodec = JSONCodec::{ }
 
 ///|
 impl Codec for JSONCodec with fn prefer_format(_self : JSONCodec) -> @value.Format {
@@ -130,7 +130,7 @@ impl Codec for JSONCodec with fn prefer_format(_self : JSONCodec) -> @value.Form
 ///|
 impl Codec for JSONCodec with fn encode(
   _self : JSONCodec,
-  _oid : Int,
+  _oid : Int32,
   format : @value.Format,
   value : @value.Value,
 ) -> Bytes? raise CodecError {
@@ -159,7 +159,7 @@ impl Codec for JSONCodec with fn encode(
 ///|
 impl Codec for JSONCodec with fn decode(
   _self : JSONCodec,
-  _oid : Int,
+  _oid : Int32,
   format : @value.Format,
   bytes : Bytes?,
 ) -> @value.Value raise CodecError {
@@ -190,7 +190,7 @@ impl Codec for JSONCodec with fn decode(
 pub struct JSONBCodec {}
 
 ///|
-pub let jsonb_codec : JSONBCodec = JSONBCodec::{  }
+pub let jsonb_codec : JSONBCodec = JSONBCodec::{ }
 
 ///|
 impl Codec for JSONBCodec with fn prefer_format(_self : JSONBCodec) -> @value.Format {
@@ -200,7 +200,7 @@ impl Codec for JSONBCodec with fn prefer_format(_self : JSONBCodec) -> @value.Fo
 ///|
 impl Codec for JSONBCodec with fn encode(
   _self : JSONBCodec,
-  _oid : Int,
+  _oid : Int32,
   format : @value.Format,
   value : @value.Value,
 ) -> Bytes? raise CodecError {
@@ -230,7 +230,7 @@ impl Codec for JSONBCodec with fn encode(
 ///|
 impl Codec for JSONBCodec with fn decode(
   _self : JSONBCodec,
-  _oid : Int,
+  _oid : Int32,
   format : @value.Format,
   bytes : Bytes?,
 ) -> @value.Value raise CodecError {
@@ -262,7 +262,7 @@ impl Codec for JSONBCodec with fn decode(
 pub struct TimestampCodec {}
 
 ///|
-pub let timestamp_codec : TimestampCodec = TimestampCodec::{  }
+pub let timestamp_codec : TimestampCodec = TimestampCodec::{ }
 
 ///|
 impl Codec for TimestampCodec with fn prefer_format(_self : TimestampCodec) -> @value.Format {
@@ -272,7 +272,7 @@ impl Codec for TimestampCodec with fn prefer_format(_self : TimestampCodec) -> @
 ///|
 impl Codec for TimestampCodec with fn encode(
   _self : TimestampCodec,
-  _oid : Int,
+  _oid : Int32,
   format : @value.Format,
   value : @value.Value,
 ) -> Bytes? raise CodecError {
@@ -299,7 +299,7 @@ impl Codec for TimestampCodec with fn encode(
 ///|
 impl Codec for TimestampCodec with fn decode(
   _self : TimestampCodec,
-  _oid : Int,
+  _oid : Int32,
   format : @value.Format,
   bytes : Bytes?,
 ) -> @value.Value raise CodecError {
@@ -332,7 +332,7 @@ impl Codec for TimestampCodec with fn decode(
 pub struct TimestamptzCodec {}
 
 ///|
-pub let timestamptz_codec : TimestamptzCodec = TimestamptzCodec::{  }
+pub let timestamptz_codec : TimestamptzCodec = TimestamptzCodec::{ }
 
 ///|
 impl Codec for TimestamptzCodec with fn prefer_format(_self : TimestamptzCodec) -> @value.Format {
@@ -342,7 +342,7 @@ impl Codec for TimestamptzCodec with fn prefer_format(_self : TimestamptzCodec) 
 ///|
 impl Codec for TimestamptzCodec with fn encode(
   _self : TimestamptzCodec,
-  _oid : Int,
+  _oid : Int32,
   format : @value.Format,
   value : @value.Value,
 ) -> Bytes? raise CodecError {
@@ -369,7 +369,7 @@ impl Codec for TimestamptzCodec with fn encode(
 ///|
 impl Codec for TimestamptzCodec with fn decode(
   _self : TimestamptzCodec,
-  _oid : Int,
+  _oid : Int32,
   format : @value.Format,
   bytes : Bytes?,
 ) -> @value.Value raise CodecError {
@@ -400,7 +400,7 @@ impl Codec for TimestamptzCodec with fn decode(
 
 ///|
 /// Days in each month (non-leap year).
-let month_days : Array[Int] = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+let month_days : Array[Int32] = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 
 ///|
 /// Seconds in a day.
@@ -408,13 +408,13 @@ let secs_per_day : Int64 = 86400L
 
 ///|
 /// Check if a year is a leap year.
-fn is_leap(y : Int) -> Bool {
+fn is_leap(y : Int32) -> Bool {
   (y % 4 == 0 && y % 100 != 0) || y % 400 == 0
 }
 
 ///|
 /// Days in a year (365 or 366).
-fn year_days(y : Int) -> Int {
+fn year_days(y : Int32) -> Int32 {
   if is_leap(y) {
     366
   } else {
@@ -424,7 +424,7 @@ fn year_days(y : Int) -> Int {
 
 ///|
 /// Days in a given month of a given year.
-fn month_days_for(y : Int, m : Int) -> Int {
+fn month_days_for(y : Int32, m : Int32) -> Int32 {
   if m == 2 && is_leap(y) {
     29
   } else {
@@ -434,7 +434,7 @@ fn month_days_for(y : Int, m : Int) -> Int {
 
 ///|
 /// Compute (year, month, day) from days since Unix epoch (1970-01-01).
-fn days_to_date(days : Int64) -> (Int, Int, Int) {
+fn days_to_date(days : Int64) -> (Int32, Int32, Int32) {
   let mut d = days
   let mut y = 1970
   while d < 0 {
@@ -455,7 +455,7 @@ fn days_to_date(days : Int64) -> (Int, Int, Int) {
 
 ///|
 /// Compute (hour, minute, second) from seconds within a day.
-fn secs_to_hms(secs : Int64) -> (Int, Int, Int) {
+fn secs_to_hms(secs : Int64) -> (Int32, Int32, Int32) {
   let h = (secs / 3600L).to_int()
   let m = (secs % 3600L / 60L).to_int()
   let s = (secs % 60L).to_int()
@@ -463,7 +463,7 @@ fn secs_to_hms(secs : Int64) -> (Int, Int, Int) {
 }
 
 ///|
-fn pad2(v : Int) -> String {
+fn pad2(v : Int32) -> String {
   if v < 10 {
     "0\{v}"
   } else {
@@ -472,7 +472,7 @@ fn pad2(v : Int) -> String {
 }
 
 ///|
-fn pad6(v : Int) -> String {
+fn pad6(v : Int32) -> String {
   if v < 10 {
     "00000\{v}"
   } else if v < 100 {
@@ -555,7 +555,7 @@ fn split_tz_offset(s : String) -> (String, Int64) {
 }
 
 ///|
-fn digit_val(s : String, i : Int) -> Int {
+fn digit_val(s : String, i : Int32) -> Int32 {
   if i >= s.length() {
     return 0
   }

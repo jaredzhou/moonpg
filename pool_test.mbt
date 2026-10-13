@@ -143,17 +143,17 @@ async test "pc_query_returns_rows" {
   let tbl = "p_pc_query"
   pool_setup(tbl)
   let pool = Pool::new(default_config())
+  defer pool.close()
   let pc = pool.acquire()
+  defer pc.release()
   pc.execute("INSERT INTO \{tbl} (val, note) VALUES ($1, $2)", params=[
     1, "pc_query",
   ])
   |> ignore
   let rows = pc.query("SELECT note FROM \{tbl}")
+  defer rows.close()
   assert_true(rows.has_next())
   assert_eq(rows.get_row().get(0), "pc_query")
-  rows.close()
-  pc.release()
-  pool.close()
 }
 
 ///|
@@ -214,15 +214,15 @@ async test "pool_query_returns_pool_rows" {
   let tbl = "p_pq_rows"
   pool_setup(tbl)
   let pool = Pool::new(default_config())
+  defer pool.close()
   let pc = pool.acquire()
   pc.execute("INSERT INTO \{tbl} (val, note) VALUES (1, 'pq')") |> ignore
   pc.release()
 
   let rows = pool.query("SELECT note FROM \{tbl}")
+  defer rows.close()
   assert_true(rows.has_next())
   assert_eq(rows.get_row().get(0), "pq")
-  rows.close()
-  pool.close()
 }
 
 ///|
@@ -291,6 +291,7 @@ async test "pool_begin_tx_commit" {
   let tbl = "p_ptx_commit"
   pool_setup(tbl)
   let pool = Pool::new(default_config())
+  defer pool.close()
   let tx = pool.begin_tx()
   QueryExecutor::execute(tx, "INSERT INTO \{tbl} (val, note) VALUES ($1, $2)", params=[
     1, "ptx_commit",
@@ -299,10 +300,9 @@ async test "pool_begin_tx_commit" {
   tx.commit()
 
   let rows = pool.query("SELECT note FROM \{tbl}")
+  defer rows.close()
   assert_true(rows.has_next())
   assert_eq(rows.get_row().get(0), "ptx_commit")
-  rows.close()
-  pool.close()
 }
 
 ///|
@@ -310,6 +310,7 @@ async test "pool_begin_tx_rollback" {
   let tbl = "p_ptx_rb"
   pool_setup(tbl)
   let pool = Pool::new(default_config())
+  defer pool.close()
   let tx = pool.begin_tx()
   QueryExecutor::execute(tx, "INSERT INTO \{tbl} (val, note) VALUES ($1, $2)", params=[
     99, "ptx_rb",
@@ -318,11 +319,10 @@ async test "pool_begin_tx_rollback" {
   tx.rollback()
 
   let rows = pool.query("SELECT COUNT(*) FROM \{tbl}")
+  defer rows.close()
   assert_true(rows.has_next())
   let count : Int64 = rows.get_row().get(0)
   assert_eq(count, 0L)
-  rows.close()
-  pool.close()
 }
 
 ///|
@@ -447,6 +447,7 @@ async test "pc_begin_tx_rollback_then_release" {
   let tbl = "p_pc_rb_rel"
   pool_setup(tbl)
   let pool = Pool::new(default_config())
+  defer pool.close()
   let pc = pool.acquire()
   let tx = pc.begin_tx()
   QueryExecutor::execute(tx, "INSERT INTO \{tbl} (val, note) VALUES ($1, $2)", params=[
@@ -457,11 +458,10 @@ async test "pc_begin_tx_rollback_then_release" {
   pc.release()
 
   let rows = pool.query("SELECT COUNT(*) FROM \{tbl}")
+  defer rows.close()
   assert_true(rows.has_next())
   let count : Int64 = rows.get_row().get(0)
   assert_eq(count, 0L)
-  rows.close()
-  pool.close()
 }
 
 // ---------------------------------------------------------------------------
@@ -473,6 +473,7 @@ async test "begin_func_with_pool_success" {
   let tbl = "p_bf_ok"
   pool_setup(tbl)
   let pool = Pool::new(default_config())
+  defer pool.close()
   let result = begin_func(pool, async fn(tx) {
     QueryExecutor::execute(
       tx,
@@ -485,10 +486,9 @@ async test "begin_func_with_pool_success" {
   assert_eq(result, 100)
 
   let rows = pool.query("SELECT note FROM \{tbl}")
+  defer rows.close()
   assert_true(rows.has_next())
   assert_eq(rows.get_row().get(0), "bf_pool")
-  rows.close()
-  pool.close()
 }
 
 ///|
@@ -496,6 +496,7 @@ async test "begin_func_with_pool_error_rolls_back" {
   let tbl = "p_bf_err"
   pool_setup(tbl)
   let pool = Pool::new(default_config())
+  defer pool.close()
   try {
     let _ = begin_func(pool, async fn(tx) {
       QueryExecutor::execute(
@@ -513,11 +514,10 @@ async test "begin_func_with_pool_error_rolls_back" {
   }
 
   let rows = pool.query("SELECT COUNT(*) FROM \{tbl}")
+  defer rows.close()
   assert_true(rows.has_next())
   let count : Int64 = rows.get_row().get(0)
   assert_eq(count, 0L)
-  rows.close()
-  pool.close()
 }
 
 // ---------------------------------------------------------------------------
@@ -569,6 +569,7 @@ async test "pool_reuse_across_operations" {
   pool_setup(tbl)
   let cfg = PoolConfig::new(pool_test_conninfo, max_conns=2, min_idle=0)
   let pool = Pool::new(cfg)
+  defer pool.close()
 
   for i = 0; i < 5; i = i + 1 {
     pool.execute("INSERT INTO \{tbl} (val, note) VALUES ($1, $2)", params=[
@@ -578,11 +579,10 @@ async test "pool_reuse_across_operations" {
   }
 
   let rows = pool.query("SELECT COUNT(*) FROM \{tbl}")
+  defer rows.close()
   assert_true(rows.has_next())
   let count : Int64 = rows.get_row().get(0)
   assert_eq(count, 5L)
-  rows.close()
-  pool.close()
 }
 
 // ---------------------------------------------------------------------------

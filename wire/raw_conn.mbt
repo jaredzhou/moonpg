@@ -11,13 +11,13 @@ pub struct RawConn {
   /// Server host, stored for cancel requests.
   host : String
   /// Server port, stored for cancel requests.
-  port : Int
+  port : Int32
   /// Server parameters reported during startup (ParameterStatus messages).
   params : @hashmap.HashMap[String, String]
   /// Backend process ID.
-  pid : Int
+  pid : Int32
   /// Backend secret key (for cancel requests).
-  secret_key : Int
+  secret_key : Int32
   /// Current transaction status from the last `ReadyForQuery`.
   mut tx_status : TransactionStatus
   /// Current connection lifecycle state.
@@ -85,7 +85,7 @@ pub async fn connect_config(config : Config) -> RawConn raise WireError {
     _ => false
   }
   let stream = if wants_tls {
-    let ssl_req = SSLRequest::{  }
+    let ssl_req = SSLRequest::{ }
     tcp.write(ssl_req.encode()) catch {
       e => raise WireError::IO("SSL request write: \{e}")
     }
@@ -132,16 +132,16 @@ pub async fn connect_config(config : Config) -> RawConn raise WireError {
 
   // Build and send StartupMessage
   let startup_params : Array[ConnParam] = []
-  startup_params.push(ConnParam::{ key: "user", value: config.user })
+  startup_params.push(ConnParam::{ key: "user", value: config.user, })
   let db = match config.database {
     Some(d) => d
     None => config.user
   }
-  startup_params.push(ConnParam::{ key: "database", value: db })
+  startup_params.push(ConnParam::{ key: "database", value: db, })
   // application_name
   match config.application_name {
     Some(name) =>
-      startup_params.push(ConnParam::{ key: "application_name", value: name })
+      startup_params.push(ConnParam::{ key: "application_name", value: name, })
     None => ()
   }
   // statement_timeout (milliseconds, 0 = no timeout)
@@ -151,7 +151,7 @@ pub async fn connect_config(config : Config) -> RawConn raise WireError {
       value: config.statement_timeout.to_string(),
     })
   }
-  let startup = StartupMessage::{ version: V3_2, params: startup_params }
+  let startup = StartupMessage::{ version: V3_2, params: startup_params, }
   conn.send(startup)
 
   // Process authentication + parameter messages until ReadyForQuery
@@ -166,7 +166,7 @@ pub async fn connect_config(config : Config) -> RawConn raise WireError {
       AuthenticationCleartextPassword(_) =>
         match config.password {
           Some(pw) => {
-            let _ = conn.send(PasswordMessage::{ password: pw })
+            let _ = conn.send(PasswordMessage::{ password: pw, })
           }
           None =>
             raise WireError::Auth(
@@ -177,7 +177,7 @@ pub async fn connect_config(config : Config) -> RawConn raise WireError {
         match config.password {
           Some(pw) => {
             let md5_pass = compute_md5_password(pw, config.user, m.salt)
-            let _ = conn.send(PasswordMessage::{ password: md5_pass })
+            let _ = conn.send(PasswordMessage::{ password: md5_pass, })
           }
           None =>
             raise WireError::Auth(
@@ -244,7 +244,7 @@ pub async fn connect_config(config : Config) -> RawConn raise WireError {
     _ => () // unknown, silently accept
   }
 
-  { ..conn, params: params_map, pid, secret_key, status: Idle }
+  { ..conn, params: params_map, pid, secret_key, status: Idle, }
 }
 
 // ---------------------------------------------------------------------------
@@ -678,7 +678,7 @@ pub fn RawConn::param(self : RawConn, name : String) -> String? {
 }
 
 ///|
-pub fn RawConn::backend_pid(self : RawConn) -> Int {
+pub fn RawConn::backend_pid(self : RawConn) -> Int32 {
   self.pid
 }
 
@@ -727,13 +727,13 @@ fn RawConn::unlock(self : RawConn) -> Unit raise WireError {
 /// Tells the server to flush any buffered output. Used in the extended query
 /// protocol.
 pub async fn RawConn::flush(self : RawConn) -> Unit raise WireError {
-  self.send(Flush::{  })
+  self.send(Flush::{ })
 }
 
 ///|
 /// Send Terminate and close.
 pub async fn RawConn::terminate(self : RawConn) -> Unit {
-  let data = Terminate::encode(Terminate::{  }) catch {
+  let data = Terminate::encode(Terminate::{ }) catch {
     _ => {
       self.stream.close()
       return
@@ -781,7 +781,7 @@ pub async fn RawConn::try_close(self : RawConn) -> Unit {
       group.return_immediately(())
     }
     group.spawn_bg() <| () => { cancel_request(host, port, pid, secret_key) }
-    let data = Terminate::encode(Terminate::{  }) catch { _ => return }
+    let data = Terminate::encode(Terminate::{ }) catch { _ => return }
     stream.write(data)
   }
   stream.close()
@@ -817,7 +817,7 @@ pub async fn RawConn::send_copy_data(
 ///|
 /// Signal successful completion of COPY data transfer.
 pub async fn RawConn::send_copy_done(self : RawConn) -> Unit raise WireError {
-  self.send(CopyDone::{  })
+  self.send(CopyDone::{ })
 }
 
 ///|
@@ -870,7 +870,7 @@ pub async fn RawConn::begin_copy_in(
 /// unlocks the connection.  Pairs with `begin_copy_in`.
 pub async fn RawConn::end_copy_in(self : RawConn) -> Unit raise WireError {
   // Signal completion
-  self.send(CopyDone::{  })
+  self.send(CopyDone::{ })
 
   // Read CommandComplete + ReadyForQuery
   for ;; {
@@ -907,7 +907,7 @@ pub async fn RawConn::copy_in(
 ) -> Unit raise WireError {
   self.begin_copy_in(sql)
   for row in rows {
-    self.send(CopyData::{ data: @utf8.encode(row) })
+    self.send(CopyData::{ data: @utf8.encode(row), })
   }
   self.end_copy_in()
 }
@@ -918,16 +918,16 @@ pub async fn RawConn::copy_in(
 
 ///|
 /// Cancel request magic number (different from SSL request).
-const CANCEL_REQUEST_CODE : Int = 80877102
+const CANCEL_REQUEST_CODE : Int32 = 80877102
 
 ///|
 /// Send a cancel request to the server via a new TCP connection.
 /// Best-effort — all errors are silently ignored.
 async fn cancel_request(
   host : String,
-  port : Int,
-  backend_pid : Int,
-  secret_key : Int,
+  port : Int32,
+  backend_pid : Int32,
+  secret_key : Int32,
 ) -> Unit {
   let addr = @socket.Addr::resolve(host, port~) catch { _ => return }
   let tcp = @socket.Tcp::connect(addr) catch { _ => return }
@@ -960,15 +960,15 @@ pub async fn RawConn::prepare(
   self : RawConn,
   name : String,
   sql : String,
-  param_types : Array[Int],
+  param_types : Array[Int32],
 ) -> StatementDescription raise WireError {
   self.lock()
 
-  self.send(Parse::{ name, query: sql, param_types })
-  self.send(Describe::{ variant: b'S', name })
-  self.send(Sync::{  })
+  self.send(Parse::{ name, query: sql, param_types, })
+  self.send(Describe::{ variant: b'S', name, })
+  self.send(Sync::{ })
 
-  let mut param_oids : Array[Int] = []
+  let mut param_oids : Array[Int32] = []
   let mut fields : Array[FieldDescription] = []
 
   for ;; {
@@ -993,7 +993,7 @@ pub async fn RawConn::prepare(
   }
 
   self.unlock()
-  StatementDescription::{ name, sql, param_oids, fields }
+  StatementDescription::{ name, sql, param_oids, fields, }
 }
 
 ///|
@@ -1014,10 +1014,10 @@ pub async fn RawConn::bind(
   portal : String,
   statement : String,
   params : Array[Bytes?],
-  param_formats : Array[Int],
-  result_formats : Array[Int],
+  param_formats : Array[Int32],
+  result_formats : Array[Int32],
 ) -> Unit raise WireError {
-  self.send(Bind::{ portal, statement, params, param_formats, result_formats })
+  self.send(Bind::{ portal, statement, params, param_formats, result_formats, })
   self.flush()
   match self.receive() {
     BindComplete(_) => ()
@@ -1040,7 +1040,7 @@ pub async fn RawConn::describe_portal(
   self : RawConn,
   portal : String,
 ) -> Array[FieldDescription] raise WireError {
-  self.send(Describe::{ variant: b'P', name: portal })
+  self.send(Describe::{ variant: b'P', name: portal, })
   self.flush()
   match self.receive() {
     RowDescription(rd) => rd.columns
@@ -1062,8 +1062,8 @@ pub async fn RawConn::describe_portal(
 pub async fn RawConn::describe_statement(
   self : RawConn,
   name : String,
-) -> Array[Int] raise WireError {
-  self.send(Describe::{ variant: b'S', name })
+) -> Array[Int32] raise WireError {
+  self.send(Describe::{ variant: b'S', name, })
   self.flush()
   match self.receive() {
     ParameterDescription(pd) => pd.param_types
@@ -1089,11 +1089,11 @@ pub async fn RawConn::execute(
   self : RawConn,
   portal : String,
   columns : Array[FieldDescription],
-  max_rows : Int,
+  max_rows : Int32,
 ) -> ResultReader raise WireError {
   self.lock()
-  self.send(Execute::{ portal, max_rows })
-  self.send(Sync::{  })
+  self.send(Execute::{ portal, max_rows, })
+  self.send(Sync::{ })
   ResultReader::{
     conn: self,
     columns,
@@ -1113,7 +1113,7 @@ pub async fn RawConn::close_statement(
   self : RawConn,
   name : String,
 ) -> Unit raise WireError {
-  self.send(Close::{ variant: b'S', name })
+  self.send(Close::{ variant: b'S', name, })
   self.flush()
   match self.receive() {
     CloseComplete(_) => ()
@@ -1132,7 +1132,7 @@ pub async fn RawConn::close_portal(
   self : RawConn,
   name : String,
 ) -> Unit raise WireError {
-  self.send(Close::{ variant: b'P', name })
+  self.send(Close::{ variant: b'P', name, })
   self.flush()
   match self.receive() {
     CloseComplete(_) => ()
@@ -1149,7 +1149,7 @@ pub async fn RawConn::close_portal(
 /// Force the server to process all pending extended-query messages and
 /// return `ReadyForQuery`.  Updates `conn.tx_status`.
 pub async fn RawConn::sync(self : RawConn) -> Unit raise WireError {
-  self.send(Sync::{  })
+  self.send(Sync::{ })
   for ;; {
     match self.receive() {
       ReadyForQuery(rfq) => {
@@ -1194,8 +1194,8 @@ pub async fn RawConn::execute_prepared(
   self : RawConn,
   stmt_name : String,
   param_values : Array[Bytes?],
-  param_formats : Array[Int],
-  result_formats : Array[Int],
+  param_formats : Array[Int32],
+  result_formats : Array[Int32],
 ) -> ResultReader raise WireError {
   let n = param_values.length()
   guard n <= 65535 else {
@@ -1203,7 +1203,7 @@ pub async fn RawConn::execute_prepared(
       "extended protocol limited to 65535 parameters, got \{n}",
     )
   }
-  let p_formats : Array[Int] = expand_formats(n, param_formats)
+  let p_formats : Array[Int32] = expand_formats(n, param_formats)
 
   self.lock()
 
@@ -1214,9 +1214,9 @@ pub async fn RawConn::execute_prepared(
     param_formats: p_formats,
     result_formats,
   })
-  self.send(Describe::{ variant: b'P', name: "" })
-  self.send(Execute::{ portal: "", max_rows: 0 })
-  self.send(Sync::{  })
+  self.send(Describe::{ variant: b'P', name: "", })
+  self.send(Execute::{ portal: "", max_rows: 0, })
+  self.send(Sync::{ })
 
   // 1. BindComplete
   match self.receive() {
@@ -1278,8 +1278,8 @@ pub async fn RawConn::execute_statement(
   self : RawConn,
   stmt_desc : StatementDescription,
   param_values : Array[Bytes?],
-  param_formats : Array[Int],
-  result_formats? : Array[Int],
+  param_formats : Array[Int32],
+  result_formats? : Array[Int32],
 ) -> ResultReader raise WireError {
   let n = param_values.length()
   guard n <= 65535 else {
@@ -1287,8 +1287,8 @@ pub async fn RawConn::execute_statement(
       "extended protocol limited to 65535 parameters, got \{n}",
     )
   }
-  let p_formats : Array[Int] = expand_formats(n, param_formats)
-  let r_formats : Array[Int] = match result_formats {
+  let p_formats : Array[Int32] = expand_formats(n, param_formats)
+  let r_formats : Array[Int32] = match result_formats {
     Some(rf) => rf
     None =>
       Array::makei(stmt_desc.fields.length(), fn(i) {
@@ -1305,8 +1305,8 @@ pub async fn RawConn::execute_statement(
     param_formats: p_formats,
     result_formats: r_formats,
   })
-  self.send(Execute::{ portal: "", max_rows: 0 })
-  self.send(Sync::{  })
+  self.send(Execute::{ portal: "", max_rows: 0, })
+  self.send(Sync::{ })
 
   // Read BindComplete
   match self.receive() {
@@ -1337,7 +1337,10 @@ pub async fn RawConn::execute_statement(
 ///|
 /// Normalise format codes: `[]` → all-0, `[x]` → broadcast to `n`.
 /// Rejects lengths other than 0, 1, or `n`.
-fn expand_formats(n : Int, formats : Array[Int]) -> Array[Int] raise WireError {
+fn expand_formats(
+  n : Int32,
+  formats : Array[Int32],
+) -> Array[Int32] raise WireError {
   match formats.length() {
     0 => Array::makei(n, fn(_) { 0 })
     1 => Array::makei(n, fn(_) { formats[0] })

@@ -8,7 +8,7 @@
 
 ///|
 /// Read a single-column row as `Int`.
-pub impl FromRow for Int with fn from_row(r : Row) -> Int raise PgError {
+pub impl FromRow for Int32 with fn from_row(r : Row) -> Int32 raise PgError {
   r.get(0)
 }
 

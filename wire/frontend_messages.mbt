@@ -143,7 +143,7 @@ pub impl Message for SASLInitialResponse with fn decode(payload) -> SASLInitialR
   } else {
     Bytes::default()
   }
-  { mechanism, initial_response }
+  { mechanism, initial_response, }
 }
 
 ///|
@@ -173,7 +173,7 @@ pub impl Message for SASLResponse with fn encode(self) -> Bytes {
 
 ///|
 pub impl Message for SASLResponse with fn decode(payload) -> SASLResponse raise WireError {
-  { data: payload.to_owned() }
+  { data: payload.to_owned(), }
 }
 
 ///|
@@ -205,7 +205,7 @@ pub impl Message for SSLRequest with fn decode(payload) -> SSLRequest raise Wire
   guard code == SSL_REQUEST_CODE else {
     raise WireError::InvalidMessage("not an SSL request: \{code}")
   }
-  SSLRequest::{  }
+  SSLRequest::{ }
 }
 
 ///|
@@ -257,12 +257,12 @@ pub impl Message for StartupMessage with fn decode(payload) -> StartupMessage ra
       _ => {
         let (key, r1) = read_cstring(rest[:])
         let (value, r2) = read_cstring(r1)
-        params.push(ConnParam::{ key, value })
+        params.push(ConnParam::{ key, value, })
         continue r2
       }
     }
   }
-  { version, params }
+  { version, params, }
 }
 
 ///|
@@ -295,7 +295,7 @@ pub impl Message for Terminate with fn encode(_self) -> Bytes {
 
 ///|
 pub impl Message for Terminate with fn decode(_payload) -> Terminate raise WireError {
-  Terminate::{  }
+  Terminate::{ }
 }
 
 ///|
@@ -315,7 +315,7 @@ pub(all) struct Parse {
   /// SQL query string (single statement only).
   query : String
   /// Parameter type OIDs; 0 = unspecified, fewer than $n = remaining unspecified.
-  param_types : Array[Int]
+  param_types : Array[Int32]
 }
 
 ///|
@@ -343,7 +343,7 @@ pub impl Message for Parse with fn decode(payload) -> Parse raise WireError {
   guard r2 is [i16be(n), .. r3] else {
     raise WireError::InvalidMessage("Parse: truncated param count")
   }
-  let param_types : Array[Int] = []
+  let param_types : Array[Int32] = []
   for r3 = r3 {
     if param_types.length() >= n {
       break
@@ -354,7 +354,7 @@ pub impl Message for Parse with fn decode(payload) -> Parse raise WireError {
     param_types.push(oid)
     continue rest
   }
-  { name, query, param_types }
+  { name, query, param_types, }
 }
 
 ///|
@@ -375,12 +375,12 @@ pub(all) struct Bind {
   statement : String
   /// Parameter format codes: 0 = text, 1 = binary.
   ///   Empty array = all text, single value = applies to all.
-  param_formats : Array[Int]
+  param_formats : Array[Int32]
   /// Parameter values. `None` = NULL. Must match statement's param count.
   params : Array[Bytes?]
   /// Result-column format codes: 0 = text, 1 = binary.
   ///   Empty array = all text, single value = applies to all.
-  result_formats : Array[Int]
+  result_formats : Array[Int32]
 }
 
 ///|
@@ -434,7 +434,7 @@ pub impl Message for Bind with fn decode(payload) -> Bind raise WireError {
   guard r2 is [i16be(n_pf), .. r3] else {
     raise WireError::InvalidMessage("Bind: truncated param format count")
   }
-  let param_formats : Array[Int] = []
+  let param_formats : Array[Int32] = []
   for r3 = r3 {
     if param_formats.length() >= n_pf {
       break
@@ -471,7 +471,7 @@ pub impl Message for Bind with fn decode(payload) -> Bind raise WireError {
   guard r4 is [i16be(n_rf), .. r6] else {
     raise WireError::InvalidMessage("Bind: truncated result format count")
   }
-  let result_formats : Array[Int] = []
+  let result_formats : Array[Int32] = []
   for r6 = r6 {
     if result_formats.length() >= n_rf {
       break
@@ -482,7 +482,7 @@ pub impl Message for Bind with fn decode(payload) -> Bind raise WireError {
     result_formats.push(f)
     continue rest
   }
-  { portal, statement, param_formats, params, result_formats }
+  { portal, statement, param_formats, params, result_formats, }
 }
 
 ///|
@@ -521,7 +521,7 @@ pub impl Message for Describe with fn decode(payload) -> Describe raise WireErro
     raise WireError::InvalidMessage("Describe: truncated")
   }
   let (name, _) = read_cstring(rest)
-  { variant, name }
+  { variant, name, }
 }
 
 ///|
@@ -540,7 +540,7 @@ pub(all) struct Execute {
   /// Portal name (empty string = unnamed).
   portal : String
   /// Max rows to return; 0 = no limit.
-  max_rows : Int
+  max_rows : Int32
 }
 
 ///|
@@ -561,7 +561,7 @@ pub impl Message for Execute with fn decode(payload) -> Execute raise WireError 
   guard rest is [i32be(max_rows)] else {
     raise WireError::InvalidMessage("Execute: truncated max_rows")
   }
-  { portal, max_rows }
+  { portal, max_rows, }
 }
 
 ///|
@@ -600,7 +600,7 @@ pub impl Message for Close with fn decode(payload) -> Close raise WireError {
     raise WireError::InvalidMessage("Close: truncated")
   }
   let (name, _) = read_cstring(rest)
-  { variant, name }
+  { variant, name, }
 }
 
 ///|
@@ -627,7 +627,7 @@ pub impl Message for Sync with fn encode(_self) -> Bytes {
 
 ///|
 pub impl Message for Sync with fn decode(_payload) -> Sync raise WireError {
-  Sync::{  }
+  Sync::{ }
 }
 
 ///|
@@ -654,7 +654,7 @@ pub impl Message for Flush with fn encode(_self) -> Bytes {
 
 ///|
 pub impl Message for Flush with fn decode(_payload) -> Flush raise WireError {
-  Flush::{  }
+  Flush::{ }
 }
 
 ///|
@@ -705,7 +705,7 @@ pub impl Message for CopyDone with fn encode(_self) -> Bytes {
 
 ///|
 pub impl Message for CopyDone with fn decode(_payload) -> CopyDone raise WireError {
-  CopyDone::{  }
+  CopyDone::{ }
 }
 
 ///|

@@ -26,7 +26,7 @@ pub impl Rows for ConnRows with fn has_next(self : ConnRows) -> Bool raise PgErr
 pub impl Rows for ConnRows with fn get_row(self : ConnRows) -> Row raise PgError {
   let raw_row = self.reader.data_row() catch { e => raise map_wire_error(e) }
   let col_descs = self.reader.columns()
-  Row::{ values: raw_row, col_descs }
+  Row::{ values: raw_row, col_descs, }
 }
 
 ///|
@@ -56,12 +56,12 @@ pub struct Connection {
 /// Open a new connection to a PostgreSQL server.
 pub async fn connect(conninfo : String) -> Connection raise PgError {
   let inner = @wire.connect(conninfo) catch { e => raise map_wire_error(e) }
-  Connection::{ conn: inner }
+  Connection::{ conn: inner, }
 }
 
 ///|
 /// Return the backend process ID assigned by PostgreSQL.
-pub fn Connection::backend_pid(self : Connection) -> Int {
+pub fn Connection::backend_pid(self : Connection) -> Int32 {
   self.conn.backend_pid()
 }
 
@@ -202,7 +202,7 @@ pub async fn Connection::copy_in(
   self.conn.copy_in(sql, rows) catch {
     e => raise map_wire_error(e)
   }
-  ExecResult::{ tag: @wire.CommandTag::new("COPY 0") }
+  ExecResult::{ tag: @wire.CommandTag::new("COPY 0"), }
 }
 
 // ---------------------------------------------------------------------------
@@ -244,7 +244,7 @@ pub async fn Connection::begin_copy(
   self.conn.begin_copy_in(sql) catch {
     e => raise map_wire_error(e)
   }
-  CopyWriter::{ conn: self.conn }
+  CopyWriter::{ conn: self.conn, }
 }
 
 ///|
@@ -274,12 +274,12 @@ pub async fn CopyWriter::finish(self : CopyWriter) -> ExecResult raise PgError {
   self.conn.end_copy_in() catch {
     e => raise map_wire_error(e)
   }
-  ExecResult::{ tag: @wire.CommandTag::new("COPY") }
+  ExecResult::{ tag: @wire.CommandTag::new("COPY"), }
 }
 
 ///|
 /// Return the server version as an integer (e.g. 180004 for 18.0.4).
-pub fn Connection::server_version(self : Connection) -> Int {
+pub fn Connection::server_version(self : Connection) -> Int32 {
   match self.conn.param(@wire.PARAM_SERVER_VERSION) {
     Some(v) => parse_server_version(v)
     None => 0
@@ -310,7 +310,7 @@ async fn exec_params(
   let stmt = conn.prepare("", sql, [])
   let n = params.length()
   let param_values : Array[Bytes?] = Array::makei(n, fn(_) { None })
-  let param_formats : Array[Int] = Array::makei(n, fn(_) { 0 })
+  let param_formats : Array[Int32] = Array::makei(n, fn(_) { 0 })
   for i = 0; i < n; i = i + 1 {
     let oid = stmt.param_oids[i]
     let codec = @pgtype.default_map.codec_for(oid)
@@ -386,12 +386,10 @@ pub impl QueryExecutor for Connection with fn query_one(
   params? : Array[&ToValue],
 ) -> Row raise PgError {
   let rows = self.query(sql, params?)
+  defer rows.close()
   if rows.has_next() {
-    let row = rows.get_row()
-    rows.close()
-    return row
+    return rows.get_row()
   }
-  rows.close()
   raise NoRows
 }
 
@@ -435,7 +433,7 @@ pub fn row_from_raw(
   raw_row : Array[Bytes?],
   col_descs : Array[@wire.FieldDescription],
 ) -> Row {
-  Row::{ values: raw_row, col_descs }
+  Row::{ values: raw_row, col_descs, }
 }
 
 // ---------------------------------------------------------------------------
@@ -456,7 +454,7 @@ fn map_wire_error(e : @wire.WireError) -> PgError {
 }
 
 ///|
-fn parse_server_version(s : String) -> Int {
+fn parse_server_version(s : String) -> Int32 {
   let parts = s.split(".")
   let mut result = 0
   let mut count = 0

@@ -11,12 +11,12 @@
 /// Per-field metadata carried in a `RowDescription` message.
 pub(all) struct FieldDescription {
   name : String
-  table_oid : Int
-  attr_num : Int
-  type_oid : Int
-  typlen : Int
-  typmod : Int
-  format : Int // 0 = text, 1 = binary
+  table_oid : Int32
+  attr_num : Int32
+  type_oid : Int32
+  typlen : Int32
+  typmod : Int32
+  format : Int32 // 0 = text, 1 = binary
 }
 
 ///|
@@ -36,7 +36,7 @@ pub(all) struct StatementDescription {
   /// The SQL text that was parsed.
   sql : String
   /// OID for each parameter placeholder. `[]` = no parameters.
-  param_oids : Array[Int]
+  param_oids : Array[Int32]
   /// Result-column descriptions. `[]` = no result set (e.g. INSERT).
   fields : Array[FieldDescription]
 }
@@ -79,7 +79,7 @@ pub fn CommandTag::command(self : CommandTag) -> String {
 ///
 /// For `SELECT 1` returns `Some(1)`, for `INSERT 0 3` returns `Some(3)`,
 /// for `CREATE TABLE` returns `None`.
-pub fn CommandTag::rows_affected(self : CommandTag) -> Int? {
+pub fn CommandTag::rows_affected(self : CommandTag) -> Int32? {
   // Tags end with a numeric row count when applicable, e.g. "SELECT 1".
   // INSERT has format "INSERT oid rows" — last token is the row count.
   let mut last = self.tag
@@ -185,7 +185,7 @@ pub impl Message for AuthenticationCleartextPassword with fn encode(_self) -> By
 
 ///|
 pub impl Message for AuthenticationCleartextPassword with fn decode(_payload) -> AuthenticationCleartextPassword raise WireError {
-  AuthenticationCleartextPassword::{  }
+  AuthenticationCleartextPassword::{ }
 }
 
 ///|
@@ -215,7 +215,7 @@ pub impl Message for AuthenticationMD5Password with fn encode(self) -> Bytes {
 
 ///|
 pub impl Message for AuthenticationMD5Password with fn decode(payload) -> AuthenticationMD5Password raise WireError {
-  { salt: payload[0:4].to_owned() }
+  { salt: payload[0:4].to_owned(), }
 }
 
 ///|
@@ -242,7 +242,7 @@ pub impl Message for AuthenticationOk with fn encode(_self) -> Bytes {
 
 ///|
 pub impl Message for AuthenticationOk with fn decode(_payload) -> AuthenticationOk raise WireError {
-  AuthenticationOk::{  }
+  AuthenticationOk::{ }
 }
 
 ///|
@@ -308,7 +308,7 @@ pub impl Message for AuthenticationSASLContinue with fn encode(self) -> Bytes {
 
 ///|
 pub impl Message for AuthenticationSASLContinue with fn decode(payload) -> AuthenticationSASLContinue raise WireError {
-  { data: payload.to_owned() }
+  { data: payload.to_owned(), }
 }
 
 ///|
@@ -339,7 +339,7 @@ pub impl Message for AuthenticationSASLFinal with fn encode(self) -> Bytes {
 
 ///|
 pub impl Message for AuthenticationSASLFinal with fn decode(payload) -> AuthenticationSASLFinal raise WireError {
-  { data: payload.to_owned() }
+  { data: payload.to_owned(), }
 }
 
 ///|
@@ -354,8 +354,8 @@ pub impl Message for AuthenticationSASLFinal with fn describe(self) -> String {
 ///|
 /// PostgreSQL `BackendKeyData` (B).
 pub(all) struct BackendKeyData {
-  pid : Int
-  secret_key : Int
+  pid : Int32
+  secret_key : Int32
 }
 
 ///|
@@ -376,7 +376,7 @@ pub impl Message for BackendKeyData with fn decode(payload) -> BackendKeyData ra
   guard payload is [i32be(secret_key), ..] else {
     raise WireError::InvalidMessage("invalid BackendKeyData")
   }
-  { pid, secret_key }
+  { pid, secret_key, }
 }
 
 ///|
@@ -410,7 +410,7 @@ pub impl Message for CommandComplete with fn encode(self) -> Bytes {
 ///|
 pub impl Message for CommandComplete with fn decode(payload) -> CommandComplete raise WireError {
   let (tag, _) = read_cstring(payload[:])
-  { tag: CommandTag::new(tag) }
+  { tag: CommandTag::new(tag), }
 }
 
 ///|
@@ -505,7 +505,7 @@ pub impl Message for EmptyQueryResponse with fn encode(_self) -> Bytes {
 
 ///|
 pub impl Message for EmptyQueryResponse with fn decode(_payload) -> EmptyQueryResponse raise WireError {
-  EmptyQueryResponse::{  }
+  EmptyQueryResponse::{ }
 }
 
 ///|
@@ -547,7 +547,7 @@ pub impl Message for ErrorResponse with fn decode(payload) -> ErrorResponse rais
       _ => {
         let field_type = rest[0]
         let (value, next) = read_cstring(rest[1:])
-        fields.push(ErrorField::{ field_type, value })
+        fields.push(ErrorField::{ field_type, value, })
         continue next
       }
     }
@@ -624,7 +624,7 @@ pub impl Message for NoticeResponse with fn decode(payload) -> NoticeResponse ra
       _ => {
         let field_type = rest[0]
         let (value, next) = read_cstring(rest[1:])
-        fields.push(ErrorField::{ field_type, value })
+        fields.push(ErrorField::{ field_type, value, })
         continue next
       }
     }
@@ -673,7 +673,7 @@ pub impl Message for ParameterStatus with fn encode(self) -> Bytes {
 pub impl Message for ParameterStatus with fn decode(payload) -> ParameterStatus raise WireError {
   let (name, rest) = read_cstring(payload[:])
   let (value, _) = read_cstring(rest)
-  { name, value }
+  { name, value, }
 }
 
 ///|
@@ -702,7 +702,7 @@ pub impl Message for ReadyForQuery with fn encode(self) -> Bytes {
 
 ///|
 pub impl Message for ReadyForQuery with fn decode(payload) -> ReadyForQuery raise WireError {
-  { status: TransactionStatus::from_byte(payload[0]) }
+  { status: TransactionStatus::from_byte(payload[0]), }
 }
 
 ///|
@@ -806,7 +806,7 @@ pub impl Message for ParseComplete with fn encode(_self) -> Bytes {
 
 ///|
 pub impl Message for ParseComplete with fn decode(_payload) -> ParseComplete raise WireError {
-  ParseComplete::{  }
+  ParseComplete::{ }
 }
 
 ///|
@@ -832,7 +832,7 @@ pub impl Message for BindComplete with fn encode(_self) -> Bytes {
 
 ///|
 pub impl Message for BindComplete with fn decode(_payload) -> BindComplete raise WireError {
-  BindComplete::{  }
+  BindComplete::{ }
 }
 
 ///|
@@ -858,7 +858,7 @@ pub impl Message for CloseComplete with fn encode(_self) -> Bytes {
 
 ///|
 pub impl Message for CloseComplete with fn decode(_payload) -> CloseComplete raise WireError {
-  CloseComplete::{  }
+  CloseComplete::{ }
 }
 
 ///|
@@ -875,7 +875,7 @@ pub impl Message for CloseComplete with fn describe(_self) -> String {
 ///
 /// Provides the OIDs of the parameters expected by a prepared statement.
 pub(all) struct ParameterDescription {
-  param_types : Array[Int]
+  param_types : Array[Int32]
 }
 
 ///|
@@ -899,7 +899,7 @@ pub impl Message for ParameterDescription with fn decode(payload) -> ParameterDe
   guard payload is [i16be(n), .. rest] else {
     raise WireError::InvalidMessage("ParameterDescription: truncated")
   }
-  let param_types : Array[Int] = []
+  let param_types : Array[Int32] = []
   for rest = rest {
     if param_types.length() >= n {
       break
@@ -938,7 +938,7 @@ pub impl Message for NoData with fn encode(_self) -> Bytes {
 
 ///|
 pub impl Message for NoData with fn decode(_payload) -> NoData raise WireError {
-  NoData::{  }
+  NoData::{ }
 }
 
 ///|
@@ -965,7 +965,7 @@ pub impl Message for PortalSuspended with fn encode(_self) -> Bytes {
 
 ///|
 pub impl Message for PortalSuspended with fn decode(_payload) -> PortalSuspended raise WireError {
-  PortalSuspended::{  }
+  PortalSuspended::{ }
 }
 
 ///|
@@ -980,8 +980,8 @@ pub impl Message for PortalSuspended with fn describe(_self) -> String {
 ///|
 /// PostgreSQL `CopyInResponse` (B) — server is ready to receive COPY data.
 pub(all) struct CopyInResponse {
-  overall_format : Int
-  column_formats : Array[Int]
+  overall_format : Int32
+  column_formats : Array[Int32]
 }
 
 ///|
@@ -1006,7 +1006,7 @@ pub impl Message for CopyInResponse with fn decode(payload : BytesView) -> CopyI
     raise WireError::InvalidMessage("invalid CopyInResponse")
   }
   let overall_format = overall_fmt.to_int()
-  let col_formats : Array[Int] = []
+  let col_formats : Array[Int32] = []
   let mut r = rest
   for _ in 0..<ncols {
     guard r is [i16be(f), .. r2] else {
@@ -1015,7 +1015,7 @@ pub impl Message for CopyInResponse with fn decode(payload : BytesView) -> CopyI
     col_formats.push(f)
     r = r2
   }
-  CopyInResponse::{ overall_format, column_formats: col_formats }
+  CopyInResponse::{ overall_format, column_formats: col_formats, }
 }
 
 ///|
@@ -1026,8 +1026,8 @@ pub impl Message for CopyInResponse with fn describe(_self) -> String {
 ///|
 /// PostgreSQL `CopyOutResponse` (B) — server is sending COPY data.
 pub(all) struct CopyOutResponse {
-  overall_format : Int
-  column_formats : Array[Int]
+  overall_format : Int32
+  column_formats : Array[Int32]
 }
 
 ///|
@@ -1051,7 +1051,7 @@ pub impl Message for CopyOutResponse with fn decode(payload : BytesView) -> Copy
     raise WireError::InvalidMessage("invalid CopyOutResponse")
   }
   let overall_format = overall_fmt.to_int()
-  let col_formats : Array[Int] = []
+  let col_formats : Array[Int32] = []
   let mut r = rest
   for _ in 0..<ncols {
     guard r is [i16be(f), .. r2] else {
@@ -1060,7 +1060,7 @@ pub impl Message for CopyOutResponse with fn decode(payload : BytesView) -> Copy
     col_formats.push(f)
     r = r2
   }
-  CopyOutResponse::{ overall_format, column_formats: col_formats }
+  CopyOutResponse::{ overall_format, column_formats: col_formats, }
 }
 
 ///|
@@ -1071,8 +1071,8 @@ pub impl Message for CopyOutResponse with fn describe(_self) -> String {
 ///|
 /// PostgreSQL `CopyBothResponse` (B) — server is ready for both COPY directions.
 pub(all) struct CopyBothResponse {
-  overall_format : Int
-  column_formats : Array[Int]
+  overall_format : Int32
+  column_formats : Array[Int32]
 }
 
 ///|
@@ -1096,7 +1096,7 @@ pub impl Message for CopyBothResponse with fn decode(payload : BytesView) -> Cop
     raise WireError::InvalidMessage("invalid CopyBothResponse")
   }
   let overall_format = overall_fmt.to_int()
-  let col_formats : Array[Int] = []
+  let col_formats : Array[Int32] = []
   let mut r = rest
   for _ in 0..<ncols {
     guard r is [i16be(f), .. r2] else {
@@ -1105,7 +1105,7 @@ pub impl Message for CopyBothResponse with fn decode(payload : BytesView) -> Cop
     col_formats.push(f)
     r = r2
   }
-  CopyBothResponse::{ overall_format, column_formats: col_formats }
+  CopyBothResponse::{ overall_format, column_formats: col_formats, }
 }
 
 ///|
@@ -1125,7 +1125,7 @@ pub impl Message for CopyBothResponse with fn describe(_self) -> String {
 /// a query — so the driver queues them transparently.
 pub(all) struct NotificationResponse {
   /// Process ID of the notifying backend.
-  pid : Int
+  pid : Int32
   /// Channel name that was notified.
   channel : String
   /// Optional payload string (empty string if no payload was given).
@@ -1152,7 +1152,7 @@ pub impl Message for NotificationResponse with fn decode(payload : BytesView) ->
   }
   let (channel, r1) = read_cstring(rest[:])
   let (payload_str, _) = read_cstring(r1)
-  NotificationResponse::{ pid, channel, payload: payload_str }
+  NotificationResponse::{ pid, channel, payload: payload_str, }
 }
 
 ///|
@@ -1172,7 +1172,7 @@ pub impl Message for NotificationResponse with fn describe(self) -> String {
 /// `StartupMessage` with the version offered by the server.
 pub(all) struct NegotiateProtocolVersion {
   /// The newest minor version the server supports for the requested major version.
-  newest_minor_version : Int
+  newest_minor_version : Int32
   /// Optionally, a list of protocol options not available to the client.
   options : Array[String]
 }
@@ -1220,7 +1220,7 @@ pub impl Message for NegotiateProtocolVersion with fn decode(
     options.push(opt)
     continue r1
   }
-  NegotiateProtocolVersion::{ newest_minor_version: minor, options }
+  NegotiateProtocolVersion::{ newest_minor_version: minor, options, }
 }
 
 ///|

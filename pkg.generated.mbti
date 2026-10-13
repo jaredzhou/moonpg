@@ -281,4 +281,3 @@ pub(open) trait Tx : QueryExecutor {
 pub(open) trait TxBeginner {
   async fn begin_tx(Self, opts? : TxOptions) -> &Tx raise PgError
 }
-

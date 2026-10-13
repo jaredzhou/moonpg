@@ -591,4 +591,3 @@ pub(open) trait Codec {
   fn encode(Self, Int, @value.Format, @value.Value) -> Bytes? raise CodecError
   fn decode(Self, Int, @value.Format, Bytes?) -> @value.Value raise CodecError
 }
-

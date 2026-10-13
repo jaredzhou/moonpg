@@ -227,10 +227,10 @@ async test "query_no_rows" {
   let tbl = "t_q_empty"
   setup_table(tbl)
   let c = connect(test_conninfo)
+  defer c.close()
   let rows = c.query("SELECT * FROM \{tbl}")
+  defer rows.close()
   assert_false(rows.has_next())
-  rows.close()
-  c.close()
 }
 
 ///|
@@ -238,17 +238,17 @@ async test "query_single_row" {
   let tbl = "t_q_one"
   setup_table(tbl)
   let c = connect(test_conninfo)
+  defer c.close()
   c.execute("INSERT INTO \{tbl} (num, name, flag) VALUES (7, 'solo', true)")
   |> ignore
   let rows = c.query("SELECT num, name, flag FROM \{tbl}")
+  defer rows.close()
   assert_true(rows.has_next())
   let row = rows.get_row()
   assert_eq(row.get(0), 7)
   assert_eq(row.get(1), "solo")
   assert_eq(row.get(2), true)
   assert_false(rows.has_next())
-  rows.close()
-  c.close()
 }
 
 ///|
@@ -256,22 +256,22 @@ async test "query_multiple_rows" {
   let tbl = "t_q_multi"
   setup_table(tbl)
   let c = connect(test_conninfo)
+  defer c.close()
   c.execute(
     "INSERT INTO \{tbl} (num, name, flag) VALUES (1, 'a', true), (2, 'b', false), (3, 'c', true)",
   )
   |> ignore
   let rows = c.query("SELECT name FROM \{tbl} ORDER BY num")
+  defer rows.close()
   let names : Array[String] = []
   while rows.has_next() {
     let row = rows.get_row()
     names.push(row.get(0))
   }
-  rows.close()
   assert_eq(names.length(), 3)
   assert_eq(names[0], "a")
   assert_eq(names[1], "b")
   assert_eq(names[2], "c")
-  c.close()
 }
 
 ///|
@@ -279,14 +279,14 @@ async test "query_columns" {
   let tbl = "t_q_cols"
   setup_table(tbl)
   let c = connect(test_conninfo)
+  defer c.close()
   let rows = c.query("SELECT num, name, flag FROM \{tbl}")
+  defer rows.close()
   let cols = rows.columns()
-  rows.close()
   assert_eq(cols.length(), 3)
   assert_eq(cols[0].name, "num")
   assert_eq(cols[1].name, "name")
   assert_eq(cols[2].name, "flag")
-  c.close()
 }
 
 ///|
@@ -294,6 +294,7 @@ async test "query_param_types" {
   let tbl = "t_q_params"
   setup_table(tbl)
   let c = connect(test_conninfo)
+  defer c.close()
   c.execute("INSERT INTO \{tbl} (num, name, flag) VALUES ($1, $2, $3)", params=[
     42, "typed", true,
   ])
@@ -301,13 +302,12 @@ async test "query_param_types" {
   let rows = c.query("SELECT num, name, flag FROM \{tbl} WHERE num = $1", params=[
     42,
   ])
+  defer rows.close()
   assert_true(rows.has_next())
   let row = rows.get_row()
   assert_eq(row.get(0), 42)
   assert_eq(row.get(1), "typed")
   assert_eq(row.get(2), true)
-  rows.close()
-  c.close()
 }
 
 ///|
@@ -315,9 +315,9 @@ async test "query_double_close_safe" {
   let tbl = "t_q_dbl"
   setup_table(tbl)
   let c = connect(test_conninfo)
+  defer c.close()
   let rows = c.query("SELECT 1")
-  rows.close()
-  c.close()
+  defer rows.close()
 }
 
 // ---------------------------------------------------------------------------
@@ -329,16 +329,16 @@ async test "row_get_by_index" {
   let tbl = "t_row_idx"
   setup_table(tbl)
   let c = connect(test_conninfo)
+  defer c.close()
   c.execute("INSERT INTO \{tbl} (num, name, flag) VALUES (99, 'idx', false)")
   |> ignore
   let rows = c.query("SELECT num, name, flag FROM \{tbl}")
+  defer rows.close()
   assert_true(rows.has_next())
   let row = rows.get_row()
   assert_eq(row.get(0), 99)
   assert_eq(row.get(1), "idx")
   assert_eq(row.get(2), false)
-  rows.close()
-  c.close()
 }
 
 ///|
@@ -346,16 +346,16 @@ async test "row_get_by_name" {
   let tbl = "t_row_name"
   setup_table(tbl)
   let c = connect(test_conninfo)
+  defer c.close()
   c.execute("INSERT INTO \{tbl} (num, name, flag) VALUES (55, 'byname', true)")
   |> ignore
   let rows = c.query("SELECT num, name, flag FROM \{tbl}")
+  defer rows.close()
   assert_true(rows.has_next())
   let row = rows.get_row()
   assert_eq(row.get_by_name("num"), 55)
   assert_eq(row.get_by_name("name"), "byname")
   assert_eq(row.get_by_name("flag"), true)
-  rows.close()
-  c.close()
 }
 
 ///|
@@ -363,19 +363,19 @@ async test "row_get_by_name_missing_raises" {
   let tbl = "t_row_miss"
   setup_table(tbl)
   let c = connect(test_conninfo)
+  defer c.close()
   c.execute("INSERT INTO \{tbl} (num, name, flag) VALUES (1, 'x', true)")
   |> ignore
   let rows = c.query("SELECT num FROM \{tbl}")
+  defer rows.close()
   assert_true(rows.has_next())
   let row = rows.get_row()
   try {
-    let _ : Int = row.get_by_name("nonexistent")
+    let _ : Int32 = row.get_by_name("nonexistent")
     fail("expected missing column to raise")
   } catch {
     _ => ()
   }
-  rows.close()
-  c.close()
 }
 
 ///|
@@ -383,17 +383,17 @@ async test "row_columns" {
   let tbl = "t_row_cols"
   setup_table(tbl)
   let c = connect(test_conninfo)
+  defer c.close()
   // Need a row to call row.columns()
   c.execute("INSERT INTO \{tbl} (num, name, flag) VALUES (1, 'a', true)")
   |> ignore
   let rows = c.query("SELECT num, name FROM \{tbl}")
+  defer rows.close()
   assert_true(rows.has_next())
   let row = rows.get_row()
   let cols = row.columns()
   assert_eq(cols.length(), 2)
   assert_eq(cols[0].name, "num")
-  rows.close()
-  c.close()
 }
 
 // ---------------------------------------------------------------------------
@@ -404,10 +404,12 @@ async test "row_columns" {
 async test "row_null_read_raises_for_non_optional" {
   let tbl = "t_null_raise"
   let c = connect(test_conninfo)
+  defer c.close()
   c.execute("DROP TABLE IF EXISTS \{tbl}") |> ignore
   c.execute("CREATE TABLE \{tbl} (id SERIAL PRIMARY KEY, email TEXT)") |> ignore
   c.execute("INSERT INTO \{tbl} (email) VALUES (NULL)") |> ignore
   let rows = c.query("SELECT email FROM \{tbl}")
+  defer rows.close()
   assert_true(rows.has_next())
   let row = rows.get_row()
   try {
@@ -416,18 +418,18 @@ async test "row_null_read_raises_for_non_optional" {
   } catch {
     _ => ()
   }
-  rows.close()
-  c.close()
 }
 
 ///|
 async test "row_null_read_optional" {
   let tbl = "t_null_opt"
   let c = connect(test_conninfo)
+  defer c.close()
   c.execute("DROP TABLE IF EXISTS \{tbl}") |> ignore
   c.execute("CREATE TABLE \{tbl} (id SERIAL PRIMARY KEY, email TEXT)") |> ignore
   c.execute("INSERT INTO \{tbl} (email) VALUES (NULL)") |> ignore
   let rows = c.query("SELECT email FROM \{tbl}")
+  defer rows.close()
   assert_true(rows.has_next())
   let row = rows.get_row()
   let email : String? = row.get(0)
@@ -435,18 +437,18 @@ async test "row_null_read_optional" {
     Some(_) => fail("expected None")
     None => ()
   }
-  rows.close()
-  c.close()
 }
 
 ///|
 async test "row_optional_some" {
   let tbl = "t_opt_some"
   let c = connect(test_conninfo)
+  defer c.close()
   c.execute("DROP TABLE IF EXISTS \{tbl}") |> ignore
   c.execute("CREATE TABLE \{tbl} (id SERIAL PRIMARY KEY, email TEXT)") |> ignore
   c.execute("INSERT INTO \{tbl} (email) VALUES ('hello@x.com')") |> ignore
   let rows = c.query("SELECT email FROM \{tbl}")
+  defer rows.close()
   assert_true(rows.has_next())
   let row = rows.get_row()
   let email : String? = row.get(0)
@@ -454,8 +456,6 @@ async test "row_optional_some" {
     Some(s) => assert_eq(s, "hello@x.com")
     None => fail("expected Some")
   }
-  rows.close()
-  c.close()
 }
 
 // ---------------------------------------------------------------------------
@@ -514,15 +514,15 @@ async test "query_returns_rows_trait_object" {
   let tbl = "t_trait"
   setup_table(tbl)
   let c = connect(test_conninfo)
+  defer c.close()
   c.execute("INSERT INTO \{tbl} (num, name, flag) VALUES (1, 'trait', true)")
   |> ignore
   let rows : &Rows = c.query("SELECT name FROM \{tbl}")
+  defer rows.close()
   assert_true(rows.has_next())
   let row = rows.get_row()
   let n : String = row.get(0)
   assert_eq(n, "trait")
-  rows.close()
-  c.close()
 }
 
 ///|
@@ -530,18 +530,18 @@ async test "text_utf8_round_trip" {
   let tbl = "t_utf8"
   setup_table(tbl)
   let c = connect(test_conninfo)
+  defer c.close()
   let name_cn = "你好世界"
   c.execute("INSERT INTO \{tbl} (num, name, flag) VALUES ($1, $2, $3)", params=[
     1, name_cn, true,
   ])
   |> ignore
   let rows = c.query("SELECT name FROM \{tbl}")
+  defer rows.close()
   assert_true(rows.has_next())
   let row = rows.get_row()
   let n : String = row.get(0)
   assert_eq(n, name_cn)
-  rows.close()
-  c.close()
 }
 
 ///|
@@ -576,19 +576,19 @@ async test "async_concurrent_queries_dont_block" {
     // Slow query: pg_sleep(2) blocks this connection for ~2 s
     async fn() {
       let rows = c1.query("SELECT pg_sleep(2)")
-      rows.close()
+      defer rows.close()
       slow_done.val = @async.now() - wall
     },
     // Fast query 1: SELECT 1 — should return immediately
     async fn() {
       let rows = c2.query("SELECT 1")
-      rows.close()
+      defer rows.close()
       fast1_done.val = @async.now() - wall
     },
     // Fast query 2: SELECT 1 — should return immediately
     async fn() {
       let rows = c3.query("SELECT 1")
-      rows.close()
+      defer rows.close()
       fast2_done.val = @async.now() - wall
     },
   ])
@@ -931,29 +931,30 @@ async test "async_all_interleaves_array" {
 async test "array_int4_roundtrip" {
   let tbl = "t_arr_int4"
   let c = connect(test_conninfo)
+  defer c.close()
   c.execute("DROP TABLE IF EXISTS \{tbl}") |> ignore
   c.execute("CREATE TABLE \{tbl} (id SERIAL PRIMARY KEY, vals INTEGER[])")
   |> ignore
   c.execute("INSERT INTO \{tbl} (vals) VALUES ($1)", params=[[1, 2, 3, 42, -5]])
   |> ignore
   let rows = c.query("SELECT vals FROM \{tbl} ORDER BY id")
+  defer rows.close()
   assert_true(rows.has_next(), msg="expected at least one row")
   let row = rows.get_row()
-  let vals : Array[Int] = row.get(0)
+  let vals : Array[Int32] = row.get(0)
   assert_eq(vals.length(), 5)
   assert_eq(vals[0], 1)
   assert_eq(vals[1], 2)
   assert_eq(vals[2], 3)
   assert_eq(vals[3], 42)
   assert_eq(vals[4], -5)
-  rows.close()
-  c.close()
 }
 
 ///|
 async test "array_text_roundtrip" {
   let tbl = "t_arr_text"
   let c = connect(test_conninfo)
+  defer c.close()
   c.execute("DROP TABLE IF EXISTS \{tbl}") |> ignore
   c.execute("CREATE TABLE \{tbl} (id SERIAL PRIMARY KEY, vals TEXT[])")
   |> ignore
@@ -962,6 +963,7 @@ async test "array_text_roundtrip" {
   ])
   |> ignore
   let rows = c.query("SELECT vals FROM \{tbl} ORDER BY id")
+  defer rows.close()
   assert_true(rows.has_next(), msg="expected at least one row")
   let row = rows.get_row()
   let vals : Array[String] = row.get(0)
@@ -969,35 +971,34 @@ async test "array_text_roundtrip" {
   assert_eq(vals[0], "hello")
   assert_eq(vals[1], "world, with comma")
   assert_eq(vals[2], "say \"quote\"")
-  rows.close()
-  c.close()
 }
 
 ///|
 async test "array_int4_with_null_elements" {
   let tbl = "t_arr_nullable"
   let c = connect(test_conninfo)
+  defer c.close()
   c.execute("DROP TABLE IF EXISTS \{tbl}") |> ignore
   c.execute("CREATE TABLE \{tbl} (id SERIAL PRIMARY KEY, vals INTEGER[])")
   |> ignore
-  let arr : Array[Int?] = [Some(1), None, Some(3)]
+  let arr : Array[Int32?] = [Some(1), None, Some(3)]
   c.execute("INSERT INTO \{tbl} (vals) VALUES ($1)", params=[arr]) |> ignore
   let rows = c.query("SELECT vals FROM \{tbl} ORDER BY id")
+  defer rows.close()
   assert_true(rows.has_next(), msg="expected at least one row")
   let row = rows.get_row()
-  let vals : Array[Int?] = row.get(0)
+  let vals : Array[Int32?] = row.get(0)
   assert_eq(vals.length(), 3)
   assert_eq(vals[0], Some(1))
   assert_eq(vals[1], None)
   assert_eq(vals[2], Some(3))
-  rows.close()
-  c.close()
 }
 
 ///|
 async test "array_bool_roundtrip" {
   let tbl = "t_arr_bool"
   let c = connect(test_conninfo)
+  defer c.close()
   c.execute("DROP TABLE IF EXISTS \{tbl}") |> ignore
   c.execute("CREATE TABLE \{tbl} (id SERIAL PRIMARY KEY, vals BOOLEAN[])")
   |> ignore
@@ -1006,6 +1007,7 @@ async test "array_bool_roundtrip" {
   ])
   |> ignore
   let rows = c.query("SELECT vals FROM \{tbl} ORDER BY id")
+  defer rows.close()
   assert_true(rows.has_next(), msg="expected at least one row")
   let row = rows.get_row()
   let vals : Array[Bool] = row.get(0)
@@ -1013,24 +1015,22 @@ async test "array_bool_roundtrip" {
   assert_eq(vals[0], true)
   assert_eq(vals[1], false)
   assert_eq(vals[2], true)
-  rows.close()
-  c.close()
 }
 
 ///|
 async test "array_empty" {
   let tbl = "t_arr_empty"
   let c = connect(test_conninfo)
+  defer c.close()
   c.execute("DROP TABLE IF EXISTS \{tbl}") |> ignore
   c.execute("CREATE TABLE \{tbl} (id SERIAL PRIMARY KEY, vals INTEGER[])")
   |> ignore
-  let arr : Array[Int] = []
+  let arr : Array[Int32] = []
   c.execute("INSERT INTO \{tbl} (vals) VALUES ($1)", params=[arr]) |> ignore
   let rows = c.query("SELECT vals FROM \{tbl} ORDER BY id")
+  defer rows.close()
   assert_true(rows.has_next(), msg="expected at least one row")
   let row = rows.get_row()
-  let vals : Array[Int] = row.get(0)
+  let vals : Array[Int32] = row.get(0)
   assert_eq(vals.length(), 0)
-  rows.close()
-  c.close()
 }

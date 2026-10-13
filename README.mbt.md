@@ -40,17 +40,13 @@ let count : Int = &QueryExecutor::fetch_one(conn, "SELECT COUNT(*) FROM users")
 let users : Array[(Int, String)] = &QueryExecutor::fetch(conn, "SELECT id, name FROM users")
 let (id, name) = &QueryExecutor::fetch_one(conn, "SELECT id, name FROM users WHERE id = $1", params=[1])
 
-// query — manual iteration (MUST close rows in try-catch)
+// query — manual iteration (defer rows.close())
 let rows = conn.query("SELECT id, name FROM users")
-try {
-  while rows.has_next() {
-    let row = rows.get_row()
-    let id : Int = row.get(0)
-    let name : String = row.get_by_name("name")
-  }
-  rows.close()
-} catch {
-  e => { rows.close(); raise e }
+defer rows.close()
+while rows.has_next() {
+  let row = rows.get_row()
+  let id : Int = row.get(0)
+  let name : String = row.get_by_name("name")
 }
 ```
 
@@ -58,7 +54,7 @@ try {
 
 ### fetch / fetch_one
 
-`fetch` and `fetch_one` collect rows into typed results and **auto-close** — no manual `rows.close()` or try-catch needed. They're the recommended way to read data.
+`fetch` and `fetch_one` collect rows into typed results and **auto-close** — no manual `rows.close()` or `defer` needed. They're the recommended way to read data.
 
 ```moonbit nocheck
 let conn = @moonpg.connect(conninfo)
@@ -88,21 +84,17 @@ let names : Array[String] = q.fetch("SELECT name FROM users")
 
 ### query / query_one
 
-`query` returns a `&Rows` iterator. You **must** call `rows.close()` to drain results and (for pool connections) return the connection. Always use try-catch so `close()` runs even on decode errors.
+`query` returns a `&Rows` iterator. Always `defer rows.close()` to drain results and (for pool connections) return the connection — this also runs `close()` on decode errors.
 
 ```moonbit nocheck
 // query — iterate rows manually
 let rows = conn.query("SELECT id, name FROM users")
-try {
-  while rows.has_next() {
-    let row = rows.get_row()
-    let id : Int = row.get(0)
-    let name : String = row.get_by_name("name")
-    println("\{id}: \{name}")
-  }
-  rows.close()
-} catch {
-  e => { rows.close(); raise e }
+defer rows.close()
+while rows.has_next() {
+  let row = rows.get_row()
+  let id : Int = row.get(0)
+  let name : String = row.get_by_name("name")
+  println("\{id}: \{name}")
 }
 
 // query_one — single row
@@ -132,14 +124,10 @@ let pool = Pool::new(PoolConfig::new(
 let names : Array[String] = &QueryExecutor::fetch(pool, "SELECT name FROM users")
 pool.execute("INSERT INTO users (name) VALUES ($1)", params=["bob"]) |> ignore
 
-// Manual query with try-catch
+// Manual query with defer
 let rows = pool.query("SELECT id FROM users")
-try {
-  while rows.has_next() { ... }
-  rows.close()
-} catch {
-  e => { rows.close(); raise e }
-}
+defer rows.close()
+while rows.has_next() { ... }
 
 // Explicit acquire
 let pc = pool.acquire()
