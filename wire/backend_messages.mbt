@@ -50,6 +50,9 @@ pub struct CommandTag {
 }
 
 ///|
+pub extend CommandTag with Show::{to_string, output}
+
+///|
 pub impl Show for CommandTag with fn output(self, logger) {
   logger.write_string(self.tag)
 }
@@ -175,6 +178,13 @@ pub fn BackendMessage::describe(self : BackendMessage) -> String {
 pub(all) struct AuthenticationCleartextPassword {}
 
 ///|
+pub extend AuthenticationCleartextPassword with Message::{
+  encode,
+  decode,
+  describe,
+}
+
+///|
 pub impl Message for AuthenticationCleartextPassword with fn encode(_self) -> Bytes {
   let buf = BytesMut::new()
   buf.append_byte(MSG_AUTHENTICATION)
@@ -202,6 +212,9 @@ pub impl Message for AuthenticationCleartextPassword with fn describe(_self) -> 
 pub(all) struct AuthenticationMD5Password {
   salt : Bytes
 }
+
+///|
+pub extend AuthenticationMD5Password with Message::{encode, decode, describe}
 
 ///|
 pub impl Message for AuthenticationMD5Password with fn encode(self) -> Bytes {
@@ -232,6 +245,9 @@ pub impl Message for AuthenticationMD5Password with fn describe(_self) -> String
 pub(all) struct AuthenticationOk {}
 
 ///|
+pub extend AuthenticationOk with Message::{encode, decode, describe}
+
+///|
 pub impl Message for AuthenticationOk with fn encode(_self) -> Bytes {
   let buf = BytesMut::new()
   buf.append_byte(MSG_AUTHENTICATION)
@@ -259,6 +275,9 @@ pub impl Message for AuthenticationOk with fn describe(_self) -> String {
 pub(all) struct AuthenticationSASL {
   mechanisms : Array[String]
 }
+
+///|
+pub extend AuthenticationSASL with Message::{encode, decode, describe}
 
 ///|
 pub impl Message for AuthenticationSASL with fn encode(self) -> Bytes {
@@ -296,6 +315,9 @@ pub(all) struct AuthenticationSASLContinue {
 }
 
 ///|
+pub extend AuthenticationSASLContinue with Message::{encode, decode, describe}
+
+///|
 pub impl Message for AuthenticationSASLContinue with fn encode(self) -> Bytes {
   let buf = BytesMut::new()
   buf.append_byte(MSG_AUTHENTICATION)
@@ -325,6 +347,9 @@ pub impl Message for AuthenticationSASLContinue with fn describe(self) -> String
 pub(all) struct AuthenticationSASLFinal {
   data : Bytes
 }
+
+///|
+pub extend AuthenticationSASLFinal with Message::{encode, decode, describe}
 
 ///|
 pub impl Message for AuthenticationSASLFinal with fn encode(self) -> Bytes {
@@ -357,6 +382,9 @@ pub(all) struct BackendKeyData {
   pid : Int32
   secret_key : Int32
 }
+
+///|
+pub extend BackendKeyData with Message::{encode, decode, describe}
 
 ///|
 pub impl Message for BackendKeyData with fn encode(self) -> Bytes {
@@ -397,6 +425,9 @@ pub(all) struct CommandComplete {
 }
 
 ///|
+pub extend CommandComplete with Message::{encode, decode, describe}
+
+///|
 pub impl Message for CommandComplete with fn encode(self) -> Bytes {
   let buf = BytesMut::new()
   buf.append_byte(MSG_COMMAND_COMPLETE)
@@ -430,6 +461,9 @@ pub impl Message for CommandComplete with fn describe(self) -> String {
 pub(all) struct DataRow {
   values : Array[Bytes?]
 }
+
+///|
+pub extend DataRow with Message::{encode, decode, describe}
 
 ///|
 pub impl Message for DataRow with fn encode(self) -> Bytes {
@@ -496,6 +530,9 @@ pub impl Message for DataRow with fn describe(self) -> String {
 pub(all) struct EmptyQueryResponse {}
 
 ///|
+pub extend EmptyQueryResponse with Message::{encode, decode, describe}
+
+///|
 pub impl Message for EmptyQueryResponse with fn encode(_self) -> Bytes {
   let buf = BytesMut::new()
   buf.append_byte(MSG_EMPTY_QUERY)
@@ -522,6 +559,9 @@ pub impl Message for EmptyQueryResponse with fn describe(_self) -> String {
 pub(all) struct ErrorResponse {
   fields : Array[ErrorField]
 }
+
+///|
+pub extend ErrorResponse with Message::{encode, decode, describe}
 
 ///|
 pub impl Message for ErrorResponse with fn encode(self) -> Bytes {
@@ -601,6 +641,9 @@ pub(all) struct NoticeResponse {
 }
 
 ///|
+pub extend NoticeResponse with Message::{encode, decode, describe}
+
+///|
 pub impl Message for NoticeResponse with fn encode(self) -> Bytes {
   let buf = BytesMut::new()
   buf.append_byte(MSG_NOTICE_RESPONSE)
@@ -659,6 +702,9 @@ pub(all) struct ParameterStatus {
 }
 
 ///|
+pub extend ParameterStatus with Message::{encode, decode, describe}
+
+///|
 pub impl Message for ParameterStatus with fn encode(self) -> Bytes {
   let buf = BytesMut::new()
   buf.append_byte(MSG_PARAMETER_STATUS)
@@ -692,6 +738,9 @@ pub(all) struct ReadyForQuery {
 }
 
 ///|
+pub extend ReadyForQuery with Message::{encode, decode, describe}
+
+///|
 pub impl Message for ReadyForQuery with fn encode(self) -> Bytes {
   let buf = BytesMut::new()
   buf.append_byte(MSG_READY_FOR_QUERY)
@@ -719,6 +768,9 @@ pub impl Message for ReadyForQuery with fn describe(self) -> String {
 pub(all) struct RowDescription {
   columns : Array[FieldDescription]
 }
+
+///|
+pub extend RowDescription with Message::{encode, decode, describe}
 
 ///|
 pub impl Message for RowDescription with fn encode(self) -> Bytes {
@@ -797,6 +849,9 @@ pub impl Message for RowDescription with fn describe(self) -> String {
 pub(all) struct ParseComplete {}
 
 ///|
+pub extend ParseComplete with Message::{encode, decode, describe}
+
+///|
 pub impl Message for ParseComplete with fn encode(_self) -> Bytes {
   let buf = BytesMut::new()
   buf.append_byte(MSG_PARSE_COMPLETE)
@@ -823,6 +878,9 @@ pub impl Message for ParseComplete with fn describe(_self) -> String {
 pub(all) struct BindComplete {}
 
 ///|
+pub extend BindComplete with Message::{encode, decode, describe}
+
+///|
 pub impl Message for BindComplete with fn encode(_self) -> Bytes {
   let buf = BytesMut::new()
   buf.append_byte(MSG_BIND_COMPLETE)
@@ -847,6 +905,9 @@ pub impl Message for BindComplete with fn describe(_self) -> String {
 ///|
 /// PostgreSQL `CloseComplete` (B).
 pub(all) struct CloseComplete {}
+
+///|
+pub extend CloseComplete with Message::{encode, decode, describe}
 
 ///|
 pub impl Message for CloseComplete with fn encode(_self) -> Bytes {
@@ -877,6 +938,9 @@ pub impl Message for CloseComplete with fn describe(_self) -> String {
 pub(all) struct ParameterDescription {
   param_types : Array[Int32]
 }
+
+///|
+pub extend ParameterDescription with Message::{encode, decode, describe}
 
 ///|
 pub impl Message for ParameterDescription with fn encode(self) -> Bytes {
@@ -929,6 +993,9 @@ pub impl Message for ParameterDescription with fn describe(self) -> String {
 pub(all) struct NoData {}
 
 ///|
+pub extend NoData with Message::{encode, decode, describe}
+
+///|
 pub impl Message for NoData with fn encode(_self) -> Bytes {
   let buf = BytesMut::new()
   buf.append_byte(MSG_NO_DATA)
@@ -954,6 +1021,9 @@ pub impl Message for NoData with fn describe(_self) -> String {
 /// PostgreSQL `PortalSuspended` (B) — Execute reached max_rows before
 /// the portal was fully consumed.
 pub(all) struct PortalSuspended {}
+
+///|
+pub extend PortalSuspended with Message::{encode, decode, describe}
 
 ///|
 pub impl Message for PortalSuspended with fn encode(_self) -> Bytes {
@@ -983,6 +1053,9 @@ pub(all) struct CopyInResponse {
   overall_format : Int32
   column_formats : Array[Int32]
 }
+
+///|
+pub extend CopyInResponse with Message::{encode, decode, describe}
 
 ///|
 pub impl Message for CopyInResponse with fn encode(self) -> Bytes {
@@ -1031,6 +1104,9 @@ pub(all) struct CopyOutResponse {
 }
 
 ///|
+pub extend CopyOutResponse with Message::{encode, decode, describe}
+
+///|
 pub impl Message for CopyOutResponse with fn encode(self) -> Bytes {
   let buf = BytesMut::new()
   buf.append_byte(MSG_COPY_OUT_RESPONSE)
@@ -1074,6 +1150,9 @@ pub(all) struct CopyBothResponse {
   overall_format : Int32
   column_formats : Array[Int32]
 }
+
+///|
+pub extend CopyBothResponse with Message::{encode, decode, describe}
 
 ///|
 pub impl Message for CopyBothResponse with fn encode(self) -> Bytes {
@@ -1133,6 +1212,9 @@ pub(all) struct NotificationResponse {
 }
 
 ///|
+pub extend NotificationResponse with Message::{encode, decode, describe}
+
+///|
 pub impl Message for NotificationResponse with fn encode(self) -> Bytes {
   let buf = BytesMut::new()
   buf.append_byte(MSG_NOTIFICATION_RESPONSE)
@@ -1176,6 +1258,9 @@ pub(all) struct NegotiateProtocolVersion {
   /// Optionally, a list of protocol options not available to the client.
   options : Array[String]
 }
+
+///|
+pub extend NegotiateProtocolVersion with Message::{encode, decode, describe}
 
 ///|
 pub impl Message for NegotiateProtocolVersion with fn encode(self) -> Bytes {
@@ -1227,88 +1312,3 @@ pub impl Message for NegotiateProtocolVersion with fn decode(
 pub impl Message for NegotiateProtocolVersion with fn describe(self) -> String {
   "NegotiateProtocolVersion(minor=\{self.newest_minor_version}, options=\{self.options.length()})"
 }
-
-///|
-pub extend AuthenticationCleartextPassword with Message::{
-  encode,
-  decode,
-  describe,
-}
-
-///|
-pub extend AuthenticationMD5Password with Message::{encode, decode, describe}
-
-///|
-pub extend AuthenticationOk with Message::{encode, decode, describe}
-
-///|
-pub extend AuthenticationSASL with Message::{encode, decode, describe}
-
-///|
-pub extend AuthenticationSASLContinue with Message::{encode, decode, describe}
-
-///|
-pub extend AuthenticationSASLFinal with Message::{encode, decode, describe}
-
-///|
-pub extend BackendKeyData with Message::{encode, decode, describe}
-
-///|
-pub extend BindComplete with Message::{encode, decode, describe}
-
-///|
-pub extend CloseComplete with Message::{encode, decode, describe}
-
-///|
-pub extend CommandComplete with Message::{encode, decode, describe}
-
-///|
-pub extend CommandTag with Show::{to_string, output}
-
-///|
-pub extend CopyBothResponse with Message::{encode, decode, describe}
-
-///|
-pub extend CopyInResponse with Message::{encode, decode, describe}
-
-///|
-pub extend CopyOutResponse with Message::{encode, decode, describe}
-
-///|
-pub extend DataRow with Message::{encode, decode, describe}
-
-///|
-pub extend EmptyQueryResponse with Message::{encode, decode, describe}
-
-///|
-pub extend ErrorResponse with Message::{encode, decode, describe}
-
-///|
-pub extend NegotiateProtocolVersion with Message::{encode, decode, describe}
-
-///|
-pub extend NoData with Message::{encode, decode, describe}
-
-///|
-pub extend NoticeResponse with Message::{encode, decode, describe}
-
-///|
-pub extend NotificationResponse with Message::{encode, decode, describe}
-
-///|
-pub extend ParameterDescription with Message::{encode, decode, describe}
-
-///|
-pub extend ParameterStatus with Message::{encode, decode, describe}
-
-///|
-pub extend ParseComplete with Message::{encode, decode, describe}
-
-///|
-pub extend PortalSuspended with Message::{encode, decode, describe}
-
-///|
-pub extend ReadyForQuery with Message::{encode, decode, describe}
-
-///|
-pub extend RowDescription with Message::{encode, decode, describe}

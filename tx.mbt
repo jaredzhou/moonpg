@@ -42,6 +42,9 @@ pub impl TxBeginner for Connection with fn begin_tx(
 }
 
 ///|
+pub extend Connection with TxBeginner::{begin_tx}
+
+///|
 pub impl QueryExecutor for DbTx with fn query(
   self : DbTx,
   sql : String,
@@ -49,6 +52,9 @@ pub impl QueryExecutor for DbTx with fn query(
 ) -> &Rows raise PgError {
   Connection::query(self.conn, sql, params?)
 }
+
+///|
+pub extend DbTx with QueryExecutor::{execute, query, query_one}
 
 ///|
 pub impl QueryExecutor for DbTx with fn query_one(
@@ -74,15 +80,9 @@ pub impl Tx for DbTx with fn commit(self : DbTx) -> Unit raise PgError {
 }
 
 ///|
+pub extend DbTx with Tx::{commit, rollback}
+
+///|
 pub impl Tx for DbTx with fn rollback(self : DbTx) -> Unit raise PgError {
   Connection::execute(self.conn, "ROLLBACK") |> ignore
 }
-
-///|
-pub extend Connection with TxBeginner::{begin_tx}
-
-///|
-pub extend DbTx with QueryExecutor::{execute, query, query_one}
-
-///|
-pub extend DbTx with Tx::{commit, rollback}

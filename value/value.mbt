@@ -28,6 +28,12 @@ pub(all) enum Value {
   Array(Array[Value])
 } derive(Eq, Debug)
 
+///|
+pub extend Value with Debug::{to_repr}
+
+///|
+pub extend Value with Eq::{not_equal, equal}
+
 // ===========================================================================
 // Format
 // ===========================================================================
@@ -47,9 +53,3 @@ pub extend Format with Debug::{to_repr}
 
 ///|
 pub extend Format with Eq::{not_equal, equal}
-
-///|
-pub extend Value with Debug::{to_repr}
-
-///|
-pub extend Value with Eq::{not_equal, equal}

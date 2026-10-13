@@ -6,6 +6,12 @@ pub enum ProtocolVersion {
 } derive(Debug, Eq)
 
 ///|
+pub extend ProtocolVersion with Debug::{to_repr}
+
+///|
+pub extend ProtocolVersion with Eq::{not_equal, equal}
+
+///|
 pub fn ProtocolVersion::to_int32(self : ProtocolVersion) -> Int32 {
   match self {
     V3_0 => 196608
@@ -32,6 +38,15 @@ pub(all) enum TransactionStatus {
   InBlock // 'T' — in a transaction block
   Failed // 'E' — in a failed transaction block
 } derive(Debug, Eq)
+
+///|
+pub extend TransactionStatus with Debug::{to_repr}
+
+///|
+pub extend TransactionStatus with Eq::{not_equal, equal}
+
+///|
+pub extend TransactionStatus with Show::{to_string, output}
 
 ///|
 pub fn TransactionStatus::from_byte(
@@ -76,6 +91,12 @@ pub(all) enum AuthMethod {
   SASLContinue // 11
   SASLFinal // 12
 } derive(Debug, Eq)
+
+///|
+pub extend AuthMethod with Debug::{to_repr}
+
+///|
+pub extend AuthMethod with Eq::{not_equal, equal}
 
 ///|
 pub fn AuthMethod::from_int(v : Int32) -> AuthMethod raise WireError {
@@ -195,24 +216,3 @@ pub const MSG_COPY_FAIL : Byte = b'f'
 ///|
 /// NegotiateProtocolVersion ('v') — PG 17+ protocol version negotiation.
 pub const MSG_NEGOTIATE_PROTOCOL_VERSION : Byte = b'v'
-
-///|
-pub extend AuthMethod with Debug::{to_repr}
-
-///|
-pub extend AuthMethod with Eq::{not_equal, equal}
-
-///|
-pub extend ProtocolVersion with Debug::{to_repr}
-
-///|
-pub extend ProtocolVersion with Eq::{not_equal, equal}
-
-///|
-pub extend TransactionStatus with Debug::{to_repr}
-
-///|
-pub extend TransactionStatus with Eq::{not_equal, equal}
-
-///|
-pub extend TransactionStatus with Show::{to_string, output}

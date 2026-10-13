@@ -5,6 +5,12 @@ pub enum ConnStatus {
   Bad
 } derive(Debug, Eq)
 
+///|
+pub extend ConnStatus with Debug::{to_repr}
+
+///|
+pub extend ConnStatus with Eq::{not_equal, equal}
+
 // ---------------------------------------------------------------------------
 // ConnRows — bare connection rows
 // ---------------------------------------------------------------------------
@@ -14,6 +20,9 @@ pub enum ConnStatus {
 pub(all) struct ConnRows {
   reader : @wire.ResultReader
 }
+
+///|
+pub extend ConnRows with Rows::{has_next, close, get_row, columns}
 
 ///|
 pub impl Rows for ConnRows with fn has_next(self : ConnRows) -> Bool raise PgError {
@@ -51,6 +60,12 @@ pub impl Rows for ConnRows with fn close(self : ConnRows) -> Unit raise PgError 
 pub struct Connection {
   conn : @wire.RawConn
 }
+
+///|
+pub extend Connection with Closer::{close}
+
+///|
+pub extend Connection with QueryExecutor::{execute, query, query_one}
 
 ///|
 /// Open a new connection to a PostgreSQL server.
@@ -544,18 +559,3 @@ pub fn get_env(name : String) -> String {
     None => ""
   }
 }
-
-///|
-pub extend ConnRows with Rows::{has_next, close, get_row, columns}
-
-///|
-pub extend ConnStatus with Debug::{to_repr}
-
-///|
-pub extend ConnStatus with Eq::{not_equal, equal}
-
-///|
-pub extend Connection with Closer::{close}
-
-///|
-pub extend Connection with QueryExecutor::{execute, query, query_one}

@@ -8,6 +8,18 @@
 /// Microseconds since Unix epoch (1970-01-01 00:00:00 UTC).
 pub(all) struct Timestamp(Int64) derive(Eq, Debug)
 
+///|
+pub extend Timestamp with Debug::{to_repr}
+
+///|
+pub extend Timestamp with Eq::{not_equal, equal}
+
+///|
+pub extend Timestamp with FromValue::{from_value}
+
+///|
+pub extend Timestamp with ToValue::{to_value}
+
 // ===========================================================================
 // ToValue impls
 // ===========================================================================
@@ -785,15 +797,3 @@ test "debug_&ToValue_array" {
   let params : Array[&ToValue] = [arr]
   debug_inspect(params[0], content="[1, 2, 3]")
 }
-
-///|
-pub extend Timestamp with Debug::{to_repr}
-
-///|
-pub extend Timestamp with Eq::{not_equal, equal}
-
-///|
-pub extend Timestamp with FromValue::{from_value}
-
-///|
-pub extend Timestamp with ToValue::{to_value}

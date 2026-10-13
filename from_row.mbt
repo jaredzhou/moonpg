@@ -63,6 +63,9 @@ pub impl FromRow for Timestamp with fn from_row(r : Row) -> Timestamp raise PgEr
 }
 
 ///|
+pub extend Timestamp with FromRow::{from_row}
+
+///|
 /// Read a single-column row as `Decimal`.
 pub impl FromRow for @decimal.Decimal with fn from_row(r : Row) -> @decimal.Decimal raise PgError {
   r.get(0)
@@ -250,6 +253,3 @@ pub impl[
     r.get(9),
   )
 }
-
-///|
-pub extend Timestamp with FromRow::{from_row}

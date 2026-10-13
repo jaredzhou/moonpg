@@ -122,12 +122,27 @@ pub(all) struct Pool {
 }
 
 ///|
+pub extend Pool with Closer::{close}
+
+///|
+pub extend Pool with QueryExecutor::{execute, query, query_one}
+
+///|
+pub extend Pool with TxBeginner::{begin_tx}
+
+///|
 pub(all) struct PoolConn {
   conn : Connection
   pool : Pool
   created_at : Int64
   released : Ref[Bool]
 }
+
+///|
+pub extend PoolConn with Closer::{close}
+
+///|
+pub extend PoolConn with TxBeginner::{begin_tx}
 
 // ---------------------------------------------------------------------------
 // PoolRows — Rows that release back to the pool on close()
@@ -140,6 +155,9 @@ pub(all) struct PoolRows {
   inner : &Rows
   pc : PoolConn
 }
+
+///|
+pub extend PoolRows with Rows::{has_next, close, get_row, columns}
 
 ///|
 pub impl Rows for PoolRows with fn has_next(self : PoolRows) -> Bool raise PgError {
@@ -575,6 +593,12 @@ pub(all) struct PoolDbTx {
 }
 
 ///|
+pub extend PoolDbTx with QueryExecutor::{execute, query, query_one}
+
+///|
+pub extend PoolDbTx with Tx::{commit, rollback}
+
+///|
 pub impl QueryExecutor for PoolDbTx with fn query(
   self : PoolDbTx,
   sql : String,
@@ -700,27 +724,3 @@ pub impl QueryExecutor for Pool with fn execute(
   pc.release()
   result
 }
-
-///|
-pub extend Pool with Closer::{close}
-
-///|
-pub extend Pool with QueryExecutor::{execute, query, query_one}
-
-///|
-pub extend Pool with TxBeginner::{begin_tx}
-
-///|
-pub extend PoolConn with Closer::{close}
-
-///|
-pub extend PoolConn with TxBeginner::{begin_tx}
-
-///|
-pub extend PoolDbTx with QueryExecutor::{execute, query, query_one}
-
-///|
-pub extend PoolDbTx with Tx::{commit, rollback}
-
-///|
-pub extend PoolRows with Rows::{has_next, close, get_row, columns}

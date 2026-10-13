@@ -5,6 +5,9 @@ pub(all) suberror CodecError {
 } derive(Debug)
 
 ///|
+pub extend CodecError with Debug::{to_repr}
+
+///|
 /// Codec converts between `Value` and PostgreSQL wire-format bytes.
 ///
 /// Each codec is a stateless struct implementing this trait. The `oid`
@@ -21,6 +24,3 @@ pub(open) trait Codec {
   /// Receives `None` for SQL NULL → returns `Value::Null`.
   fn decode(Self, oid : Int32, format : @value.Format, bytes : Bytes?) -> @value.Value raise CodecError
 }
-
-///|
-pub extend CodecError with Debug::{to_repr}

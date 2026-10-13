@@ -34,6 +34,12 @@ pub enum ConnStatus {
 } derive(Debug, Eq)
 
 ///|
+pub extend ConnStatus with Debug::{to_repr}
+
+///|
+pub extend ConnStatus with Eq::{not_equal, equal}
+
+///|
 /// Well-known server parameter names.
 pub const PARAM_SERVER_VERSION : String = "server_version"
 
@@ -1354,9 +1360,3 @@ fn expand_formats(
     }
   }
 }
-
-///|
-pub extend ConnStatus with Debug::{to_repr}
-
-///|
-pub extend ConnStatus with Eq::{not_equal, equal}

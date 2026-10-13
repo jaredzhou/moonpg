@@ -25,6 +25,9 @@ pub(all) suberror PgError {
   NoRows
 } derive(Debug)
 
+///|
+pub extend PgError with Debug::{to_repr}
+
 // ===========================================================================
 // Value conversion
 // ===========================================================================
@@ -34,6 +37,9 @@ pub(all) suberror PgError {
 pub(all) suberror ValueError {
   ValueError(String)
 } derive(Debug)
+
+///|
+pub extend ValueError with Debug::{to_repr}
 
 ///|
 /// Types that can be converted to a `Value` for use as SQL parameters.
@@ -346,9 +352,3 @@ pub async fn[T, B : TxBeginner] begin_func(
     }
   }
 }
-
-///|
-pub extend PgError with Debug::{to_repr}
-
-///|
-pub extend ValueError with Debug::{to_repr}

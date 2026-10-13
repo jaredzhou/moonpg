@@ -37,6 +37,9 @@ pub(all) struct ErrorField {
   value : String
 } derive(Debug)
 
+///|
+pub extend ErrorField with Debug::{to_repr}
+
 // ---------------------------------------------------------------------------
 // PasswordMessage ('p')
 // ---------------------------------------------------------------------------
@@ -46,6 +49,9 @@ pub(all) struct ErrorField {
 pub(all) struct PasswordMessage {
   password : String
 }
+
+///|
+pub extend PasswordMessage with Message::{encode, decode, describe}
 
 ///|
 pub impl Message for PasswordMessage with fn encode(self) -> Bytes {
@@ -80,6 +86,9 @@ pub(all) struct Query {
 }
 
 ///|
+pub extend Query with Message::{encode, decode, describe}
+
+///|
 pub impl Message for Query with fn encode(self) -> Bytes {
   let buf = BytesMut::new()
   buf.append_byte(MSG_QUERY)
@@ -111,6 +120,9 @@ pub(all) struct SASLInitialResponse {
   mechanism : String
   initial_response : Bytes
 }
+
+///|
+pub extend SASLInitialResponse with Message::{encode, decode, describe}
 
 ///|
 pub impl Message for SASLInitialResponse with fn encode(self) -> Bytes {
@@ -162,6 +174,9 @@ pub(all) struct SASLResponse {
 }
 
 ///|
+pub extend SASLResponse with Message::{encode, decode, describe}
+
+///|
 pub impl Message for SASLResponse with fn encode(self) -> Bytes {
   let buf = BytesMut::new()
   buf.append_byte(MSG_PASSWORD)
@@ -188,6 +203,9 @@ pub impl Message for SASLResponse with fn describe(self) -> String {
 ///|
 /// PostgreSQL `SSLRequest` (F).
 pub(all) struct SSLRequest {}
+
+///|
+pub extend SSLRequest with Message::{encode, decode, describe}
 
 ///|
 pub impl Message for SSLRequest with fn encode(_self) -> Bytes {
@@ -223,6 +241,9 @@ pub(all) struct StartupMessage {
   version : ProtocolVersion
   params : Array[ConnParam]
 }
+
+///|
+pub extend StartupMessage with Message::{encode, decode, describe}
 
 ///|
 pub impl Message for StartupMessage with fn encode(self) -> Bytes {
@@ -286,6 +307,9 @@ pub impl Message for StartupMessage with fn describe(self) -> String {
 pub(all) struct Terminate {}
 
 ///|
+pub extend Terminate with Message::{encode, decode, describe}
+
+///|
 pub impl Message for Terminate with fn encode(_self) -> Bytes {
   let buf = BytesMut::new()
   buf.append_byte(MSG_TERMINATE)
@@ -317,6 +341,9 @@ pub(all) struct Parse {
   /// Parameter type OIDs; 0 = unspecified, fewer than $n = remaining unspecified.
   param_types : Array[Int32]
 }
+
+///|
+pub extend Parse with Message::{encode, decode, describe}
 
 ///|
 pub impl Message for Parse with fn encode(self) -> Bytes {
@@ -382,6 +409,9 @@ pub(all) struct Bind {
   ///   Empty array = all text, single value = applies to all.
   result_formats : Array[Int32]
 }
+
+///|
+pub extend Bind with Message::{encode, decode, describe}
 
 ///|
 pub impl Message for Bind with fn encode(self) -> Bytes {
@@ -504,6 +534,9 @@ pub(all) struct Describe {
 }
 
 ///|
+pub extend Describe with Message::{encode, decode, describe}
+
+///|
 pub impl Message for Describe with fn encode(self) -> Bytes {
   let buf = BytesMut::new()
   buf.append_byte(MSG_DESCRIBE)
@@ -542,6 +575,9 @@ pub(all) struct Execute {
   /// Max rows to return; 0 = no limit.
   max_rows : Int32
 }
+
+///|
+pub extend Execute with Message::{encode, decode, describe}
 
 ///|
 pub impl Message for Execute with fn encode(self) -> Bytes {
@@ -583,6 +619,9 @@ pub(all) struct Close {
 }
 
 ///|
+pub extend Close with Message::{encode, decode, describe}
+
+///|
 pub impl Message for Close with fn encode(self) -> Bytes {
   let buf = BytesMut::new()
   buf.append_byte(MSG_CLOSE)
@@ -618,6 +657,9 @@ pub impl Message for Close with fn describe(self) -> String {
 pub(all) struct Sync {}
 
 ///|
+pub extend Sync with Message::{encode, decode, describe}
+
+///|
 pub impl Message for Sync with fn encode(_self) -> Bytes {
   let buf = BytesMut::new()
   buf.append_byte(MSG_SYNC)
@@ -643,6 +685,9 @@ pub impl Message for Sync with fn describe(_self) -> String {
 /// PostgreSQL `Flush` (F) — flush server output buffer without Sync's
 /// transaction effects.
 pub(all) struct Flush {}
+
+///|
+pub extend Flush with Message::{encode, decode, describe}
 
 ///|
 pub impl Message for Flush with fn encode(_self) -> Bytes {
@@ -673,6 +718,9 @@ pub(all) struct CopyData {
 }
 
 ///|
+pub extend CopyData with Message::{encode, decode, describe}
+
+///|
 pub impl Message for CopyData with fn encode(self) -> Bytes {
   let buf = BytesMut::new()
   buf.append_byte(MSG_COPY_DATA)
@@ -694,6 +742,9 @@ pub impl Message for CopyData with fn describe(_self) -> String {
 ///|
 /// PostgreSQL `CopyDone` (F) — signal end of COPY data.
 pub(all) struct CopyDone {}
+
+///|
+pub extend CopyDone with Message::{encode, decode, describe}
 
 ///|
 pub impl Message for CopyDone with fn encode(_self) -> Bytes {
@@ -720,6 +771,9 @@ pub(all) struct CopyFail {
 }
 
 ///|
+pub extend CopyFail with Message::{encode, decode, describe}
+
+///|
 pub impl Message for CopyFail with fn encode(self) -> Bytes {
   let msg_bytes = @utf8.encode(self.message)
   let buf = BytesMut::new()
@@ -739,57 +793,3 @@ pub impl Message for CopyFail with fn decode(_payload) -> CopyFail raise WireErr
 pub impl Message for CopyFail with fn describe(_self) -> String {
   "CopyFail"
 }
-
-///|
-pub extend Bind with Message::{encode, decode, describe}
-
-///|
-pub extend Close with Message::{encode, decode, describe}
-
-///|
-pub extend CopyData with Message::{encode, decode, describe}
-
-///|
-pub extend CopyDone with Message::{encode, decode, describe}
-
-///|
-pub extend CopyFail with Message::{encode, decode, describe}
-
-///|
-pub extend Describe with Message::{encode, decode, describe}
-
-///|
-pub extend ErrorField with Debug::{to_repr}
-
-///|
-pub extend Execute with Message::{encode, decode, describe}
-
-///|
-pub extend Flush with Message::{encode, decode, describe}
-
-///|
-pub extend Parse with Message::{encode, decode, describe}
-
-///|
-pub extend PasswordMessage with Message::{encode, decode, describe}
-
-///|
-pub extend Query with Message::{encode, decode, describe}
-
-///|
-pub extend SASLInitialResponse with Message::{encode, decode, describe}
-
-///|
-pub extend SASLResponse with Message::{encode, decode, describe}
-
-///|
-pub extend SSLRequest with Message::{encode, decode, describe}
-
-///|
-pub extend StartupMessage with Message::{encode, decode, describe}
-
-///|
-pub extend Sync with Message::{encode, decode, describe}
-
-///|
-pub extend Terminate with Message::{encode, decode, describe}

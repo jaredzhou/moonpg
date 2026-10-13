@@ -20,6 +20,24 @@ pub(all) enum Stream {
 }
 
 ///|
+pub extend Stream with @io.Reader::{
+  read,
+  read_some,
+  _direct_read,
+  drop,
+  read_all,
+  read_until,
+  read_exactly,
+  _get_internal_buffer,
+}
+
+///|
+pub extend Stream with @io.Writer::{write_once, write, write_reader}
+
+///|
+pub extend Stream with Transport::{close}
+
+///|
 // ---------------------------------------------------------------------------
 // @io.Reader impl — delegates to the inner type
 // ---------------------------------------------------------------------------
@@ -75,21 +93,3 @@ pub impl Transport for Stream with fn close(self : Stream) -> Unit {
     Tls(tls) => tls.close()
   }
 }
-
-///|
-pub extend Stream with @io.Reader::{
-  read,
-  read_some,
-  _direct_read,
-  drop,
-  read_all,
-  read_until,
-  read_exactly,
-  _get_internal_buffer,
-}
-
-///|
-pub extend Stream with @io.Writer::{write_once, write, write_reader}
-
-///|
-pub extend Stream with Transport::{close}
