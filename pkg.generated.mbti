@@ -78,6 +78,7 @@ pub fn Connection::server_version(Self) -> Int
 pub fn Connection::status(Self) -> ConnStatus
 pub async fn Connection::unlisten(Self, String) -> Unit raise PgError
 pub impl Closer for Connection
+pub impl Fetching for Connection
 pub impl QueryExecutor for Connection
 pub impl TxBeginner for Connection
 
@@ -97,6 +98,7 @@ pub async fn[T : FromRow] DbTx::fetch_one(Self, String, params? : Array[&ToValue
 pub async fn DbTx::query(Self, String, params? : Array[&ToValue]) -> &Rows raise PgError
 pub async fn DbTx::query_one(Self, String, params? : Array[&ToValue]) -> Row raise PgError
 pub async fn DbTx::rollback(Self) -> Unit raise PgError
+pub impl Fetching for DbTx
 pub impl QueryExecutor for DbTx
 pub impl Tx for DbTx
 
@@ -154,6 +156,7 @@ pub async fn Pool::start_maintenance(Self) -> Unit
 pub fn Pool::stats(Self) -> PoolStats
 pub fn Pool::total(Self) -> Int
 pub impl Closer for Pool
+pub impl Fetching for Pool
 pub impl QueryExecutor for Pool
 pub impl TxBeginner for Pool
 
@@ -183,6 +186,7 @@ pub async fn PoolConn::query(Self, String, params? : Array[&ToValue]) -> &Rows r
 pub async fn PoolConn::query_one(Self, String, params? : Array[&ToValue]) -> Row raise PgError
 pub fn PoolConn::release(Self) -> Unit
 pub impl Closer for PoolConn
+pub impl Fetching for PoolConn
 pub impl QueryExecutor for PoolConn
 pub impl TxBeginner for PoolConn
 
@@ -197,6 +201,7 @@ pub async fn[T : FromRow] PoolDbTx::fetch_one(Self, String, params? : Array[&ToV
 pub async fn PoolDbTx::query(Self, String, params? : Array[&ToValue]) -> &Rows raise PgError
 pub async fn PoolDbTx::query_one(Self, String, params? : Array[&ToValue]) -> Row raise PgError
 pub async fn PoolDbTx::rollback(Self) -> Unit raise PgError
+pub impl Fetching for PoolDbTx
 pub impl QueryExecutor for PoolDbTx
 pub impl Tx for PoolDbTx
 
@@ -253,6 +258,11 @@ pub using @value {type Value}
 // Traits
 pub(open) trait Closer {
   fn close(Self) -> Unit
+}
+
+pub(open) trait Fetching : QueryExecutor {
+  async fn[T : FromRow] fetch(Self, String, params? : Array[&ToValue]) -> Array[T] raise PgError = _
+  async fn[T : FromRow] fetch_one(Self, String, params? : Array[&ToValue]) -> T raise PgError = _
 }
 
 pub(open) trait FromRow {

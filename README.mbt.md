@@ -56,8 +56,11 @@ while rows.has_next() {
 
 `fetch` and `fetch_one` collect rows into typed results and **auto-close** — no manual `rows.close()` or `defer` needed. They're the recommended way to read data.
 
-They're available directly on `Connection`, `Pool`, `PoolConn`, and `&Tx` (the type
-returned by `begin_tx`). The explicit `&QueryExecutor::fetch(x, ...)` form keeps working too.
+They're declared in the `Fetching` trait — a non-object-safe companion to
+`QueryExecutor`, since `fetch` is generic in `T` — with a single shared
+implementation, and are available directly on `Connection`, `Pool`, `PoolConn`,
+`DbTx`, `PoolDbTx`, and `&Tx` (the type returned by `begin_tx`). The explicit
+`&QueryExecutor::fetch(x, ...)` form keeps working too.
 
 ```moonbit nocheck
 let conn = @moonpg.connect(conninfo)

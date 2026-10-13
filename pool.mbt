@@ -128,6 +128,9 @@ pub extend Pool with Closer::{close}
 pub extend Pool with QueryExecutor::{execute, query, query_one}
 
 ///|
+pub extend Pool with Fetching::{fetch, fetch_one}
+
+///|
 pub extend Pool with TxBeginner::{begin_tx}
 
 ///|
@@ -143,6 +146,9 @@ pub extend PoolConn with Closer::{close}
 
 ///|
 pub extend PoolConn with TxBeginner::{begin_tx}
+
+///|
+pub extend PoolConn with Fetching::{fetch, fetch_one}
 
 // ---------------------------------------------------------------------------
 // PoolRows — Rows that release back to the pool on close()
@@ -581,24 +587,7 @@ pub async fn PoolConn::execute(
 }
 
 ///|
-/// Dot-syntax convenience for `&QueryExecutor::fetch`.
-pub async fn[T : FromRow] PoolConn::fetch(
-  self : PoolConn,
-  sql : String,
-  params? : Array[&ToValue],
-) -> Array[T] raise PgError {
-  &QueryExecutor::fetch(self, sql, params?)
-}
-
-///|
-/// Dot-syntax convenience for `&QueryExecutor::fetch_one`.
-pub async fn[T : FromRow] PoolConn::fetch_one(
-  self : PoolConn,
-  sql : String,
-  params? : Array[&ToValue],
-) -> T raise PgError {
-  &QueryExecutor::fetch_one(self, sql, params?)
-}
+pub impl Fetching for PoolConn
 
 // ---------------------------------------------------------------------------
 // PoolDbTx — Tx that releases back to the pool on commit/rollback
@@ -617,6 +606,9 @@ pub extend PoolDbTx with QueryExecutor::{execute, query, query_one}
 
 ///|
 pub extend PoolDbTx with Tx::{commit, rollback}
+
+///|
+pub extend PoolDbTx with Fetching::{fetch, fetch_one}
 
 ///|
 pub impl QueryExecutor for PoolDbTx with fn query(
@@ -646,24 +638,7 @@ pub impl QueryExecutor for PoolDbTx with fn execute(
 }
 
 ///|
-/// Dot-syntax convenience for `&QueryExecutor::fetch`.
-pub async fn[T : FromRow] PoolDbTx::fetch(
-  self : PoolDbTx,
-  sql : String,
-  params? : Array[&ToValue],
-) -> Array[T] raise PgError {
-  &QueryExecutor::fetch(self, sql, params?)
-}
-
-///|
-/// Dot-syntax convenience for `&QueryExecutor::fetch_one`.
-pub async fn[T : FromRow] PoolDbTx::fetch_one(
-  self : PoolDbTx,
-  sql : String,
-  params? : Array[&ToValue],
-) -> T raise PgError {
-  &QueryExecutor::fetch_one(self, sql, params?)
-}
+pub impl Fetching for PoolDbTx
 
 ///|
 
@@ -766,21 +741,4 @@ pub impl QueryExecutor for Pool with fn execute(
 }
 
 ///|
-/// Dot-syntax convenience for `&QueryExecutor::fetch`.
-pub async fn[T : FromRow] Pool::fetch(
-  self : Pool,
-  sql : String,
-  params? : Array[&ToValue],
-) -> Array[T] raise PgError {
-  &QueryExecutor::fetch(self, sql, params?)
-}
-
-///|
-/// Dot-syntax convenience for `&QueryExecutor::fetch_one`.
-pub async fn[T : FromRow] Pool::fetch_one(
-  self : Pool,
-  sql : String,
-  params? : Array[&ToValue],
-) -> T raise PgError {
-  &QueryExecutor::fetch_one(self, sql, params?)
-}
+pub impl Fetching for Pool

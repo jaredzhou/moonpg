@@ -191,6 +191,21 @@ pub(open) trait QueryExecutor {
 }
 
 ///|
+/// Types that can run a `SELECT` and map its rows into `T`.
+///
+/// `fetch`/`fetch_one` are polymorphic in `T`, so they cannot be declared in
+/// `QueryExecutor`: a polymorphic method makes a trait unusable as an object,
+/// and `&QueryExecutor` — and therefore `&Tx` — is part of this API. They live
+/// in this separate, deliberately non-object-safe trait instead, and get a
+/// single shared implementation (see `impl Fetching with ...` below).
+pub(open) trait Fetching: QueryExecutor {
+  async fn[T : FromRow] fetch(Self, String, params? : Array[&ToValue]) -> Array[
+    T,
+  ] raise PgError = _
+  async fn[T : FromRow] fetch_one(Self, String, params? : Array[&ToValue]) -> T raise PgError = _
+}
+
+///|
 /// Types that can be closed to release resources.
 pub(open) trait Closer {
   fn close(Self) -> Unit
@@ -241,6 +256,26 @@ pub async fn[T : FromRow] &QueryExecutor::fetch_one(
     return T::from_row(rows.get_row())
   }
   raise NoRows
+}
+
+///|
+/// The single shared implementation of the `Fetching` methods: every
+/// implementor gets `fetch`/`fetch_one` without writing them itself.
+impl Fetching with fn[T : FromRow] fetch(
+  self,
+  sql : String,
+  params? : Array[&ToValue],
+) -> Array[T] {
+  &QueryExecutor::fetch(self, sql, params?)
+}
+
+///|
+impl Fetching with fn[T : FromRow] fetch_one(
+  self,
+  sql : String,
+  params? : Array[&ToValue],
+) -> T {
+  &QueryExecutor::fetch_one(self, sql, params?)
 }
 
 // ===========================================================================

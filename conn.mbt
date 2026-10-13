@@ -68,6 +68,9 @@ pub extend Connection with Closer::{close}
 pub extend Connection with QueryExecutor::{execute, query, query_one}
 
 ///|
+pub extend Connection with Fetching::{fetch, fetch_one}
+
+///|
 /// Open a new connection to a PostgreSQL server.
 pub async fn connect(conninfo : String) -> Connection raise PgError {
   let inner = @wire.connect(conninfo) catch { e => raise map_wire_error(e) }
@@ -433,24 +436,7 @@ pub impl QueryExecutor for Connection with fn execute(
 }
 
 ///|
-/// Dot-syntax convenience for `&QueryExecutor::fetch`.
-pub async fn[T : FromRow] Connection::fetch(
-  self : Connection,
-  sql : String,
-  params? : Array[&ToValue],
-) -> Array[T] raise PgError {
-  &QueryExecutor::fetch(self, sql, params?)
-}
-
-///|
-/// Dot-syntax convenience for `&QueryExecutor::fetch_one`.
-pub async fn[T : FromRow] Connection::fetch_one(
-  self : Connection,
-  sql : String,
-  params? : Array[&ToValue],
-) -> T raise PgError {
-  &QueryExecutor::fetch_one(self, sql, params?)
-}
+pub impl Fetching for Connection
 
 ///|
 /// Close the database connection.

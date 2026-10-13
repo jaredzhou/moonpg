@@ -57,6 +57,9 @@ pub impl QueryExecutor for DbTx with fn query(
 pub extend DbTx with QueryExecutor::{execute, query, query_one}
 
 ///|
+pub extend DbTx with Fetching::{fetch, fetch_one}
+
+///|
 pub impl QueryExecutor for DbTx with fn query_one(
   self : DbTx,
   sql : String,
@@ -75,24 +78,7 @@ pub impl QueryExecutor for DbTx with fn execute(
 }
 
 ///|
-/// Dot-syntax convenience for `&QueryExecutor::fetch`.
-pub async fn[T : FromRow] DbTx::fetch(
-  self : DbTx,
-  sql : String,
-  params? : Array[&ToValue],
-) -> Array[T] raise PgError {
-  &QueryExecutor::fetch(self, sql, params?)
-}
-
-///|
-/// Dot-syntax convenience for `&QueryExecutor::fetch_one`.
-pub async fn[T : FromRow] DbTx::fetch_one(
-  self : DbTx,
-  sql : String,
-  params? : Array[&ToValue],
-) -> T raise PgError {
-  &QueryExecutor::fetch_one(self, sql, params?)
-}
+pub impl Fetching for DbTx
 
 ///|
 /// Dot-syntax convenience for `&QueryExecutor::fetch` on a transaction.
