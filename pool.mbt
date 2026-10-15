@@ -34,11 +34,19 @@
 ///
 /// ## Expiry
 ///
-/// Idle connections are checked lazily, when the pool is used: `acquire()`
-/// drops an idle connection that is dead or past `max_idle_sec` /
-/// `max_lifetime_sec` and opens a fresh one instead, and `release()` drops a
-/// connection that outlived `max_lifetime_sec`.  There is no background task,
-/// so an unused pool never touches its connections.
+/// Stale connections are dropped when the pool is used — there is no
+/// background task, so an unused pool never touches its connections:
+///
+/// - `acquire()` discards a dequeued idle connection that is dead, past
+///   `max_lifetime_sec`, or past `max_idle_sec` *and* in surplus beyond
+///   `min_idle`, and opens a fresh connection instead.
+/// - `release()` discards a connection that is dead or past
+///   `max_lifetime_sec`, so an over-age connection is never handed out again.
+///
+/// `max_idle_sec` never trims the warm `min_idle` connections, so the pool does
+/// not drop a live connection only to reconnect on the next request.  Nothing
+/// refills the pool: `min_idle` is pre-warmed once at `Pool::new` and can shrink
+/// again as connections hit `max_lifetime_sec`.
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -267,16 +275,27 @@ pub fn Pool::stats(self : Pool) -> PoolStats {
 // ---------------------------------------------------------------------------
 
 ///|
-fn Pool::expired(self : Pool, idle : IdleConn) -> Bool {
+/// Decide whether an idle connection that was just taken off the idle queue
+/// should be discarded instead of handed out.
+///
+/// `surplus` must be `true` when the pool would still have at least `min_idle`
+/// idle connections left after dropping this one.
+fn Pool::expired(self : Pool, idle : IdleConn, surplus~ : Bool) -> Bool {
   if idle.conn.status() != ConnStatus::OK {
     return true
   }
   let now = @async.now()
+  // Connection age is a hard cap: it rotates connections even when that costs a
+  // reconnect, because the server side may have stopped using them.
   if self.max_lifetime_sec > 0 &&
     now - idle.created_at > self.max_lifetime_sec.to_int64() * 1000L {
     return true
   }
+  // Idle time only trims the surplus.  The warm `min_idle` connections survive,
+  // so a live connection is never dropped just to be reconnected on the next
+  // acquire.
   if self.max_idle_sec > 0 &&
+    surplus &&
     now - idle.idle_since > self.max_idle_sec.to_int64() * 1000L {
     return true
   }
@@ -296,7 +315,8 @@ pub async fn Pool::acquire(self : Pool) -> PoolConn raise PgError {
   match maybe_idle {
     Some(idle) => {
       self.idle_count.val = self.idle_count.val - 1
-      if self.expired(idle) {
+      let surplus = self.idle_count.val >= self.min_idle
+      if self.expired(idle, surplus~) {
         idle.conn.close()
         self.count.val = self.count.val - 1
         self.acquire()
@@ -324,7 +344,8 @@ pub async fn Pool::acquire(self : Pool) -> PoolConn raise PgError {
           @async.now() -
           wait_start
         self.idle_count.val = self.idle_count.val - 1
-        if idle.conn.status() != ConnStatus::OK || self.expired(idle) {
+        let surplus = self.idle_count.val >= self.min_idle
+        if self.expired(idle, surplus~) {
           idle.conn.close()
           self.count.val = self.count.val - 1
           self.acquire()

@@ -628,6 +628,34 @@ async test "pool_acquire_drops_expired_idle" {
 }
 
 ///|
+// `max_idle_sec` never trims the warm `min_idle` connections: a live
+// connection is reused, not dropped and immediately reconnected.
+async test "pool_keeps_warm_min_idle_connection" {
+  let cfg = @moonpg.PoolConfig::new(
+    pool_test_conninfo,
+    max_conns=4,
+    min_idle=1,
+    max_idle_sec=1,
+  )
+  let pool = @moonpg.Pool::new(cfg)
+  defer pool.close()
+
+  let p1 = pool.acquire()
+  let pid1 : Int32 = p1.query_one("SELECT pg_backend_pid()").get(0)
+  p1.release()
+  assert_eq(pool.total(), 1)
+
+  // Idle past max_idle_sec, but it is the last idle connection and min_idle=1,
+  // so it is kept: same backend, no reconnect.
+  @async.sleep(1400)
+  let p2 = pool.acquire()
+  let pid2 : Int32 = p2.query_one("SELECT pg_backend_pid()").get(0)
+  assert_eq(pid1, pid2)
+  assert_eq(pool.total(), 1)
+  p2.release()
+}
+
+///|
 async test "pool_release_drops_expired_conn" {
   let cfg = @moonpg.PoolConfig::new(
     pool_test_conninfo,

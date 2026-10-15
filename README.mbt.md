@@ -140,9 +140,10 @@ pc.release()
 let stats = pool.stats()
 println("active=\{stats.active_connections} idle=\{stats.idle_connections}")
 
-// Health check + timeout on idle connections. An idle connection past
-// max_idle_sec / max_lifetime_sec is dropped on the next acquire (or on
-// release, for lifetime) — there is no background task.
+// Health check + timeouts. Stale connections are dropped when the pool is
+// used, never by a background task: acquire() discards a dead or over-age idle
+// connection — or one idling past max_idle_sec, provided it is surplus beyond
+// min_idle — and opens a fresh one. The warm min_idle connections stay.
 let pool2 = Pool::new(PoolConfig::new(
   conninfo,
   max_conns=10,

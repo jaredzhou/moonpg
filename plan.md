@@ -94,8 +94,13 @@ These are bugs or crash paths in already-implemented features.
 - **Kept:**
   - `Pool::idle()` / `PoolStats` — pool observability.
   - `min_idle` — pre-warm at `Pool::new` only (no refill afterwards).
-  - Lazy expiry: `acquire()` drops a dequeued idle connection that is dead or past `max_idle_sec` /
-    `max_lifetime_sec` and opens a fresh one; `release()` drops a connection past `max_lifetime_sec`.
+  - Lazy expiry: `acquire()` drops a dequeued idle connection that is dead, past `max_lifetime_sec`,
+    or past `max_idle_sec` **and** surplus beyond `min_idle`, and opens a fresh one; `release()` drops
+    a connection that is dead or past `max_lifetime_sec`.
+  - `max_idle_sec` never trims the warm `min_idle` connections, so the pool does not drop a live
+    connection only to reconnect on the next request (`min_idle = 0` keeps the old drop-everything
+    behaviour).  Trade-off: with no refill, `min_idle` is pre-warmed once at `Pool::new` and can shrink
+    again as connections hit `max_lifetime_sec`.
 - **Why:** the async runtime has no detached tasks — every task's lifetime is bounded by its enclosing
   task group. A background loop owned by the library was therefore impossible: spawning one in a group
   of its own either blocks the caller (waited) or is cancelled before its first tick (not waited), and
