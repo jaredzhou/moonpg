@@ -163,7 +163,9 @@ pub async fn[X] Connection::listen(
   let conn = self.conn
 
   group.spawn_loop(no_wait=false) <| () => {
-    let msg = conn.receive() catch { _ => raise @async.BreakFromSpawnLoop }
+    // `receive_wait`, not `receive`: silence on a listen connection is normal,
+    // so `read_timeout` must not cut the loop short.
+    let msg = conn.receive_wait() catch { _ => raise @async.BreakFromSpawnLoop }
     match msg {
       @wire.NotificationResponse(n) => ignore(q.try_put(n) catch { _ => false })
       _ => ()

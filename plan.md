@@ -40,8 +40,17 @@ These are bugs or crash paths in already-implemented features.
 - **Files:** `wire/config.mbt`, `wire/raw_conn.mbt`
 - **Done:**
   - `connect_timeout` — parsed from conn string (seconds), defaults to 0 (no timeout). Uses `@async.with_timeout` to wrap `Tcp::connect`.
-  - `keepalives` / `keepalives_idle` / `keepalives_interval` / `keepalives_count` — parsed and passed to `Tcp::enable_keepalive` before SSL negotiation.
-  - `statement_timeout` (2026-07-17) — sent as startup parameter so the server cancels long-running queries. No client-side read timeout needed.
+  - `statement_timeout` (2026-07-17) — sent as startup parameter so the server cancels long-running queries.
+  - `read_timeout` (2026-10-15) — client-side read timeout in seconds, **3 by default**, `0` disables.
+    Every read (`receive`) is bounded by `@async.with_timeout`; on expiry the connection is closed (a
+    partially received message desynchronizes the protocol) and the caller gets a `ConnectionError`.
+    This is what turns a silently dropped connection (hard restart, NAT/LB/firewall idle timeout) into
+    a fast failure instead of a ~15 minute wait for TCP retransmission.  The LISTEN/NOTIFY loop uses
+    `receive_wait` and is exempt — silence there is normal, not a failure.  Supersedes the earlier
+    "no client-side read timeout needed" note: `statement_timeout` cannot fire when the server is gone.
+  - **Not implemented despite being listed here before:** `keepalives` / `keepalives_idle` /
+    `keepalives_interval` / `keepalives_count`.  `Config` has no such fields and `Tcp::enable_keepalive`
+    is never called, so these conninfo parameters are silently ignored.
 
 ### 6. Transaction isolation levels and options ✅ DONE (2026-07-16)
 - **Files:** `tx.mbt`, `pool.mbt`, `tx_test.mbt`

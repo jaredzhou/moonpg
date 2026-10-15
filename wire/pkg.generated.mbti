@@ -293,11 +293,12 @@ pub(all) struct Config {
   application_name : String?
   connect_timeout : Int
   statement_timeout : Int
+  read_timeout : Int
   target_session_attrs : String
   trace : Bool
 }
 pub fn Config::from_connstr(String) -> Self raise WireError
-pub fn Config::new(String, host? : String, hostaddr? : String?, port? : Int, database? : String?, password? : String?, sslmode? : String, sslrootcert? : String?, sslcert? : String?, sslkey? : String?, application_name? : String?, connect_timeout? : Int, statement_timeout? : Int, target_session_attrs? : String, trace? : Bool) -> Self
+pub fn Config::new(String, host? : String, hostaddr? : String?, port? : Int, database? : String?, password? : String?, sslmode? : String, sslrootcert? : String?, sslcert? : String?, sslkey? : String?, application_name? : String?, connect_timeout? : Int, statement_timeout? : Int, read_timeout? : Int, target_session_attrs? : String, trace? : Bool) -> Self
 
 pub(all) struct ConnParam {
   key : String
@@ -544,6 +545,7 @@ pub struct RawConn {
   secret_key : Int
   mut tx_status : TransactionStatus
   mut status : ConnStatus
+  read_timeout_ms : Int
 }
 pub fn RawConn::backend_pid(Self) -> Int
 pub async fn RawConn::begin_copy_in(Self, String) -> Unit raise WireError
@@ -566,6 +568,7 @@ pub fn RawConn::param(Self, String) -> String?
 pub async fn RawConn::prepare(Self, String, String, Array[Int]) -> StatementDescription raise WireError
 pub async fn RawConn::read_byte(Self) -> Byte
 pub async fn RawConn::receive(Self) -> BackendMessage raise WireError
+pub async fn RawConn::receive_wait(Self) -> BackendMessage raise WireError
 pub async fn[M : Message] RawConn::send(Self, M) -> Unit raise WireError
 pub async fn RawConn::send_copy_data(Self, Bytes) -> Unit raise WireError
 pub async fn RawConn::send_copy_done(Self) -> Unit raise WireError

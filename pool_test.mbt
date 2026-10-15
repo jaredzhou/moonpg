@@ -688,6 +688,41 @@ async test "pool_acquire_trims_idle_surplus_down_to_min_idle" {
   assert_eq(pool.total(), 2)
 }
 
+///|
+// Same server, but with a short client-side read timeout (URI conn string).
+fn pool_with_read_timeout(conninfo : String, secs : Int32) -> String {
+  match conninfo.find("?") {
+    Some(_) => "\{conninfo}&read_timeout=\{secs}"
+    None => "\{conninfo}?read_timeout=\{secs}"
+  }
+}
+
+///|
+// A query that trips the read timeout must not poison the pool: the connection
+// is destroyed and the next request gets a fresh one.
+async test "pool_recovers_after_read_timeout" {
+  let cfg = @moonpg.PoolConfig::new(
+    pool_with_read_timeout(pool_test_conninfo, 1),
+    max_conns=2,
+    min_idle=0,
+  )
+  let pool = @moonpg.Pool::new(cfg)
+  defer pool.close()
+
+  let timed_out = try {
+    pool.execute("SELECT pg_sleep(3)") |> ignore
+    false
+  } catch {
+    @moonpg.PgError::ConnectionError(_) => true
+    _ => false
+  }
+  assert_true(timed_out, msg="expected a read timeout error")
+  assert_eq(pool.total(), 0)
+
+  pool.execute("SELECT 1") |> ignore
+  assert_eq(pool.total(), 1)
+}
+
 // ---------------------------------------------------------------------------
 // PoolStats
 // ---------------------------------------------------------------------------

@@ -13,6 +13,7 @@ Feature-complete with a simple, ergonomic API.
 - **COPY** — streaming bulk insert from iterators.
 - **LISTEN / NOTIFY** — async notification support.
 - **TLS** — `sslmode` support (disable, require, verify-ca, verify-full) with client certificates.
+- **Timeouts** — `read_timeout` (default 3s) bounds every read, so a dead or black-holed server fails fast instead of hanging on TCP retransmission; `0` disables it.
 
 ## Install
 
@@ -24,6 +25,10 @@ moon add jaredzhou/moonpg
 
 ```moonbit nocheck
 let conn = @moonpg.connect("postgres://user:pw@localhost:5432/db")
+
+// Connection-string knobs: connect_timeout / statement_timeout / read_timeout
+// are seconds; read_timeout defaults to 3 and 0 disables a timeout.
+let conn2 = @moonpg.connect("postgres://user:pw@localhost:5432/db?read_timeout=0")
 
 // Execute DDL / DML
 conn.execute("CREATE TABLE users (id SERIAL PRIMARY KEY, name TEXT, email TEXT)") |> ignore

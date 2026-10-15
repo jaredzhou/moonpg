@@ -22,6 +22,9 @@ pub struct RawConn {
   mut tx_status : TransactionStatus
   /// Current connection lifecycle state.
   mut status : ConnStatus
+  /// Client-side read timeout in milliseconds: how long a single read may wait
+  /// for the server before the connection is closed.  `0` = wait forever.
+  read_timeout_ms : Int32
 }
 
 ///|
@@ -134,6 +137,7 @@ pub async fn connect_config(config : Config) -> RawConn raise WireError {
     secret_key: 0,
     tx_status: Idle,
     status: Connecting,
+    read_timeout_ms: config.read_timeout * 1000,
   }
 
   // Build and send StartupMessage
@@ -291,29 +295,53 @@ pub async fn[M : Message] RawConn::send(
 }
 
 ///|
+/// Read exactly `n` bytes, bounded by `timeout_ms` (`0` = wait forever).
+///
+/// A read timeout is fatal for the connection: a partially received message
+/// leaves the protocol desynchronized, so the connection is closed and the
+/// caller sees an I/O error.
+async fn RawConn::read_exactly(
+  self : RawConn,
+  n : Int32,
+  what : String,
+  timeout_ms~ : Int32,
+) -> Bytes raise WireError {
+  if timeout_ms <= 0 {
+    self.stream.read_exactly(n) catch {
+      e => raise WireError::IO("\{what}: \{e}")
+    }
+  } else {
+    @async.with_timeout(timeout_ms, () => self.stream.read_exactly(n)) catch {
+      @async.TimeoutError => {
+        self.close()
+        raise WireError::IO(
+          "\{what}: read timeout after \{timeout_ms}ms — no response from server (read_timeout)",
+        )
+      }
+      e => raise WireError::IO("\{what}: \{e}")
+    }
+  }
+}
+
+///|
 /// Core receive logic without close-on-error.  Separated so the public
 /// `receive` wrapper can add `close()` in one place.
 async fn RawConn::receive_inner(
   self : RawConn,
+  timeout_ms~ : Int32,
 ) -> BackendMessage raise WireError {
   // Read type byte
-  let type_byte_arr = self.stream.read_exactly(1) catch {
-    e => raise WireError::IO("read type byte: \{e}")
-  }
+  let type_byte_arr = self.read_exactly(1, "read type byte", timeout_ms~)
   let type_byte = type_byte_arr[0]
   // Read length (includes self — 4 bytes)
-  let len_bytes = self.stream.read_exactly(4) catch {
-    e => raise WireError::IO("read length: \{e}")
-  }
+  let len_bytes = self.read_exactly(4, "read length", timeout_ms~)
   guard len_bytes is [i32be(len)] else {
     raise WireError::InvalidMessage("invalid backend message length")
   }
   let payload_len = len - 4
   // Read payload
   let payload = if payload_len > 0 {
-    self.stream.read_exactly(payload_len) catch {
-      e => raise WireError::IO("read payload: \{e}")
-    }
+    self.read_exactly(payload_len, "read payload", timeout_ms~)
   } else {
     Default::default()
   }
@@ -547,9 +575,29 @@ async fn RawConn::receive_inner(
 ///
 /// Reads the 1-byte type tag, then the 4-byte length, then the payload,
 /// and decodes into a `BackendMessage`.  Closes the connection on any
-/// I/O or protocol error.
+/// I/O or protocol error, and applies `read_timeout` to every read.
 pub async fn RawConn::receive(self : RawConn) -> BackendMessage raise WireError {
-  self.receive_inner() catch {
+  self.receive_with_timeout(timeout_ms=self.read_timeout_ms)
+}
+
+///|
+/// Receive the next backend message, ignoring `read_timeout`.
+///
+/// For the LISTEN/NOTIFY loop, where a silent socket is the normal state: a
+/// channel can stay quiet for hours, so waiting is not a failure.
+pub async fn RawConn::receive_wait(
+  self : RawConn,
+) -> BackendMessage raise WireError {
+  self.receive_with_timeout(timeout_ms=0)
+}
+
+///|
+/// Receive with close-on-error.  `timeout_ms = 0` waits forever.
+async fn RawConn::receive_with_timeout(
+  self : RawConn,
+  timeout_ms~ : Int32,
+) -> BackendMessage raise WireError {
+  self.receive_inner(timeout_ms~) catch {
     WireError::IO(m) => {
       self.close()
       raise WireError::IO(m)

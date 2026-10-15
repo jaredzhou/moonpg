@@ -27,6 +27,10 @@ pub(all) struct Config {
   application_name : String?
   connect_timeout : Int32
   statement_timeout : Int32
+  /// Client-side read timeout in seconds: how long a single read may wait for
+  /// the server before the connection is considered dead and closed.  `0`
+  /// disables it.  Parsed from `read_timeout` in the connection string.
+  read_timeout : Int32
   target_session_attrs : String
   trace : Bool
 }
@@ -51,6 +55,7 @@ pub fn Config::new(
   application_name~ : String? = None,
   connect_timeout~ : Int32 = 0,
   statement_timeout~ : Int32 = 0,
+  read_timeout~ : Int32 = 3,
   target_session_attrs~ : String = "any",
   trace~ : Bool = false,
 ) -> Config {
@@ -68,6 +73,7 @@ pub fn Config::new(
     application_name,
     connect_timeout,
     statement_timeout,
+    read_timeout,
     target_session_attrs,
     trace,
   }
@@ -301,6 +307,7 @@ fn with_param(config : Config, key : String, value : String) -> Config {
     "application_name" => { ..config, application_name: Some(value), }
     "connect_timeout" => { ..config, connect_timeout: parse_int(value), }
     "statement_timeout" => { ..config, statement_timeout: parse_int(value), }
+    "read_timeout" => { ..config, read_timeout: parse_int(value), }
     "target_session_attrs" => { ..config, target_session_attrs: value, }
     _ => config
   }

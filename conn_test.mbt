@@ -1028,3 +1028,64 @@ async test "array_empty" {
   let vals : Array[Int32] = row.get(0)
   assert_eq(vals.length(), 0)
 }
+
+// ===========================================================================
+// Client-side read timeout
+// ===========================================================================
+
+///|
+// Same connection, but with a short client-side read timeout.  Assumes a URI
+// connection string (what PGCONN and the default use).
+fn conn_with_read_timeout(conninfo : String, secs : Int32) -> String {
+  match conninfo.find("?") {
+    Some(_) => "\{conninfo}&read_timeout=\{secs}"
+    None => "\{conninfo}?read_timeout=\{secs}"
+  }
+}
+
+///|
+async test "conn_read_timeout_kills_hung_query" {
+  let c = @moonpg.connect(conn_with_read_timeout(test_conninfo, 1))
+  // The server sends nothing for 3 s, so the 1 s read timeout fires first.
+  let timed_out = try {
+    c.execute("SELECT pg_sleep(3)") |> ignore
+    false
+  } catch {
+    @moonpg.PgError::ConnectionError(m) => m.contains("read timeout")
+    _ => false
+  }
+  assert_true(timed_out, msg="expected a read timeout error")
+  // A timeout leaves the protocol desynchronized, so the connection is closed:
+  // any further use fails.
+  let closed = try {
+    c.execute("SELECT 1") |> ignore
+    false
+  } catch {
+    _ => true
+  }
+  assert_true(
+    closed,
+    msg="expected the connection to be closed after a timeout",
+  )
+}
+
+///|
+// The LISTEN loop waits on the socket with no timeout: silence is normal, and
+// `read_timeout` must not cut it short.
+async test "listen_survives_read_timeout_silence" {
+  @async.with_task_group() <| group => {
+    let c1 = @moonpg.connect(conn_with_read_timeout(test_conninfo, 1))
+    let listener = c1.listen("moonpg_test_channel", group)
+    group.spawn_bg() <| () => {
+      // Stay quiet for longer than the 1 s read timeout before notifying.
+      @async.sleep(2000)
+      let c2 = @moonpg.connect(test_conninfo)
+      c2.notify("moonpg_test_channel", payload="late")
+      c2.close()
+    }
+    let notif = listener.recv()
+    println("late notification: \{notif.payload}")
+    assert_eq(notif.payload, "late")
+    group.return_immediately(())
+  }
+}
