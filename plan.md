@@ -110,6 +110,15 @@ These are bugs or crash paths in already-implemented features.
   - `max_idle_sec` never trims the warm `min_idle` connections, so the pool does not drop a live
     connection only to reconnect on the next request (`min_idle = 0` keeps the old drop-everything
     behaviour).  With no refill, `min_idle` is pre-warmed once at `Pool::new`.
+  - **Periodic ping (2026-10-15):**
+    - `Pool::ping_idle()` — `SELECT 1` on every idle connection; dead ones are closed and reconnected
+      only while the pool is below `min_idle` (surplus that died just shrinks the pool).
+    - `Pool::start_maintenance(group~, interval_sec~ = 30)` — runs `ping_idle()` on a timer as a child
+      task of the **caller's** task group (the runtime has no detached tasks, so the library cannot own
+      the loop); stops on `Pool::close()`.  Same pattern as `Connection::listen(channel, group)`.
+    - `Pool.closed` flag; `Pool::close()` sets it.
+    - This is the only way a caller never meets a dead connection: `health_check` validates on
+      checkout (one round trip per checkout), the ping validates off the request path.
 - **Why:** the async runtime has no detached tasks — every task's lifetime is bounded by its enclosing
   task group. A background loop owned by the library was therefore impossible: spawning one in a group
   of its own either blocks the caller (waited) or is cancelled before its first tick (not waited), and

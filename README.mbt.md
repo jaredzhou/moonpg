@@ -156,6 +156,17 @@ let pool2 = Pool::new(PoolConfig::new(
   max_idle_sec=300,
   health_check=true,
 ))
+
+// Periodic ping of the idle connections: a connection the server dropped while
+// it sat idle is found and replaced before a caller asks for one, so callers
+// never meet a dead connection. The loop is a child task of your group, so it
+// lives as long as the group and stops on pool2.close().
+@async.with_task_group() <| group => {
+  pool2.start_maintenance(group~, interval_sec=30)
+  // ... use pool2 here ...
+}
+
+// Or drive it yourself, e.g. from your own timer: pool2.ping_idle()
 ```
 
 ## Transactions

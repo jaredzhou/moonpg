@@ -133,6 +133,7 @@ pub(all) struct Pool {
   health_check : Bool
   count : @ref.Ref[Int]
   idle_count : @ref.Ref[Int]
+  closed : @ref.Ref[Bool]
   acquire_count : @ref.Ref[Int64]
   acquire_wait_count : @ref.Ref[Int64]
   acquire_wait_duration : @ref.Ref[Int64]
@@ -145,8 +146,10 @@ pub async fn[T : FromRow] Pool::fetch(Self, String, params? : Array[&ToValue]) -
 pub async fn[T : FromRow] Pool::fetch_one(Self, String, params? : Array[&ToValue]) -> T raise PgError
 pub fn Pool::idle(Self) -> Int
 pub async fn Pool::new(PoolConfig) -> Self raise PgError
+pub async fn Pool::ping_idle(Self) -> Unit
 pub async fn Pool::query(Self, String, params? : Array[&ToValue]) -> &Rows raise PgError
 pub async fn Pool::query_one(Self, String, params? : Array[&ToValue]) -> Row raise PgError
+pub fn[X] Pool::start_maintenance(Self, group~ : @async.TaskGroup[X], interval_sec? : Int) -> Unit
 pub fn Pool::stats(Self) -> PoolStats
 pub fn Pool::total(Self) -> Int
 pub impl Closer for Pool

@@ -775,3 +775,83 @@ async test "pool_stats_acquire_wait" {
   assert_true(stats.acquire_wait_count >= 1L)
   p2.release()
 }
+
+// ---------------------------------------------------------------------------
+// Maintenance — ping the idle connections
+// ---------------------------------------------------------------------------
+
+///|
+// Kill a backend from a separate connection: the pool connection dies while it
+// sits idle and, being a clean close, is only noticed on the next use.
+async fn pool_kill_backend(pid : Int32) -> Unit {
+  let killer = @moonpg.connect(pool_test_conninfo)
+  killer.execute("SELECT pg_terminate_backend($1)", params=[pid]) |> ignore
+  killer.close()
+  @async.sleep(100)
+}
+
+///|
+async test "pool_ping_idle_drops_dead_conn" {
+  let cfg = @moonpg.PoolConfig::new(pool_test_conninfo, max_conns=2, min_idle=0)
+  let pool = @moonpg.Pool::new(cfg)
+  defer pool.close()
+
+  let p1 = pool.acquire()
+  let pid1 : Int32 = p1.query_one("SELECT pg_backend_pid()").get(0)
+  p1.release()
+  assert_eq(pool.idle(), 1)
+
+  pool_kill_backend(pid1)
+  // The ping is the only thing that can discover this; min_idle = 0 means the
+  // dead connection is not replaced.
+  pool.ping_idle()
+  assert_eq(pool.idle(), 0)
+  assert_eq(pool.total(), 0)
+}
+
+///|
+async test "pool_ping_idle_replaces_warm_min_idle" {
+  let cfg = @moonpg.PoolConfig::new(pool_test_conninfo, max_conns=2, min_idle=1)
+  let pool = @moonpg.Pool::new(cfg)
+  defer pool.close()
+
+  let p1 = pool.acquire()
+  let pid1 : Int32 = p1.query_one("SELECT pg_backend_pid()").get(0)
+  p1.release()
+
+  pool_kill_backend(pid1)
+  pool.ping_idle()
+  // The dead connection was replaced, not just dropped: min_idle = 1.
+  assert_eq(pool.idle(), 1)
+  assert_eq(pool.total(), 1)
+
+  let p2 = pool.acquire()
+  let pid2 : Int32 = p2.query_one("SELECT pg_backend_pid()").get(0)
+  assert_true(pid1 != pid2)
+  p2.release()
+}
+
+///|
+async test "pool_start_maintenance_replaces_dead_conn" {
+  let cfg = @moonpg.PoolConfig::new(pool_test_conninfo, max_conns=2, min_idle=1)
+  let pool = @moonpg.Pool::new(cfg)
+
+  @async.with_task_group() <| group => {
+    pool.start_maintenance(group~, interval_sec=1)
+    let p1 = pool.acquire()
+    let pid1 : Int32 = p1.query_one("SELECT pg_backend_pid()").get(0)
+    p1.release()
+
+    pool_kill_backend(pid1)
+    // The background loop pings within ~1.5s and replaces the dead connection.
+    @async.sleep(2500)
+    assert_true(pool.idle() >= 1, msg="expected the loop to reconnect")
+
+    let p2 = pool.acquire()
+    let pid2 : Int32 = p2.query_one("SELECT pg_backend_pid()").get(0)
+    assert_true(pid1 != pid2)
+    p2.release()
+    // `close()` stops the loop; the group then exits on its own.
+    pool.close()
+  }
+}
