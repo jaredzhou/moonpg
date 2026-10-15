@@ -7,7 +7,7 @@ Feature-complete with a simple, ergonomic API.
 
 - **Query & Fetch** — `query`/`query_one`/`execute` for manual control, `fetch`/`fetch_one` with `FromRow` for typed auto-mapping to structs or tuples.
 - **Type-safe codec** — `ToValue` encodes parameters, `FromValue` decodes results; all base types, `Json`, `Timestamp`, `Decimal`, `UUID`, `Option<T>` supported.
-- **Connection pool** — bounded pool with acquire/release, min-idle, idle-timeout, health check, background maintenance.
+- **Connection pool** — bounded pool with acquire/release, min-idle pre-warm, idle/lifetime timeouts, health check.
 - **Transactions** — `begin_tx` / `commit` / `rollback` + `begin_func` auto-commit/rollback.
 - **Async** — multiple connections run concurrently; slow queries never block others.
 - **COPY** — streaming bulk insert from iterators.
@@ -140,7 +140,9 @@ pc.release()
 let stats = pool.stats()
 println("active=\{stats.active_connections} idle=\{stats.idle_connections}")
 
-// Health check + background maintenance
+// Health check + timeout on idle connections. An idle connection past
+// max_idle_sec / max_lifetime_sec is dropped on the next acquire (or on
+// release, for lifetime) — there is no background task.
 let pool2 = Pool::new(PoolConfig::new(
   conninfo,
   max_conns=10,
@@ -148,9 +150,7 @@ let pool2 = Pool::new(PoolConfig::new(
   max_idle_sec=300,
   max_lifetime_sec=3600,
   health_check=true,
-  maintenance_interval_sec=60,
 ))
-pool2.start_maintenance()
 ```
 
 ## Transactions

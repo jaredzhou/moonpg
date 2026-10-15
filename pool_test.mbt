@@ -598,32 +598,54 @@ async test "pool_reuse_across_operations" {
 }
 
 // ---------------------------------------------------------------------------
-// Pool::maintain — background maintenance
+// Lazy expiry — idle connections are checked when the pool is used
 // ---------------------------------------------------------------------------
 
 ///|
-async test "pool_maintain_refills_min_idle" {
-  let cfg = @moonpg.PoolConfig::new(pool_test_conninfo, max_conns=5, min_idle=3)
+async test "pool_acquire_drops_expired_idle" {
+  let cfg = @moonpg.PoolConfig::new(
+    pool_test_conninfo,
+    max_conns=4,
+    min_idle=0,
+    max_idle_sec=1,
+  )
   let pool = @moonpg.Pool::new(cfg)
   defer pool.close()
 
-  assert_eq(pool.idle(), 3)
-
-  // Acquire all idle connections
   let p1 = pool.acquire()
-  let p2 = pool.acquire()
-  let p3 = pool.acquire()
-  assert_eq(pool.idle(), 0)
-
+  let pid1 : Int32 = p1.query_one("SELECT pg_backend_pid()").get(0)
   p1.release()
-  assert_eq(pool.idle(), 1)
+  assert_eq(pool.total(), 1)
 
-  // maintain() should refill back to min_idle=3
-  pool.maintain()
-  assert_eq(pool.idle(), 3)
-
+  // p1 has now been idle past max_idle_sec.  Nothing runs in the background,
+  // so the pool only notices here: it drops p1 and opens a fresh connection.
+  @async.sleep(1400)
+  let p2 = pool.acquire()
+  let pid2 : Int32 = p2.query_one("SELECT pg_backend_pid()").get(0)
+  assert_true(pid1 != pid2)
+  assert_eq(pool.total(), 1)
   p2.release()
-  p3.release()
+}
+
+///|
+async test "pool_release_drops_expired_conn" {
+  let cfg = @moonpg.PoolConfig::new(
+    pool_test_conninfo,
+    max_conns=4,
+    min_idle=0,
+    max_lifetime_sec=1,
+  )
+  let pool = @moonpg.Pool::new(cfg)
+  defer pool.close()
+
+  let p = pool.acquire()
+  assert_eq(pool.total(), 1)
+  @async.sleep(1400)
+
+  // Past max_lifetime_sec: release closes it instead of parking it idle.
+  p.release()
+  assert_eq(pool.total(), 0)
+  assert_eq(pool.idle(), 0)
 }
 
 // ---------------------------------------------------------------------------

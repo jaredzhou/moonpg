@@ -77,7 +77,7 @@ Central API surface. Re-exports `Value` and `Format` from `value/`.
 ### `pool.mbt` — Connection pool
 
 - `Pool` — idle-queue based. `acquire()` / `release()`.
-- `PoolConfig` — `conninfo`, `max_conns`, `min_idle`, `max_idle_sec`, `max_lifetime_sec`, `maintenance_interval_sec`.
+- `PoolConfig` — `conninfo`, `max_conns`, `min_idle`, `max_idle_sec`, `max_lifetime_sec`, `health_check`.
 - `PoolConn`, `PoolRows`, `PoolDbTx`.
 - `Pool`, `PoolConn`, `PoolDbTx` all implement `QueryExecutor`.
 - `Pool`, `PoolConn` implement `Closer`.
@@ -179,7 +179,7 @@ and `Ref[Int]` for shared state.
 | Connection | `conn_test.mbt` | `connect`, `query`, `execute`, `query_one`, `Row` access, `Rows` trait, `server_version`, COPY, LISTEN/NOTIFY, deallocate, binary result format, async interleaving |
 | FromRow / fetch | `from_row_test.mbt` | `FromRow` round-trips (base types, custom struct, nullable, tuples 2–10), `fetch`/`fetch_one` on Connection/Pool/PoolConn/PoolDbTx, error paths, pool release-on-error |
 | Transactions | `tx_test.mbt` | `begin_tx`, commit, rollback, isolation, `begin_func` |
-| Pool | `pool_test.mbt` | Acquire/release, min-idle, max-conns, close, pool transactions, stats, maintenance |
+| Pool | `pool_test.mbt` | Acquire/release, min-idle pre-warm, max-conns, close, pool transactions, stats, lazy expiry |
 
 314 tests total. Every test that touches a table uses `DROP TABLE IF EXISTS` /
 `CREATE TABLE` for isolation.

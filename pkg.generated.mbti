@@ -133,10 +133,8 @@ pub(all) struct Pool {
   max_idle_sec : Int
   max_lifetime_sec : Int
   health_check : Bool
-  maintenance_interval_sec : Int
   count : @ref.Ref[Int]
   idle_count : @ref.Ref[Int]
-  running : @ref.Ref[Bool]
   acquire_count : @ref.Ref[Int64]
   acquire_wait_count : @ref.Ref[Int64]
   acquire_wait_duration : @ref.Ref[Int64]
@@ -148,11 +146,9 @@ pub async fn Pool::execute(Self, String, params? : Array[&ToValue]) -> ExecResul
 pub async fn[T : FromRow] Pool::fetch(Self, String, params? : Array[&ToValue]) -> Array[T] raise PgError
 pub async fn[T : FromRow] Pool::fetch_one(Self, String, params? : Array[&ToValue]) -> T raise PgError
 pub fn Pool::idle(Self) -> Int
-pub async fn Pool::maintain(Self) -> Unit
 pub async fn Pool::new(PoolConfig) -> Self raise PgError
 pub async fn Pool::query(Self, String, params? : Array[&ToValue]) -> &Rows raise PgError
 pub async fn Pool::query_one(Self, String, params? : Array[&ToValue]) -> Row raise PgError
-pub async fn Pool::start_maintenance(Self) -> Unit
 pub fn Pool::stats(Self) -> PoolStats
 pub fn Pool::total(Self) -> Int
 pub impl Closer for Pool
@@ -167,9 +163,8 @@ pub(all) struct PoolConfig {
   max_idle_sec : Int
   max_lifetime_sec : Int
   health_check : Bool
-  maintenance_interval_sec : Int
 }
-pub fn PoolConfig::new(String, max_conns? : Int, min_idle? : Int, max_idle_sec? : Int, max_lifetime_sec? : Int, health_check? : Bool, maintenance_interval_sec? : Int) -> Self
+pub fn PoolConfig::new(String, max_conns? : Int, min_idle? : Int, max_idle_sec? : Int, max_lifetime_sec? : Int, health_check? : Bool) -> Self
 
 pub(all) struct PoolConn {
   conn : Connection

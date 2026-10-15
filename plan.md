@@ -86,16 +86,20 @@ These are bugs or crash paths in already-implemented features.
   - Add `release(name)` method: execute `RELEASE SAVEPOINT name`.
   - Consider a `savepoint_func(tx, name, f)` helper: create savepoint, run `f`, rollback to savepoint on error, release on success.
 
-### 12. Pool background maintenance ✅ DONE (2026-07-16)
+### 12. Pool maintenance ⛔ Dropped (2026-10-15)
 - **Files:** `pool.mbt`
-- **Done:**
-  - `PoolConfig.maintenance_interval_sec` — configurable interval (0 = disabled, maintenance happens lazily).
-  - `Pool.min_idle` / `Pool.idle_count` / `Pool.running` fields.
-  - `Pool::idle()` — number of idle connections.
-  - `Pool::maintain()` — one round: drain+filter expired idle conns, put good ones back, refill to `min_idle`.
-  - `Pool::start_maintenance()` — background loop via `spawn_loop(no_wait=true)` with `@async.sleep` interval.
-  - `Pool::close()` stops maintenance via `running` flag.
-  - `idle_count` tracked through acquire/release/maintain/close.
+- **Decision:** no maintenance at all — stale connections are detected lazily, when the pool is used.
+  Removed: `PoolConfig.maintenance_interval_sec`, `Pool::maintain()`, `Pool::start_maintenance()`,
+  `Pool.running`, `PoolStats.maintenance_count`.
+- **Kept:**
+  - `Pool::idle()` / `PoolStats` — pool observability.
+  - `min_idle` — pre-warm at `Pool::new` only (no refill afterwards).
+  - Lazy expiry: `acquire()` drops a dequeued idle connection that is dead or past `max_idle_sec` /
+    `max_lifetime_sec` and opens a fresh one; `release()` drops a connection past `max_lifetime_sec`.
+- **Why:** the async runtime has no detached tasks — every task's lifetime is bounded by its enclosing
+  task group. A background loop owned by the library was therefore impossible: spawning one in a group
+  of its own either blocks the caller (waited) or is cancelled before its first tick (not waited), and
+  the original no-argument `start_maintenance()` was the second case — it never maintained anything.
 
 ### 13. Pool stats / monitoring ✅ DONE (2026-07-16)
 - **Files:** `pool.mbt`
@@ -155,7 +159,7 @@ These are bugs or crash paths in already-implemented features.
 | 🟡 Medium | COPY protocol + streaming | ✅ Done |
 | 🟡 Medium | LISTEN/NOTIFY | ✅ Done |
 | 🟡 Medium | Savepoints | ⏸️ Deferred |
-| 🟡 Medium | Pool maintenance loop | ✅ Done |
+| 🟡 Medium | Pool maintenance loop | ⛔ Dropped (lazy expiry instead) |
 | 🟡 Medium | Pool stats | ✅ Done |
 | 🟡 Medium | Public `deallocate()` | ✅ Done |
 | 🟢 Low | Binary result integration tests | ✅ Done |
