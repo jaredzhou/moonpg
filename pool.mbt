@@ -34,17 +34,23 @@
 ///
 /// ## Expiry
 ///
-/// Stale connections are dropped when the pool is used — there is no
-/// background task, so an unused pool never touches its connections:
+/// Stale connections are dropped when the pool is used (and by the maintenance
+/// loop, when there is one):
 ///
-/// - `acquire()` discards a dequeued idle connection that is dead, or that has
-///   been idle past `max_idle_sec` while the pool holds more than `min_idle`
-///   connections, and opens a fresh connection instead.
-/// - `release()` discards a connection whose socket is no longer usable.
+/// - `acquire()` discards a dequeued idle connection that is dead, that is past
+///   `max_lifetime_sec`, or that has been idle past `max_idle_sec` while the pool
+///   holds more than `min_idle` connections, and opens a fresh connection
+///   instead.
+/// - `release()` discards a connection whose socket is no longer usable, or that
+///   is past `max_lifetime_sec` — an over-age connection is never parked.
+/// - `maintain()` (every `ping_interval_sec`, when the pool was given a group)
+///   pings the idle connections, drops the dead ones and rotates the over-age
+///   ones, off the request path.
 ///
 /// `max_idle_sec` never trims the warm `min_idle` connections, so the pool does
-/// not drop a live connection only to reconnect on the next request.  Nothing
-/// refills the pool: `min_idle` is pre-warmed once at `Pool::new`.
+/// not drop a live connection only to reconnect on the next request;
+/// `max_lifetime_sec` does trim them, which is why maintenance reopens what it
+/// rotates.  Without maintenance, `min_idle` is only pre-warmed at `Pool::new`.
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -55,6 +61,10 @@ pub(all) struct PoolConfig {
   max_conns : Int32
   min_idle : Int32
   max_idle_sec : Int32
+  /// Hard cap on how old a connection may get, in seconds.  An over-age
+  /// connection is never handed out and is not parked on release; maintenance
+  /// replaces it.  `0` disables the cap.
+  max_lifetime_sec : Int32
 }
 
 ///|
@@ -63,8 +73,9 @@ pub fn PoolConfig::new(
   max_conns~ : Int32 = 10,
   min_idle~ : Int32 = 0,
   max_idle_sec~ : Int32 = 0,
+  max_lifetime_sec~ : Int32 = 0,
 ) -> PoolConfig {
-  { conninfo, max_conns, min_idle, max_idle_sec, }
+  { conninfo, max_conns, min_idle, max_idle_sec, max_lifetime_sec, }
 }
 
 // ---------------------------------------------------------------------------
@@ -95,6 +106,7 @@ pub(all) struct PoolStats {
 ///|
 pub(all) struct IdleConn {
   conn : Connection
+  created_at : Int64
   idle_since : Int64
 }
 
@@ -109,6 +121,7 @@ pub(all) struct Pool {
   max_conns : Int32
   min_idle : Int32
   max_idle_sec : Int32
+  max_lifetime_sec : Int32
   count : Ref[Int32]
   idle_count : Ref[Int32]
   closed : Ref[Bool]
@@ -133,6 +146,7 @@ pub extend Pool with TxBeginner::{begin_tx}
 pub(all) struct PoolConn {
   conn : Connection
   pool : Pool
+  created_at : Int64
   released : Ref[Bool]
 }
 
@@ -214,6 +228,7 @@ pub async fn Pool::new(
     max_conns: config.max_conns,
     min_idle: config.min_idle,
     max_idle_sec: config.max_idle_sec,
+    max_lifetime_sec: config.max_lifetime_sec,
     count: Ref(0),
     idle_count: Ref(0),
     closed: Ref(false),
@@ -226,7 +241,11 @@ pub async fn Pool::new(
     let conn = connect(pool.conninfo)
     let now = @async.now()
     pool.count.val = pool.count.val + 1
-    let ok = pool.queue.try_put(IdleConn::{ conn, idle_since: now, }) catch {
+    let ok = pool.queue.try_put(IdleConn::{
+      conn,
+      created_at: now,
+      idle_since: now,
+    }) catch {
       _ => {
         conn.close()
         pool.count.val = pool.count.val - 1
@@ -283,6 +302,13 @@ fn Pool::expired(self : Pool, idle : IdleConn, surplus~ : Bool) -> Bool {
     return true
   }
   let now = @async.now()
+  // Age is a hard cap: an over-lifetime connection is rotated even if it is one
+  // of the warm `min_idle` connections, because the server side may have stopped
+  // using it.  Maintenance reopens what this costs.
+  if self.max_lifetime_sec > 0 &&
+    now - idle.created_at > self.max_lifetime_sec.to_int64() * 1000L {
+    return true
+  }
   // Idle time only trims the surplus.  The warm `min_idle` connections survive,
   // so a live connection is never dropped just to be reconnected on the next
   // acquire.
@@ -327,11 +353,21 @@ pub async fn Pool::maintain(self : Pool) -> Unit noraise {
       None => break
       Some(idle) => {
         self.idle_count.val = self.idle_count.val - 1
-        let alive = try {
-          idle.conn.ping()
-          true
-        } catch {
-          _ => false
+        // An over-age connection needs no ping: it has to go anyway, and this
+        // round trip saved is the whole point of rotating here instead of on the
+        // next request.
+        let overage = self.max_lifetime_sec > 0 &&
+          @async.now() - idle.created_at >
+          self.max_lifetime_sec.to_int64() * 1000L
+        let alive = if overage {
+          false
+        } else {
+          try {
+            idle.conn.ping()
+            true
+          } catch {
+            _ => false
+          }
         }
         if alive {
           good.push(idle)
@@ -369,7 +405,11 @@ pub async fn Pool::maintain(self : Pool) -> Unit noraise {
     let conn = connect(self.conninfo) catch { _ => break }
     self.count.val = self.count.val + 1
     let now = @async.now()
-    let ok = self.queue.try_put(IdleConn::{ conn, idle_since: now, }) catch {
+    let ok = self.queue.try_put(IdleConn::{
+      conn,
+      created_at: now,
+      idle_since: now,
+    }) catch {
       _ => {
         conn.close()
         self.count.val = self.count.val - 1
@@ -449,12 +489,13 @@ pub async fn Pool::acquire(self : Pool) -> PoolConn raise PgError {
     None =>
       if self.count.val < self.max_conns {
         self.count.val = self.count.val + 1
+        let now = @async.now()
         errdefer {
           // Release the slot reserved above: no connection was created.
           self.count.val = self.count.val - 1
         }
         let conn = connect(self.conninfo)
-        PoolConn::{ conn, pool: self, released: Ref(false), }
+        PoolConn::{ conn, pool: self, created_at: now, released: Ref(false), }
       } else {
         let wait_start = @async.now()
         self.acquire_wait_count.val = self.acquire_wait_count.val + 1L
@@ -480,7 +521,12 @@ pub async fn Pool::acquire(self : Pool) -> PoolConn raise PgError {
 ///|
 /// Hand an idle connection to the caller.
 fn Pool::checkout(self : Pool, idle : IdleConn) -> PoolConn noraise {
-  PoolConn::{ conn: idle.conn, pool: self, released: Ref(false), }
+  PoolConn::{
+    conn: idle.conn,
+    pool: self,
+    created_at: idle.created_at,
+    released: Ref(false),
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -493,13 +539,25 @@ pub fn PoolConn::release(self : PoolConn) -> Unit {
     return
   }
   self.released.val = true
-  // Drop the connection if it is in a bad state.
+  // Drop the connection if it is in a bad state, or too old to be handed out
+  // again: an over-lifetime connection is not parked.
+  let now = @async.now()
   if self.conn.status() != ConnStatus::OK {
     self.conn.close()
     self.pool.count.val = self.pool.count.val - 1
     return
   }
-  let idle = IdleConn::{ conn: self.conn, idle_since: @async.now(), }
+  if self.pool.max_lifetime_sec > 0 &&
+    now - self.created_at > self.pool.max_lifetime_sec.to_int64() * 1000L {
+    self.conn.close()
+    self.pool.count.val = self.pool.count.val - 1
+    return
+  }
+  let idle = IdleConn::{
+    conn: self.conn,
+    created_at: self.created_at,
+    idle_since: now,
+  }
   let ok = self.pool.queue.try_put(idle) catch {
     _ => {
       idle.conn.close()

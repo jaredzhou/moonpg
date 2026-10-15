@@ -861,6 +861,69 @@ async test "pool_maintenance_replaces_dead_conn" {
 }
 
 ///|
+// `max_lifetime_sec` is a hard cap: an over-age connection is neither handed out
+// nor parked.
+async test "pool_max_lifetime_drops_overage_conn" {
+  let cfg = @moonpg.PoolConfig::new(
+    pool_test_conninfo,
+    max_conns=2,
+    min_idle=0,
+    max_lifetime_sec=1,
+  )
+  let pool = @moonpg.Pool::new(cfg)
+  defer pool.close()
+
+  let p1 = pool.acquire()
+  let pid1 : Int32 = p1.query_one("SELECT pg_backend_pid()").get(0)
+  p1.release()
+
+  // Over age while idle: the next acquire must not hand it out.
+  @async.sleep(1400)
+  let p2 = pool.acquire()
+  let pid2 : Int32 = p2.query_one("SELECT pg_backend_pid()").get(0)
+  assert_true(pid1 != pid2)
+  assert_eq(pool.total(), 1)
+
+  // Over age while checked out: release must not park it.
+  @async.sleep(1400)
+  p2.release()
+  assert_eq(pool.total(), 0)
+  assert_eq(pool.idle(), 0)
+}
+
+///|
+// With maintenance running, the cap is enforced in the background: the over-age
+// connection is rotated and the warm set stays intact, so no request pays for
+// the reconnect.
+async test "pool_maintenance_rotates_overage_conn" {
+  let cfg = @moonpg.PoolConfig::new(
+    pool_test_conninfo,
+    max_conns=2,
+    min_idle=1,
+    max_lifetime_sec=1,
+  )
+  @async.with_task_group() <| group => {
+    let pool = @moonpg.Pool::new(cfg, group~, ping_interval_sec=1)
+
+    let p1 = pool.acquire()
+    let pid1 : Int32 = p1.query_one("SELECT pg_backend_pid()").get(0)
+    p1.release()
+
+    // The loop rotates it within ~2s and reopens a fresh connection to keep
+    // min_idle = 1.
+    @async.sleep(2600)
+    assert_eq(pool.idle(), 1)
+    assert_eq(pool.total(), 1)
+
+    let p2 = pool.acquire()
+    let pid2 : Int32 = p2.query_one("SELECT pg_backend_pid()").get(0)
+    assert_true(pid1 != pid2)
+    p2.release()
+    pool.close()
+  }
+}
+
+///|
 // `start_maintenance` is the escape hatch for a group whose result type is not
 // `Unit` (the constructor's `group?` is typed `TaskGroup[Unit]`).
 async test "pool_start_maintenance_non_unit_group" {

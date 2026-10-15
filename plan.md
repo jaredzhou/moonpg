@@ -131,6 +131,13 @@ These are bugs or crash paths in already-implemented features.
     - `Pool.closed` flag; `Pool::close()` sets it.
     - `PoolConfig.health_check` was removed in favour of this: validating on every checkout costs one
       round trip per request, the ping validates off the request path.
+    - `PoolConfig.max_lifetime_sec` **came back (2026-10-15)** after being removed earlier the same day:
+      with a maintenance loop in place the cap no longer forces a reconnect on the request path.
+      A connection past the cap is never handed out (`acquire`) and never parked (`release`), and the
+      maintenance round rotates it in the background (no ping needed — it has to go anyway) so the warm
+      `min_idle` set stays intact.  `IdleConn.created_at` / `PoolConn.created_at` came back with it.
+      Without a maintenance loop, an over-age connection is still dropped on checkout, which is a
+      reconnect the triggering request pays for.
     - `read_timeout` stays where `connect_timeout` is: the connection string.  A pool-level
       `PoolConfig::read_timeout_sec` was added and then removed again (2026-10-15) — it duplicated a
       knob that already lives at the connection level, and the pool would have had to parse the

@@ -145,21 +145,24 @@ pc.release()
 let stats = pool.stats()
 println("active=\{stats.active_connections} idle=\{stats.idle_connections}")
 
-// Health check + idle timeout. Stale connections are dropped when the pool is
-// used, never by a background task: acquire() discards a dead idle connection,
-// or one idling past max_idle_sec while the pool holds more than min_idle
-// connections. The warm min_idle connections are kept and reused.
+// Timeouts. Stale connections are dropped when the pool is used, never by a
+// background task: acquire() discards a dead idle connection, or one idling past
+// max_idle_sec while the pool holds more than min_idle connections. The warm
+// min_idle connections are kept and reused. max_lifetime_sec is a hard age cap —
+// never handed out, never parked — so the server side can rotate.
 let pool2 = Pool::new(PoolConfig::new(
   conninfo,
   max_conns=10,
   min_idle=2,
   max_idle_sec=300,
+  max_lifetime_sec=3600,
 ))
 
 // Maintenance takes the group: from here on the pool pings its idle connections
 // every ping_interval_sec (30 by default, 0 disables), replacing the ones the
-// server dropped while they sat idle — before anyone is handed one. The loop is
-// a child of your group, so it lives exactly as long as that scope.
+// server dropped while they sat idle, and rotating the ones past
+// max_lifetime_sec — all before anyone is handed one. The loop is a child of
+// your group, so it lives exactly as long as that scope.
 @async.with_task_group() <| group => {
   let pool3 = Pool::new(
     PoolConfig::new(conninfo, max_conns=10, min_idle=2),
@@ -334,6 +337,63 @@ let result = w.finish()
 ```
 
 Values: `any` (default), `read-write`, `read-only`, `primary`, `standby`, `prefer-standby`.
+
+## HTTP server + pool, with pony
+
+The HTTP server and the pool's maintenance loop are both long-lived, and this
+runtime has no detached tasks — every task lives or dies with the task group that
+owns it. So one group holds both: pass it to `Pool::new` (the pool then maintains
+itself) and let `pony.start` be the group body. Because `start` blocks, the body
+never returns, which is exactly what keeps the group — and therefore both the
+server and the loop — alive.
+
+```moonbit nocheck
+///|
+async fn main {
+  @async.with_task_group() <| group => {
+    let pool = Pool::new(
+      PoolConfig::new(
+        "postgres://postgres:pw@localhost:5432/app",
+        max_conns=10,
+        min_idle=2,
+        max_idle_sec=300,
+        max_lifetime_sec=3600,
+      ),
+      group~, // the pool maintains itself from here on
+      ping_interval_sec=30, // 0 disables
+    )
+    defer pool.close()
+
+    let r = Router::Router()
+    // Handlers share the pool simply by closing over it.
+    r.add(HttpMethod::Get, "/users/{id}", ctx => {
+      let id : Int32 = ctx.param("id")
+      let users : Array[(Int32, String)] = pool.fetch(
+        "SELECT id, name FROM users WHERE id = $1",
+        params=[id],
+      )
+      ctx.reply_ok(users)
+    })
+
+    pony.start("0.0.0.0:3000", r)
+  }
+}
+```
+
+Things worth getting right:
+
+- **Don't** `group.spawn_bg(() => pony.start(...))` and let the body return: the
+  group then ends immediately and cancels both the server and the maintenance
+  loop. Keep the server as the body, or add something that only finishes when you
+  want to shut down.
+- Handlers are child tasks of the server, so they share one pool. The runtime is
+  single-threaded and cooperative, so no locking is involved.
+- If the group body must return something other than `Unit` (the constructor's
+  `group?` is typed `TaskGroup[Unit]`), start the loop explicitly instead:
+  `pool.start_maintenance(group~, interval_sec=30)`.
+- On Ctrl-C the event loop cancels the root task, the group tears down and both
+  the server and the loop are cancelled; `defer pool.close()` closes the pooled
+  connections.
 
 ## Architecture
 

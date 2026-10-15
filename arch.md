@@ -77,7 +77,7 @@ Central API surface. Re-exports `Value` and `Format` from `value/`.
 ### `pool.mbt` — Connection pool
 
 - `Pool` — idle-queue based. `acquire()` / `release()`.
-- `PoolConfig` — `conninfo`, `max_conns`, `min_idle`, `max_idle_sec`.
+- `PoolConfig` — `conninfo`, `max_conns`, `min_idle`, `max_idle_sec`, `max_lifetime_sec`.
 - `PoolConn`, `PoolRows`, `PoolDbTx`.
 - `Pool`, `PoolConn`, `PoolDbTx` all implement `QueryExecutor`.
 - `Pool`, `PoolConn` implement `Closer`.
