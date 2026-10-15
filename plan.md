@@ -90,17 +90,17 @@ These are bugs or crash paths in already-implemented features.
 - **Files:** `pool.mbt`
 - **Decision:** no maintenance at all — stale connections are detected lazily, when the pool is used.
   Removed: `PoolConfig.maintenance_interval_sec`, `Pool::maintain()`, `Pool::start_maintenance()`,
-  `Pool.running`, `PoolStats.maintenance_count`.
+  `Pool.running`, `PoolStats.maintenance_count`, `PoolConfig.max_lifetime_sec`
+  (`IdleConn.created_at` / `PoolConn.created_at` went with it).
 - **Kept:**
   - `Pool::idle()` / `PoolStats` — pool observability.
   - `min_idle` — pre-warm at `Pool::new` only (no refill afterwards).
-  - Lazy expiry: `acquire()` drops a dequeued idle connection that is dead, past `max_lifetime_sec`,
-    or past `max_idle_sec` **and** surplus beyond `min_idle`, and opens a fresh one; `release()` drops
-    a connection that is dead or past `max_lifetime_sec`.
+  - Lazy expiry: `acquire()` drops a dequeued idle connection that is dead, or that has been idle past
+    `max_idle_sec` while the pool holds more than `min_idle` connections; `release()` only drops
+    connections whose socket is dead.
   - `max_idle_sec` never trims the warm `min_idle` connections, so the pool does not drop a live
     connection only to reconnect on the next request (`min_idle = 0` keeps the old drop-everything
-    behaviour).  Trade-off: with no refill, `min_idle` is pre-warmed once at `Pool::new` and can shrink
-    again as connections hit `max_lifetime_sec`.
+    behaviour).  With no refill, `min_idle` is pre-warmed once at `Pool::new`.
 - **Why:** the async runtime has no detached tasks — every task's lifetime is bounded by its enclosing
   task group. A background loop owned by the library was therefore impossible: spawning one in a group
   of its own either blocks the caller (waited) or is cancelled before its first tick (not waited), and

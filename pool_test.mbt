@@ -656,24 +656,36 @@ async test "pool_keeps_warm_min_idle_connection" {
 }
 
 ///|
-async test "pool_release_drops_expired_conn" {
+// With more connections than min_idle, the idle ones past max_idle_sec are
+// trimmed on the next acquire, down to min_idle — and no further.
+async test "pool_acquire_trims_idle_surplus_down_to_min_idle" {
   let cfg = @moonpg.PoolConfig::new(
     pool_test_conninfo,
-    max_conns=4,
-    min_idle=0,
-    max_lifetime_sec=1,
+    max_conns=5,
+    min_idle=2,
+    max_idle_sec=1,
   )
   let pool = @moonpg.Pool::new(cfg)
   defer pool.close()
 
-  let p = pool.acquire()
-  assert_eq(pool.total(), 1)
-  @async.sleep(1400)
+  let held : Array[@moonpg.PoolConn] = []
+  for _ in 0..<5 {
+    held.push(pool.acquire())
+  }
+  assert_eq(pool.total(), 5)
+  for p in held {
+    p.release()
+  }
+  assert_eq(pool.idle(), 5)
 
-  // Past max_lifetime_sec: release closes it instead of parking it idle.
+  // All five are now past max_idle_sec.  This acquire drops the surplus ones
+  // (down to min_idle = 2) and checks one of the survivors out.
+  @async.sleep(1400)
+  let p = pool.acquire()
+  assert_eq(pool.total(), 2)
+  assert_eq(pool.idle(), 1)
   p.release()
-  assert_eq(pool.total(), 0)
-  assert_eq(pool.idle(), 0)
+  assert_eq(pool.total(), 2)
 }
 
 // ---------------------------------------------------------------------------

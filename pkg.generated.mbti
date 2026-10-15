@@ -110,7 +110,6 @@ pub fn ExecResult::close(Self) -> Unit
 
 pub(all) struct IdleConn {
   conn : Connection
-  created_at : Int64
   idle_since : Int64
 }
 
@@ -131,7 +130,6 @@ pub(all) struct Pool {
   max_conns : Int
   min_idle : Int
   max_idle_sec : Int
-  max_lifetime_sec : Int
   health_check : Bool
   count : @ref.Ref[Int]
   idle_count : @ref.Ref[Int]
@@ -161,15 +159,13 @@ pub(all) struct PoolConfig {
   max_conns : Int
   min_idle : Int
   max_idle_sec : Int
-  max_lifetime_sec : Int
   health_check : Bool
 }
-pub fn PoolConfig::new(String, max_conns? : Int, min_idle? : Int, max_idle_sec? : Int, max_lifetime_sec? : Int, health_check? : Bool) -> Self
+pub fn PoolConfig::new(String, max_conns? : Int, min_idle? : Int, max_idle_sec? : Int, health_check? : Bool) -> Self
 
 pub(all) struct PoolConn {
   conn : Connection
   pool : Pool
-  created_at : Int64
   released : @ref.Ref[Bool]
 }
 pub async fn PoolConn::begin_tx(Self, opts? : TxOptions) -> &Tx raise PgError
