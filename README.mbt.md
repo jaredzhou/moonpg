@@ -154,19 +154,25 @@ let pool2 = Pool::new(PoolConfig::new(
   max_conns=10,
   min_idle=2,
   max_idle_sec=300,
-  health_check=true,
 ))
 
-// Periodic ping of the idle connections: a connection the server dropped while
-// it sat idle is found and replaced before a caller asks for one, so callers
-// never meet a dead connection. The loop is a child task of your group, so it
-// lives as long as the group and stops on pool2.close().
+// Maintenance takes the group: from here on the pool pings its idle connections
+// every ping_interval_sec (30 by default, 0 disables), replacing the ones the
+// server dropped while they sat idle — before anyone is handed one. The loop is
+// a child of your group, so it lives exactly as long as that scope.
 @async.with_task_group() <| group => {
-  pool2.start_maintenance(group~, interval_sec=30)
-  // ... use pool2 here ...
+  let pool3 = Pool::new(
+    PoolConfig::new(conninfo, max_conns=10, min_idle=2),
+    group~,
+    ping_interval_sec=30,
+  )
+  // ... use pool3 here ...
 }
 
-// Or drive it yourself, e.g. from your own timer: pool2.ping_idle()
+// Without a group the pool does no background work: ping a connection yourself
+// with conn.ping(), or run a round yourself with pool2.maintain().
+// `pool2.start_maintenance(group~)` is the same loop, started later — the escape
+// hatch when the group's result type is not Unit.
 ```
 
 ## Transactions

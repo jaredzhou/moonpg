@@ -688,8 +688,9 @@ async test "pool_acquire_trims_idle_surplus_down_to_min_idle" {
   assert_eq(pool.total(), 2)
 }
 
-///|
 // Same server, but with a short client-side read timeout (URI conn string).
+
+///|
 fn pool_with_read_timeout(conninfo : String, secs : Int32) -> String {
   match conninfo.find("?") {
     Some(_) => "\{conninfo}&read_timeout=\{secs}"
@@ -791,7 +792,7 @@ async fn pool_kill_backend(pid : Int32) -> Unit {
 }
 
 ///|
-async test "pool_ping_idle_drops_dead_conn" {
+async test "pool_maintain_drops_dead_conn" {
   let cfg = @moonpg.PoolConfig::new(pool_test_conninfo, max_conns=2, min_idle=0)
   let pool = @moonpg.Pool::new(cfg)
   defer pool.close()
@@ -802,15 +803,15 @@ async test "pool_ping_idle_drops_dead_conn" {
   assert_eq(pool.idle(), 1)
 
   pool_kill_backend(pid1)
-  // The ping is the only thing that can discover this; min_idle = 0 means the
-  // dead connection is not replaced.
-  pool.ping_idle()
+  // Maintenance is the only thing that can discover this; min_idle = 0 means
+  // the dead connection is not replaced.
+  pool.maintain()
   assert_eq(pool.idle(), 0)
   assert_eq(pool.total(), 0)
 }
 
 ///|
-async test "pool_ping_idle_replaces_warm_min_idle" {
+async test "pool_maintain_replaces_warm_min_idle" {
   let cfg = @moonpg.PoolConfig::new(pool_test_conninfo, max_conns=2, min_idle=1)
   let pool = @moonpg.Pool::new(cfg)
   defer pool.close()
@@ -820,7 +821,7 @@ async test "pool_ping_idle_replaces_warm_min_idle" {
   p1.release()
 
   pool_kill_backend(pid1)
-  pool.ping_idle()
+  pool.maintain()
   // The dead connection was replaced, not just dropped: min_idle = 1.
   assert_eq(pool.idle(), 1)
   assert_eq(pool.total(), 1)
@@ -832,12 +833,15 @@ async test "pool_ping_idle_replaces_warm_min_idle" {
 }
 
 ///|
-async test "pool_start_maintenance_replaces_dead_conn" {
+// One call — `start_maintenance(group~)` — and the pool maintains itself: a
+// connection the server dropped while it sat idle is replaced before a caller
+// asks for it.
+async test "pool_maintenance_replaces_dead_conn" {
   let cfg = @moonpg.PoolConfig::new(pool_test_conninfo, max_conns=2, min_idle=1)
-  let pool = @moonpg.Pool::new(cfg)
 
   @async.with_task_group() <| group => {
-    pool.start_maintenance(group~, interval_sec=1)
+    // `group~` at construction: the pool maintains itself from here on.
+    let pool = @moonpg.Pool::new(cfg, group~, ping_interval_sec=1)
     let p1 = pool.acquire()
     let pid1 : Int32 = p1.query_one("SELECT pg_backend_pid()").get(0)
     p1.release()
@@ -854,4 +858,19 @@ async test "pool_start_maintenance_replaces_dead_conn" {
     // `close()` stops the loop; the group then exits on its own.
     pool.close()
   }
+}
+
+///|
+// `start_maintenance` is the escape hatch for a group whose result type is not
+// `Unit` (the constructor's `group?` is typed `TaskGroup[Unit]`).
+async test "pool_start_maintenance_non_unit_group" {
+  let cfg = @moonpg.PoolConfig::new(pool_test_conninfo, max_conns=2, min_idle=0)
+  let done : String = @async.with_task_group() <| group => {
+    let pool = @moonpg.Pool::new(cfg)
+    pool.start_maintenance(group~, interval_sec=1)
+    @async.sleep(600)
+    pool.close()
+    "ok"
+  }
+  assert_eq(done, "ok")
 }

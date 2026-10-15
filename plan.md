@@ -60,7 +60,11 @@ These are bugs or crash paths in already-implemented features.
 - **Files:** `pool.mbt`
 - **Done:**
   - `PoolConfig.health_check` — when enabled, `acquire()` pings idle connections with `SELECT 1` before checkout.
+    **Removed (2026-10-15):** superseded by `Connection::ping` / `Pool::maintain` +
+    `Pool::start_maintenance`, which validate idle connections off the request path instead of one round
+    trip per checkout.
   - `release()` now checks `max_lifetime_sec` and closes expired connections instead of recycling.
+    (`max_lifetime_sec` itself was removed later, see §12.)
 
 ### 8. Send `application_name` in startup message ✅ DONE (2026-07-15)
 - Done alongside TLS implementation.
@@ -111,14 +115,26 @@ These are bugs or crash paths in already-implemented features.
     connection only to reconnect on the next request (`min_idle = 0` keeps the old drop-everything
     behaviour).  With no refill, `min_idle` is pre-warmed once at `Pool::new`.
   - **Periodic ping (2026-10-15):**
-    - `Pool::ping_idle()` — `SELECT 1` on every idle connection; dead ones are closed and reconnected
-      only while the pool is below `min_idle` (surplus that died just shrinks the pool).
-    - `Pool::start_maintenance(group~, interval_sec~ = 30)` — runs `ping_idle()` on a timer as a child
-      task of the **caller's** task group (the runtime has no detached tasks, so the library cannot own
-      the loop); stops on `Pool::close()`.  Same pattern as `Connection::listen(channel, group)`.
+    - `Connection::ping()` — one round trip (`SELECT 1`) that raises when the server no longer holds the
+      connection.
+    - `Pool::maintain()` — one round: `ping()` every idle connection; dead ones are closed and
+      reconnected only while the pool is below `min_idle` (surplus that died just shrinks the pool).
+    - `Pool::new(config, group?, ping_interval_sec~ = 30)` — the group as a parameter: with it the pool
+      maintains itself, pinging its idle connections every `ping_interval_sec` seconds
+      (`0` disables).  The loop is a child task of the caller's group (the runtime has no detached
+      tasks, so the library cannot own a loop; same pattern as `Connection::listen(channel, group)`)
+      and stops on `Pool::close()`.  Without a group the pool does no background work (ping on the
+      request path with `conn.ping()`, or call `Pool::maintain()` yourself).
+    - `Pool::start_maintenance(group~, interval_sec~ = 30)` — the same loop, started later; the escape
+      hatch when the group's result type is not `Unit` (the constructor's `group?` is typed
+      `TaskGroup[Unit]`, because an optional parameter cannot be generic).
     - `Pool.closed` flag; `Pool::close()` sets it.
-    - This is the only way a caller never meets a dead connection: `health_check` validates on
-      checkout (one round trip per checkout), the ping validates off the request path.
+    - `PoolConfig.health_check` was removed in favour of this: validating on every checkout costs one
+      round trip per request, the ping validates off the request path.
+    - `read_timeout` stays where `connect_timeout` is: the connection string.  A pool-level
+      `PoolConfig::read_timeout_sec` was added and then removed again (2026-10-15) — it duplicated a
+      knob that already lives at the connection level, and the pool would have had to parse the
+      connection string and create its connections from a `Config` to override it.
 - **Why:** the async runtime has no detached tasks — every task's lifetime is bounded by its enclosing
   task group. A background loop owned by the library was therefore impossible: spawning one in a group
   of its own either blocks the caller (waited) or is cancelled before its first tick (not waited), and

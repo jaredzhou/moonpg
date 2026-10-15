@@ -1089,3 +1089,30 @@ async test "listen_survives_read_timeout_silence" {
     group.return_immediately(())
   }
 }
+
+///|
+async test "conn_ping" {
+  let c = @moonpg.connect(test_conninfo)
+  c.ping() // alive: raises nothing
+  let pid : Int32 = c.query_one("SELECT pg_backend_pid()").get(0)
+
+  // Kill the backend behind the connection's back: ping must notice.
+  let killer = @moonpg.connect(test_conninfo)
+  killer.execute("SELECT pg_terminate_backend($1)", params=[pid]) |> ignore
+  killer.close()
+  @async.sleep(100)
+
+  let failed = try {
+    c.ping()
+    false
+  } catch {
+    @moonpg.PgError::ConnectionError(_) => true
+    _ => false
+  }
+  assert_true(failed, msg="expected ping to detect the dead connection")
+  // The failed ping closed the connection; no need to close it again.
+}
+
+// ===========================================================================
+// Client-side read timeout
+// ===========================================================================

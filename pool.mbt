@@ -55,7 +55,6 @@ pub(all) struct PoolConfig {
   max_conns : Int32
   min_idle : Int32
   max_idle_sec : Int32
-  health_check : Bool
 }
 
 ///|
@@ -64,9 +63,8 @@ pub fn PoolConfig::new(
   max_conns~ : Int32 = 10,
   min_idle~ : Int32 = 0,
   max_idle_sec~ : Int32 = 0,
-  health_check~ : Bool = false,
 ) -> PoolConfig {
-  { conninfo, max_conns, min_idle, max_idle_sec, health_check, }
+  { conninfo, max_conns, min_idle, max_idle_sec, }
 }
 
 // ---------------------------------------------------------------------------
@@ -111,7 +109,6 @@ pub(all) struct Pool {
   max_conns : Int32
   min_idle : Int32
   max_idle_sec : Int32
-  health_check : Bool
   count : Ref[Int32]
   idle_count : Ref[Int32]
   closed : Ref[Bool]
@@ -195,14 +192,28 @@ pub impl Rows for PoolRows with fn close(self : PoolRows) -> Unit raise PgError 
 // ---------------------------------------------------------------------------
 
 ///|
-pub async fn Pool::new(config : PoolConfig) -> Pool raise PgError {
+/// Create a pool.
+///
+/// Pass a `group` and the pool maintains itself: it pings its idle connections
+/// every `ping_interval_sec` seconds, so a connection the server dropped while
+/// it sat idle is found and replaced before a caller is handed one.  The loop is
+/// a child task of `group` — the runtime has no detached tasks, so the caller
+/// owns its lifetime — and it stops on `Pool::close()`.  `ping_interval_sec = 0`
+/// disables the loop.
+///
+/// A group whose result type is not `Unit` cannot be passed here; use
+/// `Pool::start_maintenance` for that, or to start maintaining later.
+pub async fn Pool::new(
+  config : PoolConfig,
+  group? : @async.TaskGroup[Unit],
+  ping_interval_sec~ : Int32 = 30,
+) -> Pool raise PgError {
   let pool = Pool::{
     queue: @aqueue.Queue(kind=@aqueue.Unbounded),
     conninfo: config.conninfo,
     max_conns: config.max_conns,
     min_idle: config.min_idle,
     max_idle_sec: config.max_idle_sec,
-    health_check: config.health_check,
     count: Ref(0),
     idle_count: Ref(0),
     closed: Ref(false),
@@ -225,6 +236,10 @@ pub async fn Pool::new(config : PoolConfig) -> Pool raise PgError {
     if ok {
       pool.idle_count.val = pool.idle_count.val + 1
     }
+  }
+  match group {
+    Some(g) => pool.start_maintenance(group=g, interval_sec=ping_interval_sec)
+    None => ()
   }
   pool
 }
@@ -284,21 +299,25 @@ fn Pool::expired(self : Pool, idle : IdleConn, surplus~ : Bool) -> Bool {
 // ---------------------------------------------------------------------------
 
 ///|
-/// Ping every idle connection and drop the ones that are gone.
+/// Run one round of maintenance: ping every idle connection (`Connection::ping`)
+/// and drop the ones that are gone.
 ///
-/// A `SELECT 1` is the only way to learn that the server dropped a connection
+/// A round trip is the only way to learn that the server dropped a connection
 /// behind our back: a clean close is not visible until the next I/O, and a
 /// black-holed connection only until `read_timeout` expires.  Pinging before a
 /// connection is handed out means callers never meet a dead one.
 ///
 /// Dead connections are reconnected only while the pool is below `min_idle`
 /// (bounded by `max_conns`), so the warm set survives while surplus that died
-/// simply shrinks the pool.
+/// simply shrinks the pool.  Healthy connections are always put back untouched.
 ///
 /// This drains the idle queue while it runs, so a concurrent `acquire()` may
 /// open a fresh connection instead of reusing an idle one.  A ping on a
 /// black-holed connection costs up to `read_timeout` per connection.
-pub async fn Pool::ping_idle(self : Pool) -> Unit {
+///
+/// Runs in the background when the pool was created with a `group` (see
+/// `Pool::new`), and may also be called manually.
+pub async fn Pool::maintain(self : Pool) -> Unit noraise {
   let good : Array[IdleConn] = []
   let mut dead = 0
   // --- drain, ping, filter --------------------------------------------------
@@ -309,7 +328,7 @@ pub async fn Pool::ping_idle(self : Pool) -> Unit {
       Some(idle) => {
         self.idle_count.val = self.idle_count.val - 1
         let alive = try {
-          idle.conn.execute("SELECT 1") |> ignore
+          idle.conn.ping()
           true
         } catch {
           _ => false
@@ -368,18 +387,16 @@ pub async fn Pool::ping_idle(self : Pool) -> Unit {
 }
 
 ///|
-/// Ping the idle connections every `interval_sec` seconds, in the background.
+/// Run `Pool::maintain()` every `interval_sec` seconds, in the background.
 ///
-/// This is the periodic version of `ping_idle`: a connection the server dropped
-/// while it sat idle is then found and replaced *before* a caller asks for one,
-/// so callers do not meet dead connections at all.
+/// Call it once, inside the scope that owns the pool: the loop is a child task
+/// of `group`, because the runtime has no detached tasks, so it lives exactly as
+/// long as the group does (and stops within ~500ms of `Pool::close()`).  Same
+/// pattern as `Connection::listen(channel, group)`.
 ///
-/// The loop is a child task of `group`, because the runtime has no detached
-/// tasks: it lives exactly as long as `group` does, and stops early once
-/// `Pool::close()` is called (within ~500ms).  Call it once per pool — every
-/// call starts another loop.
-///
-/// `interval_sec <= 0` disables the loop.
+/// With the loop running, a connection the server dropped while it sat idle is
+/// found and replaced before a caller is handed one — nothing has to be checked
+/// on the request path.  `interval_sec <= 0` makes this a no-op.
 pub fn[X] Pool::start_maintenance(
   self : Pool,
   group~ : @async.TaskGroup[X],
@@ -401,7 +418,7 @@ pub fn[X] Pool::start_maintenance(
       let now = @async.now()
       if now - last >= interval_ms {
         last = now
-        self.ping_idle()
+        self.maintain()
       }
     }
   }
@@ -461,17 +478,8 @@ pub async fn Pool::acquire(self : Pool) -> PoolConn raise PgError {
 }
 
 ///|
-/// Validate and optionally health-check an idle connection before checkout.
-async fn Pool::checkout(self : Pool, idle : IdleConn) -> PoolConn raise PgError {
-  if self.health_check {
-    try idle.conn.execute("SELECT 1") |> ignore catch {
-      _ => {
-        idle.conn.close()
-        self.count.val = self.count.val - 1
-        return self.acquire()
-      }
-    }
-  }
+/// Hand an idle connection to the caller.
+fn Pool::checkout(self : Pool, idle : IdleConn) -> PoolConn noraise {
   PoolConn::{ conn: idle.conn, pool: self, released: Ref(false), }
 }
 
