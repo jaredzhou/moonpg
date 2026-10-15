@@ -340,12 +340,9 @@ Values: `any` (default), `read-write`, `read-only`, `primary`, `standby`, `prefe
 
 ## HTTP server + pool, with pony
 
-The HTTP server and the pool's maintenance loop are both long-lived, and this
-runtime has no detached tasks — every task lives or dies with the task group that
-owns it. So one group holds both: pass it to `Pool::new` (the pool then maintains
-itself) and let `pony.start` be the group body. Because `start` blocks, the body
-never returns, which is exactly what keeps the group — and therefore both the
-server and the loop — alive.
+The server and the pool's maintenance loop are both long-lived, and this runtime
+has no detached tasks, so one task group must own both: pass it to `Pool::new`
+and let `pony.start` be the group body.
 
 ```moonbit nocheck
 ///|
@@ -375,25 +372,11 @@ async fn main {
       ctx.reply_ok(users)
     })
 
+    // Blocks — the body never returns, which is what keeps the loop alive too.
     pony.start("0.0.0.0:3000", r)
   }
 }
 ```
-
-Things worth getting right:
-
-- **Don't** `group.spawn_bg(() => pony.start(...))` and let the body return: the
-  group then ends immediately and cancels both the server and the maintenance
-  loop. Keep the server as the body, or add something that only finishes when you
-  want to shut down.
-- Handlers are child tasks of the server, so they share one pool. The runtime is
-  single-threaded and cooperative, so no locking is involved.
-- If the group body must return something other than `Unit` (the constructor's
-  `group?` is typed `TaskGroup[Unit]`), start the loop explicitly instead:
-  `pool.start_maintenance(group~, interval_sec=30)`.
-- On Ctrl-C the event loop cancels the root task, the group tears down and both
-  the server and the loop are cancelled; `defer pool.close()` closes the pooled
-  connections.
 
 ## Architecture
 
