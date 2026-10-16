@@ -130,7 +130,7 @@ pub(all) struct Pool {
   queue : @aqueue.Queue[IdleConn]
   conninfo : String
   max_conns : Int
-  min_idle : Int
+  min_conn : Int
   max_idle_sec : Int
   max_lifetime_sec : Int
   count : @ref.Ref[Int]
@@ -148,12 +148,13 @@ pub async fn[T : FromRow] Pool::fetch(Self, String, params? : Array[&ToValue]) -
 pub async fn[T : FromRow] Pool::fetch_one(Self, String, params? : Array[&ToValue]) -> T raise PgError
 pub fn Pool::idle(Self) -> Int
 pub async fn Pool::maintain(Self) -> Unit noraise
-pub async fn Pool::new(PoolConfig, group? : @async.TaskGroup[Unit], ping_interval_sec? : Int) -> Self raise PgError
+pub async fn Pool::new(PoolConfig) -> Self raise PgError
 pub async fn Pool::query(Self, String, params? : Array[&ToValue]) -> &Rows raise PgError
 pub async fn Pool::query_one(Self, String, params? : Array[&ToValue]) -> Row raise PgError
 pub fn[X] Pool::start_maintenance(Self, group~ : @async.TaskGroup[X], interval_sec? : Int) -> Unit
 pub fn Pool::stats(Self) -> PoolStats
 pub fn Pool::total(Self) -> Int
+pub async fn Pool::try_acquire(Self) -> PoolConn? raise PgError
 pub impl Closer for Pool
 pub impl Fetching for Pool
 pub impl QueryExecutor for Pool
@@ -162,11 +163,11 @@ pub impl TxBeginner for Pool
 pub(all) struct PoolConfig {
   conninfo : String
   max_conns : Int
-  min_idle : Int
+  min_conn : Int
   max_idle_sec : Int
   max_lifetime_sec : Int
 }
-pub fn PoolConfig::new(String, max_conns? : Int, min_idle? : Int, max_idle_sec? : Int, max_lifetime_sec? : Int) -> Self
+pub fn PoolConfig::new(String, max_conns? : Int, min_conn? : Int, max_idle_sec? : Int, max_lifetime_sec? : Int) -> Self
 
 pub(all) struct PoolConn {
   conn : Connection

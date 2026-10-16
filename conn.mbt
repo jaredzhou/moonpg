@@ -320,7 +320,8 @@ pub fn Connection::status(self : Connection) -> ConnStatus {
 ///
 /// The only way to learn that the server no longer holds this connection — a
 /// clean close is otherwise visible only on the next I/O, and a black-holed
-/// connection only once `read_timeout` expires.  Raises
+/// connection only once `read_timeout` expires, which `0` (the default) never
+/// does — the ping then waits for TCP to give up.  Raises
 /// `PgError::ConnectionError` when the server is gone; the connection is closed
 /// in that case, because a failed round trip leaves the protocol state unknown.
 pub async fn Connection::ping(self : Connection) -> Unit raise PgError {

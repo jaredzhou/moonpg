@@ -7,13 +7,12 @@ Feature-complete with a simple, ergonomic API.
 
 - **Query & Fetch** — `query`/`query_one`/`execute` for manual control, `fetch`/`fetch_one` with `FromRow` for typed auto-mapping to structs or tuples.
 - **Type-safe codec** — `ToValue` encodes parameters, `FromValue` decodes results; all base types, `Json`, `Timestamp`, `Decimal`, `UUID`, `Option<T>` supported.
-- **Connection pool** — bounded pool with acquire/release, min-idle pre-warm, idle/lifetime timeouts, health check.
+- **Connection pool** — bounded pool with acquire/release, a `max_conns` ceiling and a `min_conn` warm floor, a 2s checkout ping, a non-blocking `try_acquire`, idle/lifetime timeouts and a maintenance loop.
 - **Transactions** — `begin_tx` / `commit` / `rollback` + `begin_func` auto-commit/rollback.
-- **Async** — multiple connections run concurrently; slow queries never block others.
 - **COPY** — streaming bulk insert from iterators.
 - **LISTEN / NOTIFY** — async notification support.
 - **TLS** — `sslmode` support (disable, require, verify-ca, verify-full) with client certificates.
-- **Timeouts** — `read_timeout` (default 3s) bounds every read, so a dead or black-holed server fails fast instead of hanging on TCP retransmission; `0` disables it.
+- **Timeouts** — `read_timeout` bounds every read, so a dead or black-holed server fails fast instead of hanging on TCP retransmission. It is off by default: set it in the connection string.
 
 ## Install
 
@@ -25,10 +24,6 @@ moon add jaredzhou/moonpg
 
 ```moonbit nocheck
 let conn = @moonpg.connect("postgres://user:pw@localhost:5432/db")
-
-// Connection-string knobs: connect_timeout / statement_timeout / read_timeout
-// are seconds; read_timeout defaults to 3 and 0 disables a timeout.
-let conn2 = @moonpg.connect("postgres://user:pw@localhost:5432/db?read_timeout=0")
 
 // Execute DDL / DML
 conn.execute("CREATE TABLE users (id SERIAL PRIMARY KEY, name TEXT, email TEXT)") |> ignore
@@ -124,7 +119,7 @@ conn.execute(
 let pool = Pool::new(PoolConfig::new(
   "postgres://user:pw@localhost:5432/db",
   max_conns=10,
-  min_idle=2,
+  min_conn=2,
 ))
 
 // Auto-acquire + auto-release — fetch/rows.close() returns conn to pool
@@ -141,41 +136,55 @@ let pc = pool.acquire()
 pc.execute("DELETE FROM users WHERE id = $1", params=[1]) |> ignore
 pc.release()
 
+// Non-blocking alternative: None instead of waiting for a connection, and a
+// PoolConn carries the same query/fetch/execute the pool does. Where this
+// returns, the caller can shed the load, serve a cache, or retry later.
+guard pool.try_acquire() is Some(conn) else { return }
+defer conn.release()
+let names : Array[String] = conn.fetch("SELECT name FROM users")
+
 // Inspect pool
 let stats = pool.stats()
 println("active=\{stats.active_connections} idle=\{stats.idle_connections}")
 
-// Timeouts. Stale connections are dropped when the pool is used, never by a
-// background task: acquire() discards a dead idle connection, or one idling past
-// max_idle_sec while the pool holds more than min_idle connections. The warm
-// min_idle connections are kept and reused. max_lifetime_sec is a hard age cap —
-// never handed out, never parked — so the server side can rotate.
+// Timeouts. What can go stale, and what acquire() does about each:
+//
+//   1. Too old or too long idle — max_lifetime_sec (a hard age cap, never handed
+//      out, never parked, so the server side can rotate) or max_idle_sec while
+//      dropping the connection would still leave min_conn. Both are visible from
+//      the timestamps, so acquire() drops the connection as it takes it off the
+//      idle queue and looks at the next one — another parked connection if there
+//      is one, and only otherwise a fresh connect. The request does not fail; it
+//      pays a connect only when there was nothing left to reuse.
+//   2. Dropped by the server while parked — nothing local can see this, so a
+//      connection that has been parked longer than 2s is pinged before it is
+//      handed out. If the ping fails, the connection is discarded and the acquire
+//      retries on another one.
+//   3. Parked less than 2s — handed out as is: a ping would cost more than the
+//      risk it covers.
+//
+// min_conn counts connections, not idle ones, and is pre-warmed at Pool::new.
 let pool2 = Pool::new(PoolConfig::new(
   conninfo,
   max_conns=10,
-  min_idle=2,
+  min_conn=2,
   max_idle_sec=300,
   max_lifetime_sec=3600,
 ))
 
-// Maintenance takes the group: from here on the pool pings its idle connections
-// every ping_interval_sec (30 by default, 0 disables), replacing the ones the
-// server dropped while they sat idle, and rotating the ones past
-// max_lifetime_sec — all before anyone is handed one. The loop is a child of
-// your group, so it lives exactly as long as that scope.
+// Maintenance is opt-in, and it takes the group: the loop runs the same checks in
+// the background instead of at checkout — it pings the parked connections every
+// interval_sec (30 by default), replaces the dead ones, rotates the ones past
+// max_lifetime_sec and closes the idle surplus past max_idle_sec rather than
+// keeping (and pinging) it forever — all before anyone is handed one, so the
+// acquire that follows pays for none of it. interval_sec=0 disables the loop;
+// pool.maintain() runs one round by hand. The loop is a child of your group, so
+// it lives as long as that scope does and stops on close().
 @async.with_task_group() <| group => {
-  let pool3 = Pool::new(
-    PoolConfig::new(conninfo, max_conns=10, min_idle=2),
-    group~,
-    ping_interval_sec=30,
-  )
+  let pool3 = Pool::new(PoolConfig::new(conninfo, max_conns=10, min_conn=2))
+  pool3.start_maintenance(group~, interval_sec=30)
   // ... use pool3 here ...
 }
-
-// Without a group the pool does no background work: ping a connection yourself
-// with conn.ping(), or run a round yourself with pool2.maintain().
-// `pool2.start_maintenance(group~)` is the same loop, started later — the escape
-// hatch when the group's result type is not Unit.
 ```
 
 ## Transactions
@@ -274,22 +283,45 @@ let tz  = conn.param("TimeZone")        // e.g. Some("UTC")
 if conn.is_closed() { ... }
 ```
 
-## TLS / SSL
+## Connection string
+
+`@moonpg.connect` takes a libpq-style URI, or `key=value` pairs. Every knob lives
+there:
+
+| Parameter | Meaning | Default |
+| --- | --- | --- |
+| `host` / `hostaddr`, `port` | Where to connect. | `localhost`, `5432` |
+| `user` / `username`, `password`, `dbname` / `database` | Who and what to log in as. | `user` is required |
+| `sslmode` | `disable`, `allow`, `prefer`, `require`, `verify-ca`, `verify-full`. | `disable` |
+| `sslrootcert` | CA bundle used by `verify-ca` / `verify-full`. | system CA |
+| `sslcert`, `sslkey` | Client certificate and its key. | none |
+| `application_name` | Shows up in `pg_stat_activity`. | none |
+| `connect_timeout` | Seconds to wait for the TCP connection. | `0`, no timeout |
+| `statement_timeout` | Milliseconds before the server cancels a query. | `0`, server default |
+| `read_timeout` | Seconds a single read may wait for the server. | `0`, no timeout |
+| `target_session_attrs` | `any`, `read-write`, `read-only`, `primary`, `standby`, `prefer-standby`. | `any` |
+
+Keywords are case-insensitive and unknown ones are ignored, as in libpq.
 
 ```moonbit nocheck
-// System CA
+// TLS: system CA, a custom CA, or a client certificate
 @moonpg.connect("postgres://user:pw@host/db?sslmode=require")
-
-// Custom CA
 @moonpg.connect("postgres://user:pw@host/db?sslmode=verify-ca&sslrootcert=/etc/ca.pem")
-
-// Client certificate
 @moonpg.connect(
   "postgres://user:pw@host/db?sslmode=require&sslcert=/etc/certs/client.pem&sslkey=/etc/certs/client.key",
 )
+
+// Timeouts: TCP connect, server-side statement, client-side read
+@moonpg.connect("postgres://host/db?connect_timeout=5&statement_timeout=30000&read_timeout=5")
+
+// Route the connection by what the server is
+@moonpg.connect("postgres://host/db?target_session_attrs=read-write")
 ```
 
-Supported sslmodes: `disable`, `allow`, `prefer`, `require`, `verify-ca`, `verify-full`.
+`read_timeout` is the one to think about: it is off by default, and without it a
+connection whose server goes silent without closing the socket waits for TCP to
+give up (~15 minutes). It bounds every read, so a black-holed server fails fast
+instead.
 
 ## LISTEN / NOTIFY
 
@@ -320,29 +352,11 @@ w.write_row(["bob", 25])
 let result = w.finish()
 ```
 
-## Connection timeouts
-
-```moonbit nocheck
-// TCP connect timeout (seconds)
-@moonpg.connect("postgres://host/db?connect_timeout=5")
-
-// Server-side statement timeout (milliseconds)
-@moonpg.connect("postgres://host/db?statement_timeout=30000")
-```
-
-## Target session attributes
-
-```moonbit nocheck
-@moonpg.connect("postgres://host/db?target_session_attrs=read-write")
-```
-
-Values: `any` (default), `read-write`, `read-only`, `primary`, `standby`, `prefer-standby`.
-
 ## HTTP server + pool, with pony
 
 The server and the pool's maintenance loop are both long-lived, and this runtime
-has no detached tasks, so one task group must own both: pass it to `Pool::new`
-and let `pony.start` be the group body.
+has no detached tasks, so one task group must own both: start the loop with
+`pool.start_maintenance(group~)` and let `pony.start` be the group body.
 
 ```moonbit nocheck
 ///|
@@ -352,14 +366,14 @@ async fn main {
       PoolConfig::new(
         "postgres://postgres:pw@localhost:5432/app",
         max_conns=10,
-        min_idle=2,
+        min_conn=2,
         max_idle_sec=300,
         max_lifetime_sec=3600,
       ),
-      group~, // the pool maintains itself from here on
-      ping_interval_sec=30, // 0 disables
     )
     defer pool.close()
+    // The pool maintains itself from here on.
+    pool.start_maintenance(group~, interval_sec=30)
 
     let r = Router::Router()
     // Handlers share the pool simply by closing over it.

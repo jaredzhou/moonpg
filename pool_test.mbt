@@ -21,7 +21,7 @@ async fn pool_setup(name : String) -> Unit raise @moonpg.PgError {
 
 ///|
 fn default_config() -> @moonpg.PoolConfig {
-  @moonpg.PoolConfig::new(pool_test_conninfo, max_conns=4, min_idle=0)
+  @moonpg.PoolConfig::new(pool_test_conninfo, max_conns=4, min_conn=0)
 }
 
 // ---------------------------------------------------------------------------
@@ -36,8 +36,8 @@ async test "pool_new" {
 }
 
 ///|
-async test "pool_new_with_min_idle" {
-  let cfg = @moonpg.PoolConfig::new(pool_test_conninfo, max_conns=4, min_idle=2)
+async test "pool_new_with_min_conn" {
+  let cfg = @moonpg.PoolConfig::new(pool_test_conninfo, max_conns=4, min_conn=2)
   let pool = @moonpg.Pool::new(cfg)
   assert_eq(pool.total(), 2)
   pool.close()
@@ -85,7 +85,7 @@ async test "acquire_multiple" {
 
 ///|
 async test "acquire_reuse_released" {
-  let cfg = @moonpg.PoolConfig::new(pool_test_conninfo, max_conns=4, min_idle=0)
+  let cfg = @moonpg.PoolConfig::new(pool_test_conninfo, max_conns=4, min_conn=0)
   let pool = @moonpg.Pool::new(cfg)
   let pc1 = pool.acquire()
   assert_eq(pool.total(), 1)
@@ -98,7 +98,7 @@ async test "acquire_reuse_released" {
 
 ///|
 async test "acquire_up_to_max_conns" {
-  let cfg = @moonpg.PoolConfig::new(pool_test_conninfo, max_conns=3, min_idle=0)
+  let cfg = @moonpg.PoolConfig::new(pool_test_conninfo, max_conns=3, min_conn=0)
   let pool = @moonpg.Pool::new(cfg)
   let pc1 = pool.acquire()
   let pc2 = pool.acquire()
@@ -579,7 +579,7 @@ async test "pool_query_rows_close_releases" {
 async test "pool_reuse_across_operations" {
   let tbl = "p_reuse"
   pool_setup(tbl)
-  let cfg = @moonpg.PoolConfig::new(pool_test_conninfo, max_conns=2, min_idle=0)
+  let cfg = @moonpg.PoolConfig::new(pool_test_conninfo, max_conns=2, min_conn=0)
   let pool = @moonpg.Pool::new(cfg)
   defer pool.close()
 
@@ -606,7 +606,7 @@ async test "pool_acquire_drops_expired_idle" {
   let cfg = @moonpg.PoolConfig::new(
     pool_test_conninfo,
     max_conns=4,
-    min_idle=0,
+    min_conn=0,
     max_idle_sec=1,
   )
   let pool = @moonpg.Pool::new(cfg)
@@ -628,13 +628,13 @@ async test "pool_acquire_drops_expired_idle" {
 }
 
 ///|
-// `max_idle_sec` never trims the warm `min_idle` connections: a live
-// connection is reused, not dropped and immediately reconnected.
-async test "pool_keeps_warm_min_idle_connection" {
+// `max_idle_sec` never trims the pool below `min_conn`: a live connection is
+// reused, not dropped and immediately reconnected.
+async test "pool_idle_timeout_spares_min_conn" {
   let cfg = @moonpg.PoolConfig::new(
     pool_test_conninfo,
     max_conns=4,
-    min_idle=1,
+    min_conn=1,
     max_idle_sec=1,
   )
   let pool = @moonpg.Pool::new(cfg)
@@ -645,8 +645,8 @@ async test "pool_keeps_warm_min_idle_connection" {
   p1.release()
   assert_eq(pool.total(), 1)
 
-  // Idle past max_idle_sec, but it is the last idle connection and min_idle=1,
-  // so it is kept: same backend, no reconnect.
+  // Idle past max_idle_sec, but dropping it would take the pool below
+  // min_conn = 1, so it is kept: same backend, no reconnect.
   @async.sleep(1400)
   let p2 = pool.acquire()
   let pid2 : Int32 = p2.query_one("SELECT pg_backend_pid()").get(0)
@@ -656,21 +656,24 @@ async test "pool_keeps_warm_min_idle_connection" {
 }
 
 ///|
-// With more connections than min_idle, the idle ones past max_idle_sec are
-// trimmed on the next acquire, down to min_idle — and no further.
-async test "pool_acquire_trims_idle_surplus_down_to_min_idle" {
+// With more connections than min_conn, the idle ones past max_idle_sec are
+// trimmed on the next acquire, down to min_conn — and no further.
+async test "pool_acquire_trims_idle_surplus_down_to_min_conn" {
   let cfg = @moonpg.PoolConfig::new(
     pool_test_conninfo,
     max_conns=5,
-    min_idle=2,
+    min_conn=2,
     max_idle_sec=1,
   )
   let pool = @moonpg.Pool::new(cfg)
   defer pool.close()
 
   let held : Array[@moonpg.PoolConn] = []
+  let pids : Array[Int32] = []
   for _ in 0..<5 {
-    held.push(pool.acquire())
+    let p = pool.acquire()
+    pids.push(p.query_one("SELECT pg_backend_pid()").get(0))
+    held.push(p)
   }
   assert_eq(pool.total(), 5)
   for p in held {
@@ -679,13 +682,107 @@ async test "pool_acquire_trims_idle_surplus_down_to_min_idle" {
   assert_eq(pool.idle(), 5)
 
   // All five are now past max_idle_sec.  This acquire drops the surplus ones
-  // (down to min_idle = 2) and checks one of the survivors out.
+  // (down to min_conn = 2) and checks one of the survivors out — it reuses what
+  // is left instead of connecting, so the connection it hands out is one of the
+  // five.
   @async.sleep(1400)
   let p = pool.acquire()
+  let pid : Int32 = p.query_one("SELECT pg_backend_pid()").get(0)
+  assert_true(
+    pids.contains(pid),
+    msg="expected a survivor, not a new connection",
+  )
   assert_eq(pool.total(), 2)
   assert_eq(pool.idle(), 1)
   p.release()
   assert_eq(pool.total(), 2)
+}
+
+///|
+// A round trims idle surplus too: what nothing is going to ask for is closed
+// instead of being pinged back into the idle list round after round.
+async test "pool_maintain_trims_idle_surplus" {
+  let cfg = @moonpg.PoolConfig::new(
+    pool_test_conninfo,
+    max_conns=4,
+    min_conn=1,
+    max_idle_sec=1,
+  )
+  let pool = @moonpg.Pool::new(cfg)
+  defer pool.close()
+
+  let p1 = pool.acquire()
+  let p2 = pool.acquire()
+  assert_eq(pool.total(), 2)
+  p1.release()
+  p2.release()
+  assert_eq(pool.idle(), 2)
+
+  // Both are past max_idle_sec; the round keeps min_conn = 1 of them.
+  @async.sleep(1400)
+  pool.maintain()
+  assert_eq(pool.total(), 1)
+  assert_eq(pool.idle(), 1)
+}
+
+///|
+// The same, driven by the loop: a surplus connection that goes unused after a
+// burst is trimmed without anyone having to ask for it.
+async test "pool_maintenance_trims_idle_surplus" {
+  let cfg = @moonpg.PoolConfig::new(
+    pool_test_conninfo,
+    max_conns=4,
+    min_conn=1,
+    max_idle_sec=1,
+  )
+  @async.with_task_group() <| group => {
+    let pool = @moonpg.Pool::new(cfg)
+    pool.start_maintenance(group~, interval_sec=1)
+    let held = pool.acquire()
+    let p2 = pool.acquire()
+    p2.release()
+    assert_eq(pool.total(), 2)
+
+    // `held` satisfies min_conn = 1, so the loop closes p2 once it has been
+    // idle past max_idle_sec.
+    @async.sleep(2500)
+    assert_eq(pool.total(), 1)
+    assert_eq(pool.idle(), 0)
+    held.release()
+    pool.close()
+  }
+}
+
+///|
+// `min_conn` counts connections, not idle ones: one the caller is holding
+// already satisfies it, so an idle connection past max_idle_sec is surplus.
+async test "pool_idle_timeout_counts_checked_out_against_min_conn" {
+  let cfg = @moonpg.PoolConfig::new(
+    pool_test_conninfo,
+    max_conns=4,
+    min_conn=1,
+    max_idle_sec=1,
+  )
+  let pool = @moonpg.Pool::new(cfg)
+  defer pool.close()
+
+  let held = pool.acquire()
+  let p2 = pool.acquire()
+  let pid2 : Int32 = p2.query_one("SELECT pg_backend_pid()").get(0)
+  p2.release()
+  assert_eq(pool.total(), 2)
+  assert_eq(pool.idle(), 1)
+
+  // p2 is now past max_idle_sec.  min_conn = 1 is already satisfied by the
+  // connection `held` keeps, so p2 is surplus: this acquire drops it and pays
+  // for a fresh connection instead of reusing it.
+  @async.sleep(1400)
+  let p3 = pool.acquire()
+  let pid3 : Int32 = p3.query_one("SELECT pg_backend_pid()").get(0)
+  assert_true(pid2 != pid3)
+  assert_eq(pool.total(), 2)
+  p3.release()
+  held.release()
 }
 
 // Same server, but with a short client-side read timeout (URI conn string).
@@ -705,7 +802,7 @@ async test "pool_recovers_after_read_timeout" {
   let cfg = @moonpg.PoolConfig::new(
     pool_with_read_timeout(pool_test_conninfo, 1),
     max_conns=2,
-    min_idle=0,
+    min_conn=0,
   )
   let pool = @moonpg.Pool::new(cfg)
   defer pool.close()
@@ -730,7 +827,7 @@ async test "pool_recovers_after_read_timeout" {
 
 ///|
 async test "pool_stats_counters" {
-  let cfg = @moonpg.PoolConfig::new(pool_test_conninfo, max_conns=4, min_idle=0)
+  let cfg = @moonpg.PoolConfig::new(pool_test_conninfo, max_conns=4, min_conn=0)
   let pool = @moonpg.Pool::new(cfg)
   defer pool.close()
 
@@ -755,7 +852,7 @@ async test "pool_stats_counters" {
 
 ///|
 async test "pool_stats_acquire_wait" {
-  let cfg = @moonpg.PoolConfig::new(pool_test_conninfo, max_conns=2, min_idle=2)
+  let cfg = @moonpg.PoolConfig::new(pool_test_conninfo, max_conns=2, min_conn=2)
   let pool = @moonpg.Pool::new(cfg)
   defer pool.close()
 
@@ -793,7 +890,7 @@ async fn pool_kill_backend(pid : Int32) -> Unit {
 
 ///|
 async test "pool_maintain_drops_dead_conn" {
-  let cfg = @moonpg.PoolConfig::new(pool_test_conninfo, max_conns=2, min_idle=0)
+  let cfg = @moonpg.PoolConfig::new(pool_test_conninfo, max_conns=2, min_conn=0)
   let pool = @moonpg.Pool::new(cfg)
   defer pool.close()
 
@@ -803,7 +900,7 @@ async test "pool_maintain_drops_dead_conn" {
   assert_eq(pool.idle(), 1)
 
   pool_kill_backend(pid1)
-  // Maintenance is the only thing that can discover this; min_idle = 0 means
+  // Maintenance is the only thing that can discover this; min_conn = 0 means
   // the dead connection is not replaced.
   pool.maintain()
   assert_eq(pool.idle(), 0)
@@ -811,8 +908,8 @@ async test "pool_maintain_drops_dead_conn" {
 }
 
 ///|
-async test "pool_maintain_replaces_warm_min_idle" {
-  let cfg = @moonpg.PoolConfig::new(pool_test_conninfo, max_conns=2, min_idle=1)
+async test "pool_maintain_replaces_min_conn" {
+  let cfg = @moonpg.PoolConfig::new(pool_test_conninfo, max_conns=2, min_conn=1)
   let pool = @moonpg.Pool::new(cfg)
   defer pool.close()
 
@@ -822,7 +919,7 @@ async test "pool_maintain_replaces_warm_min_idle" {
 
   pool_kill_backend(pid1)
   pool.maintain()
-  // The dead connection was replaced, not just dropped: min_idle = 1.
+  // The dead connection was replaced, not just dropped: min_conn = 1.
   assert_eq(pool.idle(), 1)
   assert_eq(pool.total(), 1)
 
@@ -833,15 +930,16 @@ async test "pool_maintain_replaces_warm_min_idle" {
 }
 
 ///|
-// One call — `start_maintenance(group~)` — and the pool maintains itself: a
+// One call — `pool.start_maintenance(group~)` — and the pool maintains itself: a
 // connection the server dropped while it sat idle is replaced before a caller
 // asks for it.
 async test "pool_maintenance_replaces_dead_conn" {
-  let cfg = @moonpg.PoolConfig::new(pool_test_conninfo, max_conns=2, min_idle=1)
+  let cfg = @moonpg.PoolConfig::new(pool_test_conninfo, max_conns=2, min_conn=1)
 
   @async.with_task_group() <| group => {
-    // `group~` at construction: the pool maintains itself from here on.
-    let pool = @moonpg.Pool::new(cfg, group~, ping_interval_sec=1)
+    // Construction starts nothing; this call is what maintains the pool.
+    let pool = @moonpg.Pool::new(cfg)
+    pool.start_maintenance(group~, interval_sec=1)
     let p1 = pool.acquire()
     let pid1 : Int32 = p1.query_one("SELECT pg_backend_pid()").get(0)
     p1.release()
@@ -867,7 +965,7 @@ async test "pool_max_lifetime_drops_overage_conn" {
   let cfg = @moonpg.PoolConfig::new(
     pool_test_conninfo,
     max_conns=2,
-    min_idle=0,
+    min_conn=0,
     max_lifetime_sec=1,
   )
   let pool = @moonpg.Pool::new(cfg)
@@ -899,18 +997,19 @@ async test "pool_maintenance_rotates_overage_conn" {
   let cfg = @moonpg.PoolConfig::new(
     pool_test_conninfo,
     max_conns=2,
-    min_idle=1,
+    min_conn=1,
     max_lifetime_sec=1,
   )
   @async.with_task_group() <| group => {
-    let pool = @moonpg.Pool::new(cfg, group~, ping_interval_sec=1)
+    let pool = @moonpg.Pool::new(cfg)
+    pool.start_maintenance(group~, interval_sec=1)
 
     let p1 = pool.acquire()
     let pid1 : Int32 = p1.query_one("SELECT pg_backend_pid()").get(0)
     p1.release()
 
     // The loop rotates it within ~2s and reopens a fresh connection to keep
-    // min_idle = 1.
+    // min_conn = 1.
     @async.sleep(2600)
     assert_eq(pool.idle(), 1)
     assert_eq(pool.total(), 1)
@@ -924,10 +1023,10 @@ async test "pool_maintenance_rotates_overage_conn" {
 }
 
 ///|
-// `start_maintenance` is the escape hatch for a group whose result type is not
-// `Unit` (the constructor's `group?` is typed `TaskGroup[Unit]`).
+// `start_maintenance` is generic in the group's result type, so the loop can
+// live in a group that returns something other than `Unit`.
 async test "pool_start_maintenance_non_unit_group" {
-  let cfg = @moonpg.PoolConfig::new(pool_test_conninfo, max_conns=2, min_idle=0)
+  let cfg = @moonpg.PoolConfig::new(pool_test_conninfo, max_conns=2, min_conn=0)
   let done : String = @async.with_task_group() <| group => {
     let pool = @moonpg.Pool::new(cfg)
     pool.start_maintenance(group~, interval_sec=1)
@@ -936,4 +1035,96 @@ async test "pool_start_maintenance_non_unit_group" {
     "ok"
   }
   assert_eq(done, "ok")
+}
+
+///|
+// `interval_sec = 0` makes `start_maintenance` a no-op: nothing runs in the
+// background, so a surplus connection past max_idle_sec is still parked when the
+// next acquire finds it.
+async test "pool_start_maintenance_disabled_by_zero" {
+  let cfg = @moonpg.PoolConfig::new(
+    pool_test_conninfo,
+    max_conns=4,
+    min_conn=1,
+    max_idle_sec=1,
+  )
+  @async.with_task_group() <| group => {
+    let pool = @moonpg.Pool::new(cfg)
+    pool.start_maintenance(group~, interval_sec=0)
+    // Two at once, so the pool really holds two.
+    let a = pool.acquire()
+    let b = pool.acquire()
+    a.release()
+    b.release()
+    assert_eq(pool.total(), 2)
+    assert_eq(pool.idle(), 2)
+
+    // No round ran, so the surplus is still parked past max_idle_sec.
+    @async.sleep(1600)
+    assert_eq(pool.total(), 2)
+    assert_eq(pool.idle(), 2)
+
+    // The acquire that wants one does what the loop would have done: it drops
+    // the surplus down to min_conn = 1 and hands out the survivor.
+    let p = pool.acquire()
+    assert_eq(pool.total(), 1)
+    p.release()
+    pool.close()
+  }
+}
+
+///|
+// `try_acquire` hands out what is parked, or opens a connection while the pool
+// has room — and returns None instead of waiting for a release.
+async test "pool_try_acquire_skips_instead_of_waiting" {
+  let cfg = @moonpg.PoolConfig::new(pool_test_conninfo, max_conns=2, min_conn=0)
+  let pool = @moonpg.Pool::new(cfg)
+  defer pool.close()
+
+  // An empty pool: it opens a connection itself.
+  guard pool.try_acquire() is Some(a) else { fail("expected a connection") }
+  let pid_a : Int32 = a.query_one("SELECT pg_backend_pid()").get(0)
+  guard pool.try_acquire() is Some(b) else { fail("expected a connection") }
+  assert_eq(pool.total(), 2)
+
+  // At max_conns with both connections out: `None` instead of queueing.  The
+  // blocked `acquire()` would sit here; the wait counters stay untouched.
+  assert_true(pool.try_acquire() is None)
+  assert_eq(pool.total(), 2)
+  assert_eq(pool.stats().acquire_wait_count, 0L)
+
+  // A release is picked up without waiting, and it is the same connection — not
+  // a fresh one opened behind its back.
+  a.release()
+  guard pool.try_acquire() is Some(c) else {
+    fail("expected the released connection")
+  }
+  let pid_c : Int32 = c.query_one("SELECT pg_backend_pid()").get(0)
+  assert_eq(pid_a, pid_c)
+  assert_eq(pool.total(), 2)
+  assert_eq(pool.idle(), 0)
+  c.release()
+  b.release()
+}
+
+///|
+// A dropped connection parked past the checkout ping window is caught on the way
+// out, so the caller gets a fresh connection instead of a failed query.
+async test "pool_checkout_ping_replaces_dead_conn" {
+  let cfg = @moonpg.PoolConfig::new(pool_test_conninfo, max_conns=2, min_conn=1)
+  let pool = @moonpg.Pool::new(cfg)
+  defer pool.close()
+
+  let p1 = pool.acquire()
+  let pid1 : Int32 = p1.query_one("SELECT pg_backend_pid()").get(0)
+  p1.release()
+
+  pool_kill_backend(pid1)
+  // Past the 2s threshold: the acquire pings it, finds it gone and reconnects.
+  @async.sleep(2500)
+  let p2 = pool.acquire()
+  let pid2 : Int32 = p2.query_one("SELECT pg_backend_pid()").get(0)
+  assert_true(pid1 != pid2)
+  assert_eq(pool.total(), 1)
+  p2.release()
 }

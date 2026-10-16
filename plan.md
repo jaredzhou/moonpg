@@ -41,13 +41,18 @@ These are bugs or crash paths in already-implemented features.
 - **Done:**
   - `connect_timeout` — parsed from conn string (seconds), defaults to 0 (no timeout). Uses `@async.with_timeout` to wrap `Tcp::connect`.
   - `statement_timeout` (2026-07-17) — sent as startup parameter so the server cancels long-running queries.
-  - `read_timeout` (2026-10-15) — client-side read timeout in seconds, **3 by default**, `0` disables.
+  - `read_timeout` (2026-10-15) — client-side read timeout in seconds, **off unless the connection
+    string sets it** (`0`, the default, never times a read out).
     Every read (`receive`) is bounded by `@async.with_timeout`; on expiry the connection is closed (a
     partially received message desynchronizes the protocol) and the caller gets a `ConnectionError`.
     This is what turns a silently dropped connection (hard restart, NAT/LB/firewall idle timeout) into
     a fast failure instead of a ~15 minute wait for TCP retransmission.  The LISTEN/NOTIFY loop uses
     `receive_wait` and is exempt — silence there is normal, not a failure.  Supersedes the earlier
     "no client-side read timeout needed" note: `statement_timeout` cannot fire when the server is gone.
+    Default history: shipped at 3s on 2026-10-15, moved to 5s and then to off (0) the next day
+    (**2026-10-16**) — the library does not pick a read timeout for you.  The cost is the one the entry
+    was written against: without it, a server that goes silent hangs the caller (and a maintenance ping)
+    until TCP gives up.  Set it per connection string when that matters.
   - **Not implemented despite being listed here before:** `keepalives` / `keepalives_idle` /
     `keepalives_interval` / `keepalives_count`.  `Config` has no such fields and `Tcp::enable_keepalive`
     is never called, so these conninfo parameters are silently ignored.
@@ -107,27 +112,43 @@ These are bugs or crash paths in already-implemented features.
   (`IdleConn.created_at` / `PoolConn.created_at` went with it).
 - **Kept:**
   - `Pool::idle()` / `PoolStats` — pool observability.
-  - `min_idle` — pre-warm at `Pool::new` only (no refill afterwards).
+  - `min_conn` — pre-warm at `Pool::new` only (no refill afterwards).  Renamed from `min_idle`
+    (2026-10-16): the knob counts connections, not idle ones, matching pgx's `MinConns`.
   - Lazy expiry: `acquire()` drops a dequeued idle connection that is dead, or that has been idle past
-    `max_idle_sec` while the pool holds more than `min_idle` connections; `release()` only drops
+    `max_idle_sec` while dropping it would still leave `min_conn` connections; `release()` only drops
     connections whose socket is dead.
-  - `max_idle_sec` never trims the warm `min_idle` connections, so the pool does not drop a live
-    connection only to reconnect on the next request (`min_idle = 0` keeps the old drop-everything
-    behaviour).  With no refill, `min_idle` is pre-warmed once at `Pool::new`.
+  - `max_idle_sec` never trims the pool below `min_conn`, so the pool does not drop a live connection
+    only to reconnect on the next request (`min_conn = 0` keeps the old drop-everything behaviour).
+    Measured against the total, not the idle count (pgx's `totalConns > minConns`): a connection a
+    caller is holding already satisfies `min_conn`, so with one checked out the idle ones past
+    `max_idle_sec` are trimmed even though they are the only idle ones left.  With no refill,
+    `min_conn` is pre-warmed once at `Pool::new`.
   - **Periodic ping (2026-10-15):**
     - `Connection::ping()` — one round trip (`SELECT 1`) that raises when the server no longer holds the
       connection.
     - `Pool::maintain()` — one round: `ping()` every idle connection; dead ones are closed and
-      reconnected only while the pool is below `min_idle` (surplus that died just shrinks the pool).
-    - `Pool::new(config, group?, ping_interval_sec~ = 30)` — the group as a parameter: with it the pool
-      maintains itself, pinging its idle connections every `ping_interval_sec` seconds
-      (`0` disables).  The loop is a child task of the caller's group (the runtime has no detached
-      tasks, so the library cannot own a loop; same pattern as `Connection::listen(channel, group)`)
-      and stops on `Pool::close()`.  Without a group the pool does no background work (ping on the
-      request path with `conn.ping()`, or call `Pool::maintain()` yourself).
-    - `Pool::start_maintenance(group~, interval_sec~ = 30)` — the same loop, started later; the escape
-      hatch when the group's result type is not `Unit` (the constructor's `group?` is typed
-      `TaskGroup[Unit]`, because an optional parameter cannot be generic).
+      reconnected only while the pool is below `min_conn` (surplus that died just shrinks the pool).
+      The same round also closes the surplus that is past `max_idle_sec` (2026-10-16, pgx's
+      `checkConnsHealth` does this in its health check) and rotates the over-age ones without pinging
+      them — so a connection that goes unused after a burst is not kept, and pinged, forever.
+      A ping is not a use: it does not reset `idle_since` (pgx's health check uses `ReleaseUnused()`
+      for exactly that reason), so what the loop pinged still ages out towards `max_idle_sec`.
+    - `Pool::new(config)` — starts nothing in the background; the pool is complete without a loop.  It
+      drops what it can see without a round trip (age, idle surplus) on checkout.  A connection the
+      server dropped behind our back is invisible to `Connection::status` (it only turns bad after a
+      failed read), so **`acquire()` pings a connection parked longer than `CHECKOUT_PING_IDLE_MS`
+      (2s, private const, 2026-10-16)** and discards it when the ping fails — the request pays a round
+      trip, or a connect when it is gone, instead of failing.  Same rule as pgx's default `ShouldPing`
+      (`IdleDuration > 1s`), at 2s; measured before this existed, a killed idle connection reached a
+      caller and failed its query.  *(The constructor briefly took `group?` / `ping_interval_sec~`;
+      starting maintenance is the caller's decision, so it moved back out to an explicit call.  Run a
+      round by hand with `Pool::maintain()`, or check one connection with `conn.ping()`.)*
+    - `Pool::start_maintenance(group~, interval_sec~ = 30)` (**2026-10-16**) — the one way to start the
+      loop, and a deliberate call: the pool is usable without it.  It pings the idle connections every
+      `interval_sec` seconds (`0` disables), off the request path.  The loop is a child task of the
+      caller's group (the runtime has no detached tasks, so the library cannot own a loop; same
+      pattern as `Connection::listen(channel, group)`) and stops on `Pool::close()`.  Generic in the
+      group's result type, so a group that returns something other than `Unit` works too.
     - `Pool.closed` flag; `Pool::close()` sets it.
     - `PoolConfig.health_check` was removed in favour of this: validating on every checkout costs one
       round trip per request, the ping validates off the request path.
@@ -135,7 +156,7 @@ These are bugs or crash paths in already-implemented features.
       with a maintenance loop in place the cap no longer forces a reconnect on the request path.
       A connection past the cap is never handed out (`acquire`) and never parked (`release`), and the
       maintenance round rotates it in the background (no ping needed — it has to go anyway) so the warm
-      `min_idle` set stays intact.  `IdleConn.created_at` / `PoolConn.created_at` came back with it.
+      `min_conn` set stays intact.  `IdleConn.created_at` / `PoolConn.created_at` came back with it.
       Without a maintenance loop, an over-age connection is still dropped on checkout, which is a
       reconnect the triggering request pays for.
     - `read_timeout` stays where `connect_timeout` is: the connection string.  A pool-level
@@ -188,6 +209,26 @@ These are bugs or crash paths in already-implemented features.
 ### 20. Row iteration via `Iter` trait ⏸️ DEFERRED
 - **Why:** MoonBit's `Iter` trait requires synchronous value production, but row reading is async (network I/O). The existing `has_next()`/`get_row()` pull pattern already provides streaming access. Revisit when MoonBit stabilizes async iteration.
 
+### 21. `Pool::try_acquire` ✅ DONE (2026-10-16)
+- **Files:** `pool.mbt`, `README.mbt.md`
+- **Done:** `Pool::try_acquire() -> PoolConn?` — the same checkout as `acquire()` (expiry checks + the 2s
+  ping) and the same "open a connection while the pool has room", but never a wait for another task's
+  release: `None` means the pool is at `max_conns` with everything checked out.  It is not non-blocking in
+  the I/O sense — it still awaits the ping and the connect.  The waiting half of `acquire()` and the
+  non-waiting half of `try_acquire` now share `Pool::take_idle` (dequeue → discard or hand out), so there
+  is one place where a rejected connection is closed and counted down.
+- **No timeout knobs (decided 2026-10-16):** `try_acquire` means "give me one now or tell me you cannot";
+  a bounded wait is a different feature and would belong on `acquire()` (pgx's answer is a caller `ctx`,
+  which we do not take).  Adding it would also mean a bounded wait on the queue, i.e. cancellation inside
+  `take_idle`/`discard_idle`, which today would leave the dequeued connection neither handed out nor
+  returned while `count` still holds its slot — that has to be made cancel-safe first
+  (`handle_cancellation` around the ping, closing the connection and giving the slot back).
+- **Why the recursion is safe:** every connection a retry rejects is destroyed first, so `acquire` and
+  `try_acquire` only ever stop on a blocking primitive.  Those are, for `acquire`: the queue wait when the
+  pool is at `max_conns` (until a release, or `Pool::close()`), the checkout ping (bounded by
+  `read_timeout`, and by TCP once that is the default `0`), and `connect()` (TCP by `connect_timeout`, the
+  startup handshake read by `read_timeout`).  `try_acquire` never reaches the first one.
+
 ---
 
 ## Summary by effort estimate
@@ -205,7 +246,7 @@ These are bugs or crash paths in already-implemented features.
 | 🟡 Medium | COPY protocol + streaming | ✅ Done |
 | 🟡 Medium | LISTEN/NOTIFY | ✅ Done |
 | 🟡 Medium | Savepoints | ⏸️ Deferred |
-| 🟡 Medium | Pool maintenance loop | ⛔ Dropped (lazy expiry instead) |
+| 🟡 Medium | Pool maintenance loop | ✅ Done (loop + 2s checkout ping) |
 | 🟡 Medium | Pool stats | ✅ Done |
 | 🟡 Medium | Public `deallocate()` | ✅ Done |
 | 🟢 Low | Binary result integration tests | ✅ Done |
@@ -214,3 +255,4 @@ These are bugs or crash paths in already-implemented features.
 | 🟢 Low | `target_session_attrs` | ✅ Done |
 | 🟢 Low | Expose RawConn props on Connection | ✅ Done |
 | 🟢 Low | Row iteration via `Iter` trait | ⏸️ Deferred |
+| 🟢 Low | `Pool::try_acquire` | ✅ Done |

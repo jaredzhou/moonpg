@@ -28,8 +28,10 @@ pub(all) struct Config {
   connect_timeout : Int32
   statement_timeout : Int32
   /// Client-side read timeout in seconds: how long a single read may wait for
-  /// the server before the connection is considered dead and closed.  `0`
-  /// disables it.  Parsed from `read_timeout` in the connection string.
+  /// the server before the connection is considered dead and closed.  The
+  /// default, `0`, puts no bound on a read: a server that goes silent without
+  /// closing the socket then hangs until TCP gives up (~15 minutes).  Set
+  /// `read_timeout` in the connection string to opt in.
   read_timeout : Int32
   target_session_attrs : String
   trace : Bool
@@ -55,7 +57,7 @@ pub fn Config::new(
   application_name~ : String? = None,
   connect_timeout~ : Int32 = 0,
   statement_timeout~ : Int32 = 0,
-  read_timeout~ : Int32 = 3,
+  read_timeout~ : Int32 = 0,
   target_session_attrs~ : String = "any",
   trace~ : Bool = false,
 ) -> Config {
